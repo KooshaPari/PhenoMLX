@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HFScope Options</title>
+  <style>
+    body { font: 13px ui-sans-serif, system-ui; margin: 24px; max-width: 480px; }
+    label { display: block; margin: 12px 0 4px; font-weight: 500; }
+    input { width: 100%; padding: 6px 8px; box-sizing: border-box;
+            border: 1px solid #d0d7de; border-radius: 4px; font-size: 13px; }
+    .hint { font-size: 11px; opacity: 0.6; margin-top: 4px; }
+    .saved { margin-top: 8px; color: #1a7f37; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1 style="margin-top:0">HFScope settings</h1>
+
+  <label for="host">HFScope server URL</label>
+  <input id="host" type="url" placeholder="http://localhost:9190">
+  <p class="hint">
+    Where the HFScope Go binary is running. Same-origin requests are simplest;
+    cross-origin must have <code>Access-Control-Allow-Origin</code> set.
+  </p>
+  <button id="save" style="margin-top:16px; padding:6px 14px;">Save</button>
+  <p class="saved" id="saved" style="display:none;">Saved.</p>
+
+  <hr style="margin:24px 0">
+  <h3>About</h3>
+  <p style="font-size:12px; opacity:0.7; line-height:1.5">
+    HFScope is a self-hosted, controlled search client for the HuggingFace
+    model hub. This extension uses the same HTML fragments the HFScope server
+    already serves, plus a thin TypeScript layer for Chrome's side panel API.
+  </p>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

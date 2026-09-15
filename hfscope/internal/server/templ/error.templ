@@ -1,0 +1,25 @@
+// Package templ: error.templ renders the standalone error page (used by
+// non-HTMX requests when the upstream HF API errors out).
+package templ
+
+templ ErrorPage(title, message string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title } · HFScope</title>
+			<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+			<link rel="stylesheet" href="/static/app.css"/>
+		</head>
+		<body>
+			<div class="wrap">
+				<div class="error">
+					<h1>{ title }</h1>
+					<p>{ message }</p>
+					<p><a class="btn" href="/">← Back to home</a></p>
+				</div>
+			</div>
+		</body>
+	</html>
+}

@@ -1,0 +1,135 @@
+// Package templ: search.templ renders the search page (filter form + results).
+package templ
+
+import "github.com/kooshapari/hfscope/internal/views"
+
+templ Search(data views.PageData) {
+	@Layout(data) {
+		<section class="search-hero">
+			<div class="wrap">
+				<h1>Compose a search</h1>
+				<p>Mix and match filters. Submit loads results into the panel below; HTMX swaps it inline.</p>
+				<form class="searchbar" action="/results" method="get" hx-get="/results" hx-target="#results" hx-trigger="submit, change from:select delay:200ms" hx-push-url="true">
+					<input type="search" name="q" value={ data.Params.Search } placeholder="Search models" autofocus/>
+					<button type="submit" class="btn btn-primary">Search</button>
+				</form>
+			</div>
+		</section>
+		<section class="wrap">
+			<form id="filters" method="get" action="/results" hx-get="/results" hx-target="#results" hx-include="#filters" hx-trigger="change from:select, change from:input delay:300ms" hx-push-url="true">
+				<div class="filters">
+					@filterCard("Task", "task", pipelineOptions(data.Tags), data.Params.PipelineTag)
+					@filterCard("Library", "library", libraryOptions(data.Tags), data.Params.Library)
+					@filterCard("Language", "language", languageOptions(data.Tags), data.Params.Language)
+					@filterCard("License", "license", licenseOptions(data.Tags), data.Params.License)
+					@filterCard("Author (org/user)", "author", nil, data.Params.Author) {
+						<input type="text" name="author" value={ data.Params.Author } placeholder="e.g. meta-llama"/>
+					}
+					<div class="filter-card">
+						<h3>Tags (multi-select)</h3>
+						<div class="chips">
+							@tagChips(data.Params.Filter)
+						</div>
+						<p class="tiny soft chip-help">Tags are AND-combined. Common ones: <span class="mono">conversational</span>, <span class="mono">merge</span>, <span class="mono">moe</span>, <span class="mono">8-bit</span>, <span class="mono">4-bit</span>.</p>
+					</div>
+					<div class="filter-card">
+						<h3>Sort</h3>
+						<select name="sort">
+							@sortOption("downloads", "Downloads", data.Params.Sort)
+							@sortOption("likes", "Likes", data.Params.Sort)
+							@sortOption("trendingScore", "Trending", data.Params.Sort)
+							@sortOption("lastModified", "Recently modified", data.Params.Sort)
+						</select>
+						<label class="tiny muted sort-dir-label">
+							Direction
+							<select name="direction">
+								@directionOption(-1, "Descending", data.Params.Direction)
+								@directionOption(1, "Ascending", data.Params.Direction)
+							</select>
+						</label>
+					</div>
+				</div>
+				<div class="between filter-actions">
+					<div class="row chip-row">
+						@activeFilterChips(data.Params)
+					</div>
+					<div class="row chip-row">
+						<button type="submit" class="btn btn-primary">Apply</button>
+						<a class="btn btn-ghost" href="/search">Reset</a>
+					</div>
+				</div>
+			</form>
+			<div id="results" class="results-panel">
+				@EmptyResults()
+			</div>
+		</section>
+	}
+}
+
+// sortOption renders a single <option> in the sort dropdown.
+templ sortOption(value, label, current string) {
+	if current == value || (current == "" && value == "downloads") {
+		<option value={ value } selected>{ label }</option>
+	} else {
+		<option value={ value }>{ label }</option>
+	}
+}
+
+// directionOption renders a single <option> in the direction dropdown.
+templ directionOption(value int, label string, current int) {
+	if value == current || (current == 0 && value == -1) {
+		<option value={ intToStr(value) } selected>{ label }</option>
+	} else {
+		<option value={ intToStr(value) }>{ label }</option>
+	}
+}
+
+// filterCard renders a labelled select. opts is the list of (id,label) pairs;
+// selected is the currently chosen value.
+templ filterCard(label, name string, opts []idLabel, selected string) {
+	<div class="filter-card">
+		<h3>{ label }</h3>
+		<select name={ name }>
+			<option value="">Any</option>
+			if selected != "" {
+				<option value={ selected } selected>{ selected } (current)</option>
+			}
+			for _, o := range opts {
+				if o.ID == selected {
+					<option value={ o.ID } selected>{ o.Label }</option>
+				} else {
+					<option value={ o.ID }>{ o.Label }</option>
+				}
+			}
+		</select>
+		{ children... }
+	</div>
+}
+
+// tagChips renders a list of multi-select chips. Each chip is a checkbox
+// so multiple tags can be AND-combined in a single submission.
+templ tagChips(active []string) {
+	@chip("conversational", "conversational", active)
+	@chip("merge", "merge (merged model)", active)
+	@chip("moe", "MoE (Mixture of Experts)", active)
+	@chip("8-bit", "8-bit", active)
+	@chip("4-bit", "4-bit", active)
+	@chip("endpoints_compatible", "Inference Endpoints ready", active)
+	@chip("custom_code", "Has custom code", active)
+	@chip("eval-results", "Has eval results", active)
+	@chip("co2_eq_emissions", "Carbon emissions reported", active)
+}
+
+templ chip(value, label string, active []string) {
+	if contains(active, value) {
+		<label class="chip" aria-pressed="true">
+			<input type="checkbox" name="filter" value={ value } checked/>
+			{ label }
+		</label>
+	} else {
+		<label class="chip" aria-pressed="false">
+			<input type="checkbox" name="filter" value={ value }/>
+			{ label }
+		</label>
+	}
+}

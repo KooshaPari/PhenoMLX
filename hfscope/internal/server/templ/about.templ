@@ -1,0 +1,31 @@
+// Package templ: about.templ renders the about page.
+package templ
+
+import "github.com/kooshapari/hfscope/internal/views"
+
+templ About(data views.PageData) {
+	@Layout(data) {
+		<section class="wrap prose">
+			<h1>About HFScope</h1>
+			<p>HFScope is a thin, controllable search client around the public HuggingFace Hub API. It is not affiliated with HuggingFace.</p>
+			<h2>Why?</h2>
+			<p>The HuggingFace search UI is opinionated. HFScope wraps the same JSON API in a UI where every filter is in the URL and every result is one HTTP request away.</p>
+			<h2>How it works</h2>
+			<ul>
+				<li>Go HTTP server with chi routing.</li>
+				<li>Templ templates, type-safe at build time.</li>
+				<li>HTMX for progressive enhancement.</li>
+				<li>Local in-memory TTL cache to absorb burst traffic and respect HuggingFace rate limits.</li>
+			</ul>
+			<h2>Endpoints</h2>
+			<p>HFScope uses the public OpenAPI endpoints from HuggingFace:</p>
+			<ul>
+				<li>GET /api/models — list models (paginated, supports search, filter, sort).</li>
+				<li>GET /api/models/&lt;repo_id&gt; — single model details.</li>
+				<li>GET /api/models-tags-by-type — taxonomy for the filter menus.</li>
+			</ul>
+			<h2>Privacy</h2>
+			<p>HFScope does not log search queries to disk, and does not share data with third parties. The only outbound request is to huggingface.co for the data you request.</p>
+		</section>
+	}
+}

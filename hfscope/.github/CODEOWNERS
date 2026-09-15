@@ -1,0 +1,11 @@
+# Default code owners for the Phenotype fleet
+# All repo files default to KooshaPari as owner
+*       @KooshaPari
+
+# CI/CD files require fleet-admin review
+/.github/        @KooshaPari
+/.mergify.yml    @KooshaPari
+/deny.toml       @KooshaPari
+/clippy.toml     @KooshaPari
+/ruff.toml       @KooshaPari
+

@@ -1,0 +1,32 @@
+// Package templ: embed.templ renders chrome-less fragments for the federated
+// embed surface (/embed/*): browser extensions, iframes, and web components.
+package templ
+
+import (
+	"github.com/kooshapari/hfscope/internal/views"
+)
+
+// EmbedResults renders just the result-card grid — no layout, no chrome.
+templ EmbedResults(data views.PageData) {
+	if len(data.Result.Models) == 0 {
+		@EmptyResults()
+	} else {
+		<div class="cards" id="cards">
+			for _, m := range data.Result.Models {
+				@ModelCard(m, data.Teasers[m.ID])
+			}
+		</div>
+	}
+}
+
+// EmbedModel renders a single model's detail fragment — no layout, no chrome.
+templ EmbedModel(data views.PageData) {
+	<article class="wrap embed-model">
+		<h1 class="xx-large detail-title">{ data.Model.ID }</h1>
+		<p class="muted detail-sub">by { data.Summary.Author } · <a href={ hfURL(data.HFBase, data.Model.ID) } target="_blank" rel="noopener noreferrer">view on HuggingFace ↗</a></p>
+		@DescriptionBlock(data)
+		@ParamBlock(data.ModelDetail)
+		@FileGrid(data.ModelDetail)
+		@ConfigBlock(data.ModelDetail)
+	</article>
+}

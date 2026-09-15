@@ -1,0 +1,85 @@
+// Package templ: model.templ renders a single model's detail page.
+package templ
+
+import (
+	"github.com/kooshapari/hfscope/internal/hfapi"
+	"github.com/kooshapari/hfscope/internal/views"
+)
+
+templ ModelDetail(data views.PageData) {
+	@Layout(data) {
+		<section class="wrap">
+			<div class="between detail-head">
+				<div>
+					<h1 class="xx-large detail-title">{ data.Model.ID }</h1>
+					<p class="muted detail-sub">by { data.Summary.Author } · <a href={ hfURL(data.HFBase, data.Model.ID) } target="_blank" rel="noopener noreferrer">view on HuggingFace ↗</a></p>
+				</div>
+				<div class="row chip-row">
+					<a class="btn" href={ templ.SafeURL("/results?author=" + data.Summary.Author) }>More from this author</a>
+					if data.Summary.PipelineLabel != "" {
+						<a class="btn" href={ "/results?task=" + data.Model.PipelineTag }>{ data.Summary.PipelineLabel } models</a>
+					}
+				</div>
+			</div>
+
+			@DescriptionBlock(data)
+
+			@ParamBlock(data.ModelDetail)
+			@FileGrid(data.ModelDetail)
+			@ConfigBlock(data.ModelDetail)
+
+			<div class="detail-grid">
+				<div class="detail-card">
+					<h2>Overview</h2>
+					<dl class="kv">
+						<dt>Downloads</dt><dd>{ formatNumber(data.Model.Downloads) }</dd>
+						<dt>Likes</dt><dd>{ formatNumber(data.Model.Likes) }</dd>
+						if !data.Summary.Created.IsZero() {
+							<dt>Created</dt><dd>{ data.Summary.Created.Format("2006-01-02") } ({ relativeTime(data.Summary.Created) })</dd>
+						}
+						if !data.Summary.Modified.IsZero() {
+							<dt>Last modified</dt><dd>{ data.Summary.Modified.Format("2006-01-02") } ({ relativeTime(data.Summary.Modified) })</dd>
+						}
+						<dt>Pipeline</dt><dd>{ data.Summary.PipelineLabel }</dd>
+						<dt>Library</dt><dd>{ data.Summary.LibraryLabel }</dd>
+						<dt>License</dt>
+						<dd>
+							if data.Summary.License != "" {
+								if data.Summary.LicenseIsCopyleft {
+									<span class="badge badge-copyleft">copyleft</span>
+									<span> { data.Summary.License }</span>
+								}else{
+									<span>{ data.Summary.License }</span>
+								}
+							}else{
+								<span class="muted">—</span>
+							}
+						</dd>
+						<dt>Gated</dt><dd>{ hfapi.GatedLabel(data.Model) }</dd>
+						<dt>Private</dt><dd>{ boolStr(data.Model.Private) }</dd>
+						if data.Summary.IsDisabled {
+							<dt>Disabled</dt><dd>yes</dd>
+						}
+						if data.Summary.Region != "" {
+							<dt>Region</dt><dd>{ data.Summary.Region }</dd>
+						}
+						if data.Summary.HasInference {
+							<dt>Inference ready</dt><dd>Yes · via HuggingFace Inference Endpoints</dd>
+						}
+					</dl>
+				</div>
+				<div class="detail-card">
+					<h2>Tags</h2>
+					<div class="tagcloud">
+						if len(data.Model.Tags) == 0 {
+							<span class="muted">No tags reported.</span>
+						}
+						for _, t := range data.Model.Tags {
+							<span class="pill">{ t }</span>
+						}
+					</div>
+				</div>
+			</div>
+		</section>
+	}
+}

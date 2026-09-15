@@ -1,0 +1,37 @@
+// Package templ: feed.templ renders /feed — the HTML landing page for the
+// RSS feed at /feed.rss. Shows the canonical feed URL with current filter
+// state and a "Copy URL" button.
+package templ
+
+import (
+	"github.com/kooshapari/hfscope/internal/views"
+)
+
+// Feed renders the HTML preview page for the RSS feed.
+templ Feed(data views.PageData) {
+	@Layout(data) {
+		<section class="feed-page">
+			<header class="feed-header">
+				<h1>RSS feed</h1>
+				<p class="muted">Subscribe to any filter state. Updates when HuggingFace's models index changes.</p>
+			</header>
+			<div class="feed-card">
+				<h2>Your feed URL</h2>
+				if data.FeedHref != "" {
+					<p class="feed-url-row">
+						<code class="feed-url">{ data.FeedHref }</code>
+						<a class="btn btn-primary" href={ templ.SafeURL(data.FeedHref) }>Open in RSS reader</a>
+					</p>
+				} else {
+					<p class="muted">Set up some filters on /results, then come back here.</p>
+				}
+				<h3>How it works</h3>
+				<ul class="muted">
+					<li>Every URL parameter on /results is honored in the feed</li>
+					<li>Top 24 matching models per fetch, sorted by your chosen sort key</li>
+					<li>Cached at the HTTP layer for 5 minutes (TTL config)</li>
+				</ul>
+			</div>
+		</section>
+	}
+}

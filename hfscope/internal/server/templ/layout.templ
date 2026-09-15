@@ -1,0 +1,107 @@
+// Package templ: layout.templ renders the shared shell around every page.
+package templ
+
+import (
+	"github.com/kooshapari/hfscope/internal/hfapi"
+	"github.com/kooshapari/hfscope/internal/views"
+)
+
+// Layout wraps every page with the shared chrome.
+templ Layout(data views.PageData) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ data.Title } · HFScope</title>
+			<meta name="description" content={ descriptionFor(data) }/>
+			<meta name="theme-color" content="#ffd21e"/>
+			<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<meta property="og:title" content={ data.Title + " · HFScope" }/>
+			<meta property="og:description" content={ descriptionFor(data) }/>
+			<meta property="og:type" content="website"/>
+			<script src="/static/htmx-2.0.3.min.js" defer></script>
+			<script src="/static/hfscope.js" defer></script>
+		</head>
+		<body hx-boost="true">
+			@header(data)
+			<main>
+				{ children... }
+			</main>
+			@footer(data)
+		</body>
+	</html>
+}
+
+templ header(data views.PageData) {
+	<header class="site-header">
+		<div class="wrap">
+			<a class="brand" href="/" aria-label="HFScope home">
+				<span class="logo">HF</span>
+				<span>HFScope</span>
+			</a>
+			<nav class="site-nav" aria-label="Primary">
+				if isActive(data.Path, "/") {
+					<a href="/" aria-current="page">Home</a>
+				} else {
+					<a href="/">Home</a>
+				}
+				if isActive(data.Path, "/search") {
+					<a href="/search" aria-current="page">Search</a>
+				} else {
+					<a href="/search">Search</a>
+				}
+				if isActive(data.Path, "/about") {
+					<a href="/about" aria-current="page">About</a>
+				} else {
+					<a href="/about">About</a>
+				}
+				<a href={ data.HFBase } target="_blank" rel="noopener noreferrer">HuggingFace ↗</a>
+			</nav>
+		</div>
+	</header>
+}
+
+templ footer(data views.PageData) {
+	<footer class="site-footer">
+		<div class="wrap">
+			<span>HFScope · a controlled search client for the HuggingFace Hub.</span>
+			<span class="soft">Generated { data.GeneratedAt.Format("2006-01-02 15:04 UTC") } · Not affiliated with HuggingFace.</span>
+		</div>
+	</footer>
+}
+
+// activeFilterChips renders the currently-applied filters as removable chips.
+templ activeFilterChips(p hfapi.SearchParams) {
+	if len(p.Filter) > 0 {
+		for _, f := range p.Filter {
+			<span class="chip" aria-pressed="true">{ f } <span class="x">×</span></span>
+		}
+	}
+	if p.PipelineTag != "" {
+		<span class="chip" aria-pressed="true">task: { p.PipelineTag } <span class="x">×</span></span>
+	}
+	if p.Library != "" {
+		<span class="chip" aria-pressed="true">library: { p.Library } <span class="x">×</span></span>
+	}
+	if p.Language != "" {
+		<span class="chip" aria-pressed="true">lang: { p.Language } <span class="x">×</span></span>
+	}
+	if p.License != "" {
+		<span class="chip" aria-pressed="true">license: { p.License } <span class="x">×</span></span>
+	}
+	if p.Author != "" {
+		<span class="chip" aria-pressed="true">author: { p.Author } <span class="x">×</span></span>
+	}
+	if p.Gated != "" {
+		if p.Gated == "true" {
+			<span class="chip" aria-pressed="true">gated only <span class="x">×</span></span>
+		} else {
+			<span class="chip" aria-pressed="true">public only <span class="x">×</span></span>
+		}
+	}
+	if p.Region != "" {
+		<span class="chip" aria-pressed="true">region: { p.Region } <span class="x">×</span></span>
+	}
+}

@@ -1,0 +1,61 @@
+// Package templ: description.templ renders the prominent "Description" block
+// shown at the top of the model detail page. It pulls prose from cardData /
+// description fields served by /api/models/{id}, plus a fallback empty state.
+package templ
+
+import (
+	"github.com/kooshapari/hfscope/internal/hfapi"
+	"github.com/kooshapari/hfscope/internal/views"
+)
+
+// DescriptionBlock renders the model description block. When cardData or the
+// README description are present we render prose + a metadata key/value
+// table. When nothing is available we render a small empty-state placeholder
+// so the page is consistent.
+templ DescriptionBlock(data views.PageData) {
+	if hfapi.DescriptionTeaser(data.ModelDetail) != "" {
+		<section class="description-block" aria-label="Model description">
+			<header class="description-block-header">
+				<h2>Description</h2>
+				<span class="description-block-source">
+					from <a
+						href={ hfURL(data.HFBase, data.Model.ID) }
+						target="_blank"
+						rel="noopener noreferrer">README</a> on HuggingFace
+				</span>
+			</header>
+			<p class="description-block-prose">{ hfapi.DescriptionTeaser(data.ModelDetail) }</p>
+			@cardDataBlock(data.ModelDetail)
+		</section>
+	} else {
+		<section class="description-block description-block-empty" aria-label="Model description">
+			<header class="description-block-header">
+				<h2>Description</h2>
+				if data.DetailErr != "" {
+					<span class="soft">description not loaded</span>
+				} else {
+					<span class="soft">no description on file</span>
+				}
+			</header>
+			if data.DetailErr != "" {
+				<p class="muted">Couldn't enrich from <code>huggingface.co</code> ({ data.DetailErr }).</p>
+			} else {
+				<p class="muted">This model has no README description.</p>
+			}
+		</section>
+	}
+}
+
+// cardDataBlock renders the cardData metadata key/value grid.
+templ cardDataBlock(md hfapi.ModelDetail) {
+	if len(hfapi.CardDataPairs(md)) > 0 {
+		<div class="carddata-grid">
+			for _, kv := range hfapi.CardDataPairs(md) {
+				<div class="carddata-row">
+					<span class="carddata-key">{ kv[0] }</span>
+					<span class="carddata-val">{ kv[1] }</span>
+				</div>
+			}
+		</div>
+	}
+}

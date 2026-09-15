@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "HFScope — HuggingFace Power Tools",
+  "version": "0.1.0",
+  "description": "Side-by-side compare, advanced filters, and saved searches for the HuggingFace model hub. Built on the HFScope server.",
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://huggingface.co/*",
+    "http://localhost:9190/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.ts",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "HFScope quick search (Alt+H for side panel)"
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "commands": {
+    "open-side-panel": {
+      "suggested_key": {
+        "default": "Alt+H",
+        "mac": "Alt+H"
+      },
+      "description": "Toggle the HFScope side panel on any huggingface.co page"
+    },
+    "open-popup": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Cmd+Shift+K"
+      },
+      "description": "Open HFScope quick search popup"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://huggingface.co/models*",
+        "https://huggingface.co/datasets*",
+        "https://huggingface.co/spaces*"
+      ],
+      "js": ["content.ts"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["embed-helper.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
