@@ -1,0 +1,92 @@
+package templ
+
+import (
+	"strconv"
+
+	"github.com/kooshapari/hfscope/internal/views"
+)
+
+// Compare renders the side-by-side compare page at /results/compare?ids=...
+// showing 2-4 model columns. Each column uses the canonical ParamBlock,
+// FileGrid, and ConfigBlock from filegrid.templ so the compare page
+// reaches Tier 2.2 parity (full params / categorized files / collapsible
+// config) for every model in the compare set.
+templ Compare(data views.PageData) {
+	@Layout(data) {
+		<section class="compare-page" aria-label="Compare models">
+			<header class="compare-intro">
+				<h1>Compare { strconv.Itoa(len(data.CompareIDs)) } models</h1>
+				<p class="muted">Side-by-side download / like / license / task / files. Each column renders the same info blocks as the model detail page.</p>
+				<nav class="compare-cta" aria-label="Compare actions">
+					<a class="btn" href={ templ.SafeURL("/results?q=" + joinIDs(data.CompareIDs)) }>View as results</a>
+					<a class="btn btn-ghost" href={ templ.SafeURL("/feed.rss?q=" + joinIDs(data.CompareIDs)) }>RSS for this set</a>
+					<a class="btn btn-ghost" href="/results">Back to results</a>
+				</nav>
+			</header>
+			<div class="compare-grid">
+				for _, id := range data.CompareIDs {
+					for _, col := range data.CompareRows {
+						if col.ID == id {
+							@compareColumn(col)
+						}
+					}
+				}
+			</div>
+		</section>
+	}
+}
+
+// compareColumn renders one model in the compare grid.
+// Metric header at top, then the canonical ParamBlock, FileGrid, and
+// ConfigBlock from filegrid.templ for full Tier 2.2 parity.
+templ compareColumn(col views.CompareColumn) {
+	<article class="compare-column">
+		<header class="compare-column-head">
+			if col.Error != "" {
+				<h2 class="compare-column-title">{ col.ID }</h2>
+				<p class="muted">error: { col.Error }</p>
+			} else {
+				<a class="compare-column-title" href={ templ.SafeURL("/models/" + col.ID) }>{ col.ID }</a>
+				<dl class="compare-metrics">
+					<dt>Downloads</dt>
+					<dd>{ formatNumber(col.Model.Downloads) }</dd>
+					<dt>Likes</dt>
+					<dd>{ formatNumber(col.Model.Likes) }</dd>
+					if col.Summary.License != "" {
+						<dt>License</dt>
+						<dd>{ col.Summary.License }</dd>
+					}
+					if col.Summary.PipelineLabel != "" {
+						<dt>Task</dt>
+						<dd>{ col.Summary.PipelineLabel }</dd>
+					}
+					if col.Summary.LibraryLabel != "" {
+						<dt>Library</dt>
+						<dd>{ col.Summary.LibraryLabel }</dd>
+					}
+					if col.Summary.Region != "" {
+						<dt>Region</dt>
+						<dd>{ col.Summary.Region }</dd>
+					}
+				</dl>
+			}
+		</header>
+		if col.Error == "" {
+			@ParamBlock(col.Detail)
+			@FileGrid(col.Detail)
+			@ConfigBlock(col.Detail)
+		}
+	</article>
+}
+
+// joinIDs builds a comma-separated id string for shared links.
+func joinIDs(ids []string) string {
+	out := ""
+	for i, id := range ids {
+		if i > 0 {
+			out += ","
+		}
+		out += id
+	}
+	return out
+}

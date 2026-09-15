@@ -1,0 +1,196 @@
+// Package templ: results.templ renders the browse page (results page with
+// sidebar) plus the HTMX partial that swaps in when filters change. The
+// sidebar lives in sidebar.templ; this file is just the page chrome and
+// the list rendering that is shared between full page and partial.
+package templ
+
+import (
+	"github.com/kooshapari/hfscope/internal/hfapi"
+	"github.com/kooshapari/hfscope/internal/views"
+)
+
+// Results is the full browse page: sidebar + main result panel. When no
+// query or filter is set this is "discover mode" (top downloads); the
+// sidebar is still present so users can refine without leaving the page.
+templ Results(data views.PageData) {
+	@Layout(data) {
+		<section class="browse-grid">
+			@Sidebar(data)
+			<main class="browse-main">
+				<div class="results-toolbar">
+					<span id="results-meta" class="count">{ intToStr(len(data.Result.Models)) } models</span>
+					<span class="sort-by">
+						Sort:
+						<b>{ currentSortLabel(data.Params.Sort) }</b>
+						if data.Params.Search != "" {
+							&nbsp;·&nbsp;search: <b>{ data.Params.Search }</b>
+						}
+					</span>
+					<div class="spacer"></div>
+					<a class="btn btn-ghost btn-small" href="/">Home</a>
+				</div>
+				<div id="results">
+					@ResultsBody(data)
+				</div>
+			</main>
+		</section>
+	}
+}
+
+// ResultsPartial is the HTMX fragment swapped into #results.
+templ ResultsPartial(data views.PageData) {
+	<div id="results">
+		@ResultsBody(data)
+	</div>
+	<span id="results-meta" hx-swap-oob="outerHTML" class="count">
+		{ intToStr(len(data.Result.Models)) } models
+	</span>
+}
+
+// ResultsBody renders the shared list body used by both the full page and
+// the HTMX partial.
+templ ResultsBody(data views.PageData) {
+	if len(data.Result.Models) == 0 {
+		@EmptyResults()
+	} else {
+		@refineBadge()
+		<div class="cards" id="cards">
+			for _, m := range data.Result.Models {
+				@ModelCard(m, data.Teasers[m.ID])
+			}
+		</div>
+		if data.Result.NextLink != "" {
+			<div
+				id="load-more"
+				class="load-more"
+				hx-get="/results/load-more"
+				hx-vals={ loadMoreValsJSON(data.Params, data.Result.NextLink) }
+				hx-trigger="revealed"
+				hx-swap="outerHTML"
+				hx-indicator="#loading-more"
+			>
+				<span id="loading-more" class="htmx-indicator spinner" aria-hidden="true"></span>
+				Load more
+			</div>
+		}
+	}
+}
+
+// ModelCard is a single result card. The optional teaser is the 1-line
+// description pulled from /api/models/{id} when the user has ?teaser=1 on.
+templ ModelCard(m hfapi.Model, teaser string) {
+	@cardInner(m, hfapi.Summarize(m), teaser)
+}
+
+templ cardInner(m hfapi.Model, s hfapi.Summary, teaser string) {
+	<article class="card"
+		data-params={ int64ToStr(hfapi.ParamSize(m)) }
+		data-downloads={ intToStr(m.Downloads) }
+		data-likes={ intToStr(m.Likes) }
+		if !s.Created.IsZero() {
+			data-created={ s.Created.Format("2006-01-02") }
+		}
+	>
+		<header class="card-head">
+			<h3 class="card-title">
+				<a href={ modelURL(m.ID) }>{ m.ID }</a>
+			</h3>
+		</header>
+		if s.Author != "" && s.Author != trimShort(m.ID, len(s.Author)) {
+			<div class="card-sub">by <a href={ "/results?author=" + s.Author }>{ s.Author }</a></div>
+		}
+		<div class="card-meta">
+			if s.PipelineLabel != "" {
+				<span><b>Task:</b> { s.PipelineLabel }</span>
+			}
+			if s.LibraryLabel != "" {
+				<span><b>Library:</b> { s.LibraryLabel }</span>
+			}
+			if m.Downloads > 0 {
+				<span><b>Downloads:</b> { formatNumber(m.Downloads) }</span>
+			}
+			if m.Likes > 0 {
+				<span><b>Likes:</b> { formatNumber(m.Likes) }</span>
+			}
+			if !s.Created.IsZero() {
+				<span title={ s.Created.Format("2006-01-02") }><b>Created:</b> { relativeTime(s.Created) }</span>
+			}
+		</div>
+		if teaser != "" {
+			<p class="card-teaser">{ teaser } <a class="card-teaser-link" href={ modelURL(m.ID) } aria-label={ "Read full description for " + m.ID }>more →</a></p>
+		}
+		<div class="card-tags">
+			if s.PipelineLabel != "" {
+				<span class="pill pipeline">{ s.PipelineLabel }</span>
+			}
+			if s.HasInference {
+				<span class="badge badge-inference" title="Compatible with HuggingFace Inference Endpoints">inference</span>
+			}
+			if s.IsGated {
+				<span class="badge badge-gated" title="Access requires approval">gated</span>
+			}
+			if s.IsPrivate {
+				<span class="badge badge-private">private</span>
+			}
+			if s.IsDisabled {
+				<span class="badge badge-disabled">disabled</span>
+			}
+			if s.IsMerge {
+				<span class="badge badge-merge">merge</span>
+			}
+			if s.IsMoE {
+				<span class="badge badge-moe">MoE</span>
+			}
+			if s.HasEvalResults {
+				<span class="badge badge-eval">eval</span>
+			}
+			if s.Region != "" {
+				<span class="badge badge-region" title={ "Hosted in " + s.Region }>{ s.Region }</span>
+			}
+			if s.Has8Bit {
+				<span class="pill">8-bit</span>
+			}
+			if s.Has4Bit {
+				<span class="pill">4-bit</span>
+			}
+			if s.HasCustomCode {
+				<span class="pill">custom code</span>
+			}
+			if s.License != "" {
+				if s.LicenseIsCopyleft {
+					<span class="badge badge-copyleft" title="Copyleft license">{ s.License }</span>
+				} else {
+					<span class="pill">{ s.License }</span>
+				}
+			}
+			for _, lang := range s.Languages {
+				<span class="pill lang">{ lang }</span>
+			}
+			if len(m.Tags) > 0 {
+				@displayTags(m.Tags)
+			}
+		</div>
+	</article>
+}
+
+// displayTags renders a compact list of pills from a model's tag set,
+// with a "+N more" pill if there are more than 4 to show.
+templ displayTags(tags []string) {
+	{{ head, more := truncTags(filterDisplayTags(tags), 4) }}
+	if len(head) > 0 {
+		for _, t := range head {
+			<span class="pill">{ t }</span>
+		}
+		if more > 0 {
+			<span class="pill more-pill" title={ tagJoinTitle(tags) }>+{ intToStr(more) } more</span>
+		}
+	}
+}
+
+// EmptyResults renders the empty state for results panels.
+templ EmptyResults() {
+	<div class="empty">
+		<p class="bold">No models match.</p>
+		<p class="muted">Try a different task, library, or sort. Search is optional.</p>
+	</div>
+}

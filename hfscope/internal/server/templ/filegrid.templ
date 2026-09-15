@@ -1,0 +1,113 @@
+// Package templ: filegrid.templ renders the file inventory, parameter count,
+// and collapsible config.json on the model detail page. Each block is a
+// standalone templ so it can be reused from the compare page later.
+package templ
+
+import (
+	"fmt"
+
+	"github.com/kooshapari/hfscope/internal/hfapi"
+)
+
+// Canonical display order for file categories on the model detail page.
+var fileCategoryOrder = []hfapi.FileCategory{
+	hfapi.CategorySafetensors,
+	hfapi.CategoryGGUF,
+	hfapi.CategoryBin,
+	hfapi.CategoryPT,
+	hfapi.CategoryConfig,
+	hfapi.CategoryTokenizer,
+	hfapi.CategoryJSON,
+	hfapi.CategoryMarkdown,
+	hfapi.CategoryOther,
+}
+
+// groupCount returns the number of files in `groups` belonging to category `cat`.
+func groupCount(groups []hfapi.FileGroup, cat hfapi.FileCategory) int {
+	for _, g := range groups {
+		if g.Category == cat {
+			return len(g.Files)
+		}
+	}
+	return 0
+}
+
+// FileGrid renders the sibling files inside a model repo, grouped by
+// extension. Each row shows the file name, the human-friendly size, and a
+// download link to huggingface.co.
+templ FileGrid(detail hfapi.ModelDetail) {
+	<section class="file-grid-block" aria-label="Files in repository">
+		<header class="block-header">
+			<h2>Files</h2>
+			<span class="block-meta">{ fmt.Sprintf("%d files", len(detail.Siblings)) }</span>
+		</header>
+		if len(detail.Siblings) == 0 {
+			<p class="muted">No files in this repo.</p>
+		} else {
+			<nav class="file-grid-categories" aria-label="Filter by category">
+				for _, cat := range fileCategoryOrder {
+					if groupCount(hfapi.GroupFiles(detail.Siblings), cat) > 0 {
+						<a class="file-cat-chip" href={ templ.SafeURL("#files-" + cat.ID()) } data-cat={ cat.ID() }>
+							<span class="file-cat-dot"></span>
+							<span class="file-cat-label">{ cat.Label() }</span>
+							<span class="file-cat-count">{ fmt.Sprintf("%d", groupCount(hfapi.GroupFiles(detail.Siblings), cat)) }</span>
+						</a>
+					}
+				}
+			</nav>
+			for _, group := range hfapi.GroupFiles(detail.Siblings) {
+				<section class="file-group" id={ "files-" + group.Category.ID() }>
+					<header class="file-group-head">
+						<h3>{ group.Category.Label() }</h3>
+						<span class="file-group-count">{ fmt.Sprintf("%d files · %s", len(group.Files), hfapi.FormatBytes(hfapi.SumBytes(group.Files))) }</span>
+					</header>
+					<ul class="file-list">
+						for _, f := range group.Files {
+							<li class="file-row">
+								<a class="file-name"
+									href={ templ.SafeURL("https://huggingface.co/" + detail.ID + "/resolve/main/" + f.RFilename) }
+									target="_blank"
+									rel="noopener noreferrer">{ f.RFilename }</a>
+								if f.Size > 0 {
+									<span class="file-size">{ hfapi.FormatBytes(f.Size) }</span>
+								} else {
+									<span class="file-size muted">—</span>
+								}
+							</li>
+						}
+					</ul>
+				</section>
+			}
+		}
+	</section>
+}
+
+// ConfigBlock renders the model config as a collapsible pretty-printed JSON
+// details/summary block. Hidden when config is empty.
+templ ConfigBlock(detail hfapi.ModelDetail) {
+	if len(detail.Config) == 0 {
+		<section class="config-block empty"><span class="muted">No config on file.</span></section>
+	} else {
+		<section class="config-block" aria-label="Model config">
+			<header class="block-header">
+				<h2>Config</h2>
+				<span class="block-meta">{ fmt.Sprintf("%d keys", len(detail.Config)) }</span>
+			</header>
+			<details class="config-details">
+				<summary>View raw config.json</summary>
+				<pre class="config-pre"><code>{ hfapi.PrettyJSON(detail.Config) }</code></pre>
+			</details>
+		</section>
+	}
+}
+
+// ParamBlock renders the params count (from safetensors.total) if present,
+// as a small visual block above the file grid.
+templ ParamBlock(detail hfapi.ModelDetail) {
+	if v, ok := detail.Safetensors["total"].(float64); ok && v > 0 {
+		<section class="param-block">
+			<div class="param-big">{ hfapi.FormatParamSize(int64(v)) }</div>
+			<div class="param-sub">total parameters</div>
+		</section>
+	}
+}

@@ -1,0 +1,65 @@
+// Package templ: home.templ renders the landing page (hero + browse entry
+// points). The primary call-to-action is "Browse all" which lands on
+// /results with the filter sidebar open and ready.
+package templ
+
+import "github.com/kooshapari/hfscope/internal/views"
+
+templ Home(data views.PageData) {
+	@Layout(data) {
+		<section class="search-hero">
+			<div class="wrap">
+				<h1>Discover the HuggingFace model hub.</h1>
+				<p>HFScope wraps the public HuggingFace API in a precise, controllable search UI. Pick a category, then refine by task, library, language, license, author and tags. Search is optional.</p>
+				<div class="row hero-cta">
+					<a class="btn btn-primary btn-large" href="/results">Browse all models →</a>
+					<form class="searchbar" action="/results" method="get" role="search">
+						<input type="search" name="q" placeholder="Or search by keyword (llama, whisper, mistral)…" autofocus/>
+						<button type="submit" class="btn">Search</button>
+					</form>
+				</div>
+			</div>
+		</section>
+		<section class="wrap">
+			<h2 class="x-large">Browse by category</h2>
+			<p class="muted">Each card opens the sidebar with that filter pre-applied.</p>
+			<div class="cat-grid">
+				@browseCard("Text Generation", "Large language models for chat, completion, code.", "/results?task=text-generation&sort=downloads&direction=-1", "text-generation")
+				@browseCard("Text-to-Image", "Diffusion, GAN and multimodal image generators.", "/results?task=text-to-image&sort=downloads&direction=-1", "image")
+				@browseCard("Speech Recognition", "ASR models — Whisper and friends.", "/results?task=automatic-speech-recognition&sort=downloads&direction=-1", "audio")
+				@browseCard("Text-to-Speech", "TTS and voice cloning models.", "/results?task=text-to-speech&sort=downloads&direction=-1", "audio")
+				@browseCard("Embeddings", "Sentence transformers and feature extractors.", "/results?task=feature-extraction&sort=downloads&direction=-1", "embed")
+				@browseCard("Image Classification", "Vision transformers and CNN classifiers.", "/results?task=image-classification&sort=downloads&direction=-1", "vision")
+				@browseCard("GGUF models", "Quantised checkpoints for llama.cpp / ollama.", "/results?library=gguf&sort=downloads&direction=-1", "gguf")
+				@browseCard("MLX models", "Apple Silicon native checkpoints.", "/results?library=mlx&sort=downloads&direction=-1", "mlx")
+				@browseCard("Safetensors", "Fast, safe weight format — pick safetensors.", "/results?library=safetensors&sort=downloads&direction=-1", "safe")
+				@browseCard("Recently modified", "What's been updated lately across the hub.", "/results?sort=lastModified&direction=-1", "fresh")
+				@browseCard("Trending now", "Models gaining momentum right now.", "/results?sort=trendingScore&direction=-1", "trend")
+				@browseCard("All MIT / Apache", "Permissive licenses only — safe for commercial.", "/results?license=apache-2.0&sort=downloads&direction=-1", "license")
+			</div>
+		</section>
+		<section class="wrap">
+			<h2 class="x-large">What HFScope adds</h2>
+			<ul class="muted feature-list">
+				<li><b>Filter sidebar</b> — every axis in one place. No hunting through dialogs.</li>
+				<li><b>Shareable URLs</b> — every filter combination is encoded in the query string.</li>
+				<li><b>Infinite scroll</b> — load more with one scroll, no pager mashing.</li>
+				<li><b>Local cache</b> — repeated queries are instant; HF rate limits are respected.</li>
+				<li><b>No tracking</b> — only outbound request is to <code>huggingface.co</code>; no analytics.</li>
+				<li><b>Works without JavaScript</b> — every page is a plain form submit.</li>
+			</ul>
+		</section>
+	}
+}
+
+// browseCard renders a single category entry point.
+templ browseCard(title, desc, href, icon string) {
+	<a class="cat-card" href={ templ.URL(href) }>
+		<div class="cat-icon" data-icon={ icon } aria-hidden="true"></div>
+		<div class="cat-body">
+			<div class="cat-title">{ title }</div>
+			<div class="cat-desc">{ desc }</div>
+		</div>
+		<div class="cat-arrow">→</div>
+	</a>
+}

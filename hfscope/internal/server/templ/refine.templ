@@ -1,0 +1,123 @@
+// Package templ: refine.templ renders the drag-range sliders (params, date)
+// and minimum count inputs. These are CLIENT-SIDE filters — the upstream
+// HuggingFace /api/models endpoint does not support ?params_range / ?min_*
+// filters, so we apply them on the rendered card set via hfscope.js. The
+// page still ships them in the URL as params_min, params_max, etc. so a deep
+// link reproduces the same visible state.
+//
+// Each control is implemented as:
+//   - a hidden <input> the form actually submits (no-JS fallback)
+//   - a custom dual-handle <div class="range-track"> driven by hfscope.js
+//   - a <span class="range-label"> showing the current value
+package templ
+
+import "github.com/kooshapari/hfscope/internal/views"
+
+// sidebarRefine is one section of the sidebar. Bounds are stable across
+// requests: 0..1e12 (covers B to T), 2005-01-01..today (covers HF history).
+templ sidebarRefine(data views.PageData) {
+	<div class="sidebar-section sidebar-refine">
+		<span class="sidebar-label">Refine</span>
+		<div class="refine-row">
+			<label class="refine-label" for="params_min">Params (size)</label>
+			<div
+				id="params-range"
+				class="range-track"
+				data-min="0"
+				data-max="100000000000"
+				data-step="100000000"
+				data-unit="params"
+				data-input-min="#params_min"
+				data-input-max="#params_max"
+			>
+				<div class="range-rail"></div>
+				<div class="range-fill"></div>
+				<div class="range-thumb range-min" tabindex="0" role="slider" aria-label="Min params"></div>
+				<div class="range-thumb range-max" tabindex="0" role="slider" aria-label="Max params"></div>
+			</div>
+			<div class="range-meta">
+				<span class="range-label range-label-min">any</span>
+				<span class="range-dash">–</span>
+				<span class="range-label range-label-max">any</span>
+			</div>
+			<input type="hidden" id="params_min" name="params_min" value={ paramMinFromURL(data) }/>
+			<input type="hidden" id="params_max" name="params_max" value={ paramMaxFromURL(data) }/>
+		</div>
+		<div class="refine-row">
+			<label class="refine-label" for="created_after">Created</label>
+			<div
+				id="created-range"
+				class="range-track"
+				data-min={ refDateMin() }
+				data-max={ refDateMax() }
+				data-step="30"
+				data-unit="date"
+				data-input-min="#created_after"
+				data-input-max="#created_before"
+			>
+				<div class="range-rail"></div>
+				<div class="range-fill"></div>
+				<div class="range-thumb range-min" tabindex="0" role="slider" aria-label="Created after"></div>
+				<div class="range-thumb range-max" tabindex="0" role="slider" aria-label="Created before"></div>
+			</div>
+			<div class="range-meta">
+				<span class="range-label range-label-min">any</span>
+				<span class="range-dash">–</span>
+				<span class="range-label range-label-max">any</span>
+			</div>
+			<input type="hidden" id="created_after" name="created_after" value={ createdMinFromURL(data) }/>
+			<input type="hidden" id="created_before" name="created_before" value={ createdMaxFromURL(data) }/>
+		</div>
+		<div class="refine-numbers">
+			<label class="refine-mini">
+				<span>Min downloads</span>
+				<span class="refine-chip-row">
+					<input
+						type="number"
+						min="0"
+						step="1000"
+						inputmode="numeric"
+						placeholder="any"
+						data-filter-input="min_downloads"
+						name="min_downloads"
+						value={ downloadsFromURL(data) }
+					/>
+					if formatRefineChip(downloadsFromURL(data)) != "" {
+						<span class="refine-chip" data-filter-chip="min_downloads">{ formatRefineChip(downloadsFromURL(data)) }</span>
+					}
+				</span>
+			</label>
+			<label class="refine-mini">
+				<span>Min likes</span>
+				<span class="refine-chip-row">
+					<input
+						type="number"
+						min="0"
+						step="10"
+						inputmode="numeric"
+						placeholder="any"
+						data-filter-input="min_likes"
+						name="min_likes"
+						value={ likesFromURL(data) }
+					/>
+					if formatRefineChip(likesFromURL(data)) != "" {
+						<span class="refine-chip" data-filter-chip="min_likes">{ formatRefineChip(likesFromURL(data)) }</span>
+					}
+				</span>
+			</label>
+		</div>
+		<button type="button" class="btn btn-ghost btn-tiny" data-filter-reset>Reset refine</button>
+		<p class="tiny soft chip-help">Refine filters apply client-side to the current page's results. The HuggingFace API doesn't support these dimensions server-side, so we narrow the visible set in your browser. Use server-side filters (task, library, license, gated, region) to narrow the upstream pool.</p>
+	</div>
+}
+
+// refineBadge renders the live "X of N shown" notice above the result grid.
+// It is hidden when no refine filter is active; hfscope.js toggles visibility
+// on every applyFilters() run and updates the count without a page reload.
+templ refineBadge() {
+	<div id="refine-badge" class="refine-badge" hidden>
+		<span class="refine-badge-dot"></span>
+		<span id="refine-badge-text">All results shown</span>
+		<button type="button" class="btn btn-ghost btn-tiny" data-filter-reset>Clear</button>
+	</div>
+}

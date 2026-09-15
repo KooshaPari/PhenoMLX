@@ -1,0 +1,154 @@
+// Package templ: sidebar.templ renders the persistent filter sidebar that
+// is the primary browse UI. Search is an optional input at the top; every
+// axis updates the result list via a single hx-get="/results" with hx-include
+// pointing at this form. The form also acts as the no-JS fallback so any
+// submit reloads the page with query string in the URL.
+package templ
+
+import "github.com/kooshapari/hfscope/internal/views"
+
+// Sidebar renders the full filter sidebar as a single self-contained form.
+// On desktop it sits sticky inside a CSS grid; on mobile it collapses into
+// a drawer behind a <details> toggle. All controls have stable names so
+// they serialise into the same query string regardless of mode.
+templ Sidebar(data views.PageData) {
+	<aside class="filter-sidebar">
+		<details class="sidebar-mobile-toggle" open>
+			<summary>Filters</summary>
+			<form
+				id="sidebar-form"
+				class="sidebar-form"
+				method="get"
+				action="/results"
+				hx-get="/results"
+				hx-target="#results"
+				hx-include="#sidebar-form"
+				hx-trigger="change from:select, change from:input[type=checkbox], change from:input[type=radio], keyup from:input[name=q] delay:400ms changed, submit"
+				hx-push-url="true"
+			>
+				if data.Params.Search != "" || len(data.Params.Filter) > 0 || data.Params.Author != "" || data.Params.Gated != "" || data.Params.Region != "" {
+					<input type="hidden" name="limit" value={ intToStr(orDefault(data.Params.Limit, 24)) }/>
+				}
+				<div class="sidebar-section sidebar-search">
+					<label class="sidebar-label" for="q-input">Search (optional)</label>
+					<input
+						id="q-input"
+						type="search"
+						name="q"
+						value={ data.Params.Search }
+						placeholder="llama, whisper, mistral…"
+						autocomplete="off"
+						autofocus
+					/>
+				</div>
+				@sidebarSelect("Task", "task", pipelineOptions(data.Tags), data.Params.PipelineTag)
+				@sidebarSelect("Library", "library", libraryOptions(data.Tags), data.Params.Library)
+				@sidebarSelect("Language", "language", languageOptions(data.Tags), data.Params.Language)
+				@sidebarSelect("License", "license", licenseOptions(data.Tags), data.Params.License)
+				<div class="sidebar-section">
+					<label class="sidebar-label" for="author-input">Author (org/user)</label>
+					<input
+						id="author-input"
+						type="text"
+						name="author"
+						value={ data.Params.Author }
+						placeholder="e.g. meta-llama"
+						autocomplete="off"
+					/>
+				</div>
+				<div class="sidebar-section sidebar-chips-section">
+					<span class="sidebar-label">Tags</span>
+					<div class="sidebar-chips">
+						@tagChips(data.Params.Filter)
+					</div>
+					<p class="tiny soft chip-help">Combined with AND. Try <span class="mono">conversational</span>, <span class="mono">merge</span>, <span class="mono">moe</span>, <span class="mono">8-bit</span>.</p>
+				</div>
+				<div class="sidebar-section sidebar-axislite">
+					<span class="sidebar-label">Access</span>
+					<select id="sidebar-gated" name="gated">
+						<option value="">Any access</option>
+						<option value="false" selected?={ data.Params.Gated == "false" }>Public only</option>
+						<option value="true" selected?={ data.Params.Gated == "true" }>Gated only</option>
+					</select>
+				</div>
+				<div class="sidebar-section sidebar-axislite">
+					<span class="sidebar-label">Region</span>
+					<select id="sidebar-region" name="region">
+						<option value="">Any region</option>
+						<option value="us" selected?={ data.Params.Region == "us" }>United States (US)</option>
+						<option value="eu" selected?={ data.Params.Region == "eu" }>European Union (EU)</option>
+						<option value="asia" selected?={ data.Params.Region == "asia" }>Asia</option>
+						<option value="cn" selected?={ data.Params.Region == "cn" }>China</option>
+					</select>
+					<p class="tiny soft chip-help">Filter by the deployment region the model lists in its metadata.</p>
+				</div>
+				@sidebarRefine(data)
+				<div class="sidebar-section sidebar-display">
+					<span class="sidebar-label">Display</span>
+					<label class="toggle-row">
+						<input type="checkbox" name="teaser" value="1" checked?={ data.Params.WithCards }/>
+						<span>Show description teasers</span>
+					</label>
+					<p class="tiny soft chip-help">Fetches a 1-line summary from each model's README for the first 6 cards on this page. Off by default — enable when you want richer context per card.</p>
+				</div>
+				<div class="sidebar-section sidebar-sort">
+					<span class="sidebar-label">Sort</span>
+					<select name="sort">
+						@sortOption("downloads", "Most downloads", data.Params.Sort)
+						@sortOption("likes", "Most likes", data.Params.Sort)
+						@sortOption("trendingScore", "Trending", data.Params.Sort)
+						@sortOption("lastModified", "Recently modified", data.Params.Sort)
+					</select>
+					<label class="tiny muted sort-dir-label">
+						Direction
+						<select name="direction">
+							@directionOption(-1, "Descending", data.Params.Direction)
+							@directionOption(1, "Ascending", data.Params.Direction)
+						</select>
+					</label>
+				</div>
+				<div class="sidebar-section sidebar-actions">
+					<button type="submit" class="btn btn-primary">Apply</button>
+					<a class="btn btn-ghost" href="/results">Reset</a>
+				</div>
+				if len(data.Params.Filter) > 0 || data.Params.Search != "" || data.Params.Author != "" || data.Params.PipelineTag != "" || data.Params.Library != "" || data.Params.Language != "" || data.Params.License != "" || data.Params.Gated != "" || data.Params.Region != "" {
+					<div class="sidebar-section sidebar-active">
+						<span class="sidebar-label">Active</span>
+						<div class="chip-row">
+							@activeFilterChips(data.Params)
+						</div>
+					</div>
+				}
+			</form>
+		</details>
+	</aside>
+}
+
+// sidebarSelect renders a labelled select with an "Any" default.
+templ sidebarSelect(label, name string, opts []idLabel, selected string) {
+	<div class="sidebar-section">
+		<label class="sidebar-label" for={ "sidebar-" + name }>{ label }</label>
+		<select id={ "sidebar-" + name } name={ name }>
+			<option value="">Any</option>
+			if selected != "" {
+				<option value={ selected } selected>{ selected } (current)</option>
+			}
+			for _, o := range opts {
+				if o.ID == selected {
+					<option value={ o.ID } selected>{ o.Label }</option>
+				} else {
+					<option value={ o.ID }>{ o.Label }</option>
+				}
+			}
+		</select>
+	</div>
+}
+
+// orDefault returns a if a > 0, otherwise def. Used to ensure the limit
+// hidden input is always populated when filters are active.
+func orDefault(a, def int) int {
+	if a > 0 {
+		return a
+	}
+	return def
+}
