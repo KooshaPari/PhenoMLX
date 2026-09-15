@@ -1,4 +1,4 @@
-# phenotype-omlx
+# PhenoMLX\n\nActive Phenotype project. MLX inference with Rust performance cores.\n\n---\n\n# phenotype-omlx
 
 MLX-native, multi-backend OMLX research stack for local inference and evaluation.
 
