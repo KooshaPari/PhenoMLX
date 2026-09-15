@@ -1,0 +1,21 @@
+# Logs
+*.log
+npm-debug.log*
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Test
+coverage/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Env
+.env
+.env.local
+.env.*.local

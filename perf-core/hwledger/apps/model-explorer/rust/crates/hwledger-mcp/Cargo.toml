@@ -1,0 +1,59 @@
+[package]
+name = "hwledger-mcp"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+authors.workspace = true
+publish.workspace = true
+description = "Model Context Protocol (MCP 2024-11-05) JSON-RPC 2.0 server over stdio + HTTP+SSE for hwledger"
+
+[[bin]]
+name = "hwledger-mcp"
+path = "src/main.rs"
+
+[[bin]]
+name = "hwledger-mcp-http"
+path = "src/bin/hwledger_mcp_http.rs"
+
+[dependencies]
+# Serialization for JSON-RPC frames + tool result envelopes.
+serde = { workspace = true }
+serde_json = { workspace = true }
+# `McpError` variants.
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+# `Backend` impl drives `hwledger-server::service` (which is `async fn`) from
+# the synchronous stdio transport, so we ship a small multi-threaded tokio
+# runtime inside the backend and use `Runtime::block_on` per call.
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros", "net", "sync"] }
+# HTTP+SSE transport: axum router, tower-http CORS/trace layers, async-stream
+# for the SSE response body.
+axum = { workspace = true }
+tower-http = { workspace = true }
+# `futures::StreamExt::next` is used by the SSE test to read the
+# first chunk from a streamed response body.
+futures = { workspace = true }
+async-stream = "0.3"
+# The service layer we delegate to. `hwledger_server::service::*` is the
+# canonical home for `run_hybrid`, `detail_for_id`, `similar_to`,
+# `for_use_case`, `ask`, and `quants_for_id`.
+hwledger-server = { workspace = true }
+# Core types (`Query`, `Facets`, `ModelKind`, `FusedResult`) used to build
+# the request shapes the service layer expects.
+hwledger-search-core = { workspace = true }
+# `TantivyStore` is the in-memory / on-disk handle the service layer
+# accepts. Used both in `main.rs` (cold-start from `DATA_DIR`) and in
+# tests (build an in-process fixture).
+hwledger-search-index = { workspace = true }
+
+[dev-dependencies]
+# For tests that build an in-process tantivy fixture on a tempdir.
+tempfile = { workspace = true }
+# Pretty assertions in integration tests.
+pretty_assertions = "1"
+# In-process axum testing helpers (`oneshot`).
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+bytes = "1"

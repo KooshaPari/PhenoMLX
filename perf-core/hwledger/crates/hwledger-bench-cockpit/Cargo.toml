@@ -1,0 +1,21 @@
+[package]
+name = "hwledger-bench-cockpit"
+version = "0.1.0"
+edition = "2021"
+description = "Bench cockpit server — Rust Axum port of the Go server"
+
+[dependencies]
+axum = { version = "0.8", features = ["ws"] }
+tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
+base64 = "0.22"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+futures-util = "0.3"
+tokio-stream = "0.1"
+parking_lot = "0.12"

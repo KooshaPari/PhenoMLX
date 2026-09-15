@@ -1,0 +1,69 @@
+# Build artifacts
+target/
+dist/
+build/
+*.o
+*.so
+*.dylib
+*.rlib
+*.rmeta
+
+# Dependencies
+node_modules/
+vendor/
+.venv/
+venv/
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test
+coverage/
+*.lcov
+.nyc_output/
+
+# Misc
+*.tmp
+*.bak
+*.orig
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Claude Code worktrees (artifacts)
+.claude/worktrees/
+
+# Xcode build artifacts
+.build/
+*.xcworkspace/xcuserdata/
+
+# Compiled Xcode apps + scratch dirs
+*.app/
+**/.runs/
+sidecars/bench-cockpit/
+**/.bench-cache/
+model-explorer-bootstrap-*.bundle/
+
+# Tauri generated schemas + one-off bootstrap bundles + .runs/
+apps/**/src-tauri/gen/
+**/.runs/
+model-explorer-bootstrap-*.bundle/
+
+# Bench cockpit run output + git bundle scratch file
+apps/bench-matrix/.runs/
+model-explorer-bootstrap-*.bundle
+apps/bench-matrix/.runs
