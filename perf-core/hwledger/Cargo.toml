@@ -1,0 +1,66 @@
+[workspace]
+members = [
+    # bench-cockpit
+    "apps/hwledger-app/src-tauri",
+    "crates/hwledger-bench-cockpit",
+    "crates/hwledger-cli",
+    # model-explorer (standalone under apps/)
+    "apps/model-explorer/rust/crates/hwledger-search-core",
+    "apps/model-explorer/rust/crates/hwledger-search-tags",
+    "apps/model-explorer/rust/crates/hwledger-search-index",
+    "apps/model-explorer/rust/crates/hwledger-search-ingest",
+    "apps/model-explorer/rust/crates/hwledger-search-rag",
+    "apps/model-explorer/rust/crates/hwledger-search-evals",
+    "apps/model-explorer/rust/crates/hwledger-search-skills",
+    "apps/model-explorer/rust/crates/hwledger-mcp",
+    "apps/model-explorer/rust/crates/hwledger-cli",
+    "apps/model-explorer/rust/crates/hwledger-server",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/KooshaPari/hwledger"
+authors = ["KooshaPari <koosha@phenotype.io>"]
+publish = false
+
+[workspace.dependencies]
+# internal crates
+hwledger-search-core     = { path = "apps/model-explorer/rust/crates/hwledger-search-core" }
+hwledger-search-tags     = { path = "apps/model-explorer/rust/crates/hwledger-search-tags" }
+hwledger-search-index    = { path = "apps/model-explorer/rust/crates/hwledger-search-index" }
+hwledger-search-ingest   = { path = "apps/model-explorer/rust/crates/hwledger-search-ingest" }
+hwledger-search-rag      = { path = "apps/model-explorer/rust/crates/hwledger-search-rag" }
+hwledger-search-evals    = { path = "apps/model-explorer/rust/crates/hwledger-search-evals" }
+hwledger-search-skills   = { path = "apps/model-explorer/rust/crates/hwledger-search-skills" }
+hwledger-explorer-cli    = { path = "apps/model-explorer/rust/crates/hwledger-cli" }
+hwledger-server          = { path = "apps/model-explorer/rust/crates/hwledger-server" }
+hwledger-mcp             = { path = "apps/model-explorer/rust/crates/hwledger-mcp" }
+# external crates
+anyhow            = "1"
+async-trait       = "0.1"
+axum              = { version = "0.7", features = ["macros"] }
+clap              = { version = "4", features = ["derive"] }
+comfy-table       = "7"
+dirs              = "5"
+futures           = "0.3"
+httpdate          = "0.3"
+once_cell         = "1"
+regex             = "1"
+reqwest           = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde             = { version = "1", features = ["derive"] }
+serde_json        = "1"
+serde_yaml        = "0.9"
+tempfile          = "3"
+thiserror         = "1"
+tokio             = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+tower-http        = { version = "0.5", features = ["trace", "cors"] }
+tracing           = "0.1"
+tract-onnx = "0.23.4"
+lancedb = "0.31"
+tantivy = "0.22"
+assert_cmd = "2"
+predicates = "3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

@@ -1,0 +1,10 @@
+# Rust build output for `apps/model-explorer/rust/`. `target/` is also
+# covered by the workspace-root `.gitignore` but we mirror it locally for the
+# case where contributors run cargo from within this directory in isolation.
+target/
+# Library workspaces typically don't track their lockfile; skip it so the
+# sidebar can choose when to refresh dependencies.
+Cargo.lock
+# Operator-local tantivy index cache. `seed build` populates this directory
+# by default; contributors regenerate it on demand. Never commit the cache.
+hwledger-index/

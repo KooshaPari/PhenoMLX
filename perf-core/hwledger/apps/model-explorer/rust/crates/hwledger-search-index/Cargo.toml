@@ -1,0 +1,45 @@
+[package]
+name = "hwledger-search-index"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[features]
+# Default (v1) is Tantivy-only: `lancedb` is not linked, no ANN queries
+# are issued, and `run_hybrid` returns BM25-only results. This is the
+# narrowest possible build, kept that way so the dependency-light CLI /
+# server / MCP front-ends don't drag a vector store along.
+default = []
+# When enabled, the crate links `lancedb 0.31` (and `futures`, for
+# `TryStreamExt::try_collect` on the LanceDB record-batch stream). The
+# `lance_store` reaches its `arrow_array` / `arrow_schema` types via
+# `lancedb::arrow::*` re-exports, so we don't declare them as direct
+# dependencies — the feature pulls in `lancedb` and `futures` (for the
+# `try_collect` on the LanceDB record-batch stream).
+lancedb = ["dep:lancedb", "dep:futures"]
+
+[dependencies]
+hwledger-search-core = { workspace = true }
+tantivy = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tempfile = { workspace = true }
+# Dense ANN backing store — only linked when the `lancedb` feature is on.
+lancedb = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+
+[dev-dependencies]
+futures = { workspace = true }
+tempfile = { workspace = true }
+# LanceDB uses DataFusion under the hood, which requires a Tokio reactor.
+# Only the `lancedb`-gated integration tests in `tests/lance_store.rs`
+# actually need it; the `#[cfg(feature = "lancedb")]` attribute on the
+# file gates the imports, but Cargo still has to *link* tokio when the
+# test binary is built under `--features lancedb`. We declare it
+# unconditionally so the dependency graph is stable across feature
+# states; tokio is cheap to link and the test suite is hermetic.
+tokio = { workspace = true, features = ["rt", "macros"] }

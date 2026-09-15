@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Minimal entitlements for the hwLedger Tauri 2 desktop app.
+  Hardened runtime is applied via codesign options during signing.
+  See: https://developer.apple.com/documentation/bundleresources/entitlements
+-->
+<plist version="1.0">
+<dict>
+  <!-- JIT for the webview and the embedded BenchMatrix Swift runtime. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+
+  <!-- Outbound HTTP: HuggingFace, local daemon over TCP/IPC. -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+
+  <!-- BenchMatrix hardware probing. -->
+  <key>com.apple.security.device.usb</key>
+  <true/>
+</dict>
+</plist>

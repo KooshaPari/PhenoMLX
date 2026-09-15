@@ -1,0 +1,23 @@
+{
+  "name": "hwLedger",
+  "slug": "hwledger",
+  "domain": "hwledger.kooshapari.com",
+  "description": "LLM capacity planner + fleet ledger + desktop inference runtime. Tracks hardware fleet audit and provenance for ML workloads with per-layer VRAM estimation.",
+  "tier": 2,
+  "repo": "KooshaPari/hwLedger",
+  "language": "Rust / SwiftUI / WinUI / Qt",
+  "license": "Apache-2.0",
+  "status": "pre-alpha",
+  "features": [
+    "Per-layer VRAM estimation for any model architecture",
+    "Live telemetry reconciliation (MLX, mistral.rs, llama.cpp, vLLM, TGI)",
+    "Apple Silicon inference via oMlx sidecar",
+    "Event-sourced fleet audit log",
+    "Spot-price-aware dispatch planner"
+  ],
+  "links": {
+    "github": "https://github.com/KooshaPari/hwLedger",
+    "docs": "https://hwledger.kooshapari.com/docs",
+    "releases": "https://github.com/KooshaPari/hwLedger/releases"
+  }
+}

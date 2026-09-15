@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "If you use hwLedger in academic work, please cite it."
+type: software
+title: "hwLedger"
+abstract: "Phenotype-org hardware ledger."
+date-released: 2026-06-08
+url: "https://github.com/KooshaPari/hwLedger"
+license: MIT
