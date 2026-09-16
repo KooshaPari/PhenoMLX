@@ -1,7 +1,6 @@
 //! Tree-attention pyo3 types and payload conversion.
 
 use pyo3::prelude::*;
-use pyo3::types::PyList;
 use tree_attention::{tree_causal_mask, TreePlan};
 
 #[pyclass]
@@ -32,9 +31,10 @@ pub fn tree_attn_causal_mask(
     offset: usize,
 ) -> PyResult<Py<PyAny>> {
     let mask = tree_causal_mask(seq_len, tree_width, tree_depth, offset);
-    let outer = PyList::empty_bound(py);
+    let outer = pyo3::types::PyList::empty(py);
     for row in mask {
-        outer.append(PyList::new_bound(py, row.iter().copied())?)?;
+        let inner = pyo3::types::PyList::new(py, row.iter().copied())?;
+        outer.append(inner)?;
     }
-    Ok(outer.into_any().unbind())
+    Ok(outer.into())
 }

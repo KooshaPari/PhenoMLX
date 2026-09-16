@@ -4,9 +4,8 @@
 //   cd /Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-omlx/python/ffi
 //   maturin develop --release --features extension-module
 
-use async_trait::async_trait;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyTuple};
+use pyo3::types::PyDict;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -14,277 +13,25 @@ use concurrent_exec::{
     jetspec::JetSpecBackend, latentmas::LatentMasBackend, plan::AgentId, ssd::SsdBackend,
     tidar::TidarAgent, ExecBackend, ExecRequest as RustExecRequest, ExecResult as RustExecResult,
 };
-use spec_decode::{
-    backend::{BackendInfo, DraftBackend, NullDraftBackend, TargetBackend, TargetOutput},
-    build_engine, DraftMode as RustDraftMode, SpecDecodeConfig as RustSpecDecodeConfig,
-    SpecDecodeEngine,
-};
-use tree_attention::{tree_causal_mask, TreePlan};
+use spec_decode::build_engine;
+use spec_decode::SpecDecodeEngine;
 
+// ── Module imports ─────────────────────────────────────────────────────────
+#[allow(dead_code)]
+mod agent_ffi;
+mod mlx_backend_ffi;
+mod spec_decode_ffi;
+mod tree_attention_ffi;
 mod turbo_quant_ffi;
+
+use mlx_backend_ffi::{
+    MlxTargetBackend, MlxTargetBackendClone, NullTargetBackend, PyMlxTargetBackend,
+};
+use spec_decode_ffi::{PyDraftMode, PySpecDecodeConfig};
+use tree_attention_ffi::{tree_attn_causal_mask, PyTreePlan};
 use turbo_quant_ffi::{turbo_quant_decode, turbo_quant_encode, turbo_quant_label_for_bits};
 
-#[pyclass(from_py_object)]
-#[derive(Clone)]
-struct PyDraftMode {
-    inner: RustDraftMode,
-}
-
-#[pymethods]
-impl PyDraftMode {
-    #[staticmethod]
-    fn same_model() -> Self {
-        Self {
-            inner: RustDraftMode::SameModel,
-        }
-    }
-    #[staticmethod]
-    fn draft_model() -> Self {
-        Self {
-            inner: RustDraftMode::DraftModel,
-        }
-    }
-    #[staticmethod]
-    fn medusa() -> Self {
-        Self {
-            inner: RustDraftMode::Medusa,
-        }
-    }
-    fn __repr__(&self) -> String {
-        format!("{:?}", self.inner)
-    }
-}
-
-#[pyclass]
-struct PySpecDecodeConfig {
-    inner: RustSpecDecodeConfig,
-}
-
-#[pymethods]
-impl PySpecDecodeConfig {
-    #[new]
-    #[pyo3(signature = (
-        mode=None, max_draft_tokens=None, tree_width=None, tree_depth=None,
-        temperature=None, fallback_on_reject=None,
-    ))]
-    fn new(
-        mode: Option<PyDraftMode>,
-        max_draft_tokens: Option<usize>,
-        tree_width: Option<usize>,
-        tree_depth: Option<usize>,
-        temperature: Option<f32>,
-        fallback_on_reject: Option<bool>,
-    ) -> Self {
-        let mut cfg = RustSpecDecodeConfig::default();
-        if let Some(m) = mode {
-            cfg.mode = m.inner;
-        }
-        if let Some(v) = max_draft_tokens {
-            cfg.max_draft_tokens = v;
-        }
-        if let Some(v) = tree_width {
-            cfg.tree_width = v;
-        }
-        if let Some(v) = tree_depth {
-            cfg.tree_depth = v;
-        }
-        if let Some(v) = temperature {
-            cfg.temperature = v;
-        }
-        if let Some(v) = fallback_on_reject {
-            cfg.fallback_on_reject = v;
-        }
-        Self { inner: cfg }
-    }
-}
-
-/// Real MLX target backend. Stores the model and EOS token ids as
-/// Python objects (cloned into spawn_blocking closures via Arc, then
-/// re-attached via `Python::attach`).
-struct MlxTargetBackend {
-    model: Arc<Py<PyAny>>,
-    model_id: String,
-    eos_token_ids: Arc<Vec<u32>>,
-    kv_cache_kind: Option<String>,
-}
-
-impl MlxTargetBackend {
-    /// Build a new MlxTargetBackend from a model id / local path.
-    fn build(model_id: &str, kv_cache_kind: Option<String>) -> PyResult<Self> {
-        Python::attach(|py| {
-            let mlx_lm = py.import("mlx_lm")?;
-            let load = mlx_lm.getattr("load")?;
-            let pair = load.call1((model_id,))?;
-            let model: Py<PyAny> = pair.get_item(0)?.into();
-            let tokenizer: Py<PyAny> = pair.get_item(1)?.into();
-
-            // Pull EOS token ids from the tokenizer (some tokenizers expose
-            // `.eos_token_id`; mlx_lm wraps with a TokenizerWrapper that has
-            // `.eos_token_ids` as a set/list).
-            let tok_bound = tokenizer.bind(py);
-            let eos_ids: Vec<u32> = if let Ok(ids_any) = tok_bound.getattr("eos_token_ids") {
-                if let Ok(v) = ids_any.extract::<Vec<u32>>() {
-                    v
-                } else if let Ok(s) = ids_any.extract::<std::collections::HashSet<u32>>() {
-                    s.into_iter().collect()
-                } else {
-                    Vec::new()
-                }
-            } else if let Ok(id_any) = tok_bound.getattr("eos_token_id") {
-                if let Ok(v) = id_any.extract::<u32>() {
-                    vec![v]
-                } else {
-                    Vec::new()
-                }
-            } else {
-                Vec::new()
-            };
-
-            Ok(MlxTargetBackend {
-                model: Arc::new(model),
-                model_id: model_id.to_string(),
-                eos_token_ids: Arc::new(eos_ids),
-                kv_cache_kind,
-            })
-        })
-    }
-}
-
-#[async_trait]
-impl TargetBackend for MlxTargetBackend {
-    async fn forward(&self, token_ids: &[u32]) -> Result<TargetOutput, String> {
-        // We need to drop the GIL for MLX work and yield back to the
-        // tokio runtime so other tasks can run. `spawn_blocking` plus
-        // `Python::attach` is the canonical pattern.
-        let model = Arc::clone(&self.model);
-        let eos = Arc::clone(&self.eos_token_ids);
-        let ids: Vec<u32> = token_ids.to_vec();
-
-        tokio::task::spawn_blocking(move || -> Result<TargetOutput, String> {
-            Python::attach(|py| -> Result<TargetOutput, String> {
-                let mx = py
-                    .import("mlx.core")
-                    .map_err(|e| format!("import mlx.core: {e}"))?;
-                let ids_py = PyList::new(py, ids.iter().copied())
-                    .map_err(|e| format!("build token id list: {e}"))?;
-                // mx.array(ids) -> shape [seq]
-                let prompt = mx
-                    .call_method1("array", (ids_py,))
-                    .map_err(|e| format!("mx.array: {e}"))?;
-                // prompt[None] -> shape [1, seq] for batched forward
-                let none = py.None();
-                let batched = prompt
-                    .call_method1("__getitem__", (none,))
-                    .map_err(|e| format!("prompt[None]: {e}"))?;
-
-                // Model output has shape [batch, sequence, vocabulary].
-                let logits = model
-                    .bind(py)
-                    .call1((batched,))
-                    .map_err(|e| format!("model forward: {e}"))?;
-                let index = PyTuple::new(py, [0_i32, -1_i32])
-                    .map_err(|e| format!("build logits index: {e}"))?;
-                let last = logits
-                    .call_method1("__getitem__", (index,))
-                    .map_err(|e| format!("logits[0, -1]: {e}"))?;
-                let logits_py = last
-                    .call_method0("tolist")
-                    .map_err(|e| format!("logits.tolist: {e}"))?;
-                let logits_vec: Vec<f32> = logits_py
-                    .extract()
-                    .map_err(|e| format!("extract logits: {e}"))?;
-
-                // Greedy next-token from the logits — this is what spec-decode
-                // uses to score acceptance. For `SameModel` (prompt-lookup)
-                // the engine doesn't actually use the logits, but for any
-                // draft-tree verifier we do.
-                let next_token = logits_vec
-                    .iter()
-                    .enumerate()
-                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-                    .map(|(i, _)| i as u32)
-                    .unwrap_or(0);
-
-                let finished = eos.contains(&next_token);
-
-                Ok(TargetOutput {
-                    logits: logits_vec,
-                    hidden: None,
-                    finished,
-                })
-            })
-        })
-        .await
-        .map_err(|e| format!("spawn_blocking join: {e}"))?
-    }
-
-    fn info(&self) -> BackendInfo {
-        BackendInfo {
-            engine: "mlx".into(),
-            model_id: self.model_id.clone(),
-            device: "metal".into(),
-            dtype: "float16".into(),
-            kv_cache_type: self.kv_cache_kind.clone(),
-        }
-    }
-}
-
-/// Python wrapper around MlxTargetBackend.
-#[pyclass(name = "MlxTargetBackend", from_py_object)]
-#[derive(Clone)]
-struct PyMlxTargetBackend {
-    inner: Arc<MlxTargetBackend>,
-}
-
-#[pymethods]
-impl PyMlxTargetBackend {
-    #[new]
-    #[pyo3(signature = (model_id, kv_cache_kind=None))]
-    fn new(model_id: &str, kv_cache_kind: Option<String>) -> PyResult<Self> {
-        let be = MlxTargetBackend::build(model_id, kv_cache_kind)?;
-        Ok(Self {
-            inner: Arc::new(be),
-        })
-    }
-
-    fn info_json(&self) -> PyResult<String> {
-        let i = self.inner.info();
-        Ok(format!(
-            "{{\"engine\":\"{}\",\"model_id\":\"{}\",\"device\":\"{}\",\"dtype\":\"{}\",\"kv_cache_type\":{}}}",
-            i.engine,
-            i.model_id,
-            i.device,
-            i.dtype,
-            i.kv_cache_type
-                .as_ref()
-                .map(|s| format!("\"{s}\""))
-                .unwrap_or_else(|| "null".to_string()),
-        ))
-    }
-}
-
-/// NullTargetBackend retained for tests / plumbing.
-struct NullTargetBackend;
-
-#[async_trait]
-impl TargetBackend for NullTargetBackend {
-    async fn forward(&self, _token_ids: &[u32]) -> Result<TargetOutput, String> {
-        Ok(TargetOutput {
-            logits: vec![0.0; 4],
-            hidden: None,
-            finished: false,
-        })
-    }
-    fn info(&self) -> BackendInfo {
-        BackendInfo {
-            engine: "null".into(),
-            model_id: "none".into(),
-            device: "cpu".into(),
-            dtype: "f32".into(),
-            kv_cache_type: None,
-        }
-    }
-}
+// ── Spec-decode engine wrapper ─────────────────────────────────────────────
 
 #[pyclass]
 struct PySpecDecodeEngine {
@@ -304,7 +51,7 @@ impl PySpecDecodeEngine {
         // otherwise fall back to NullTargetBackend. We can't downcast to
         // a foreign type across pyo3 boundaries, so we read the
         // `inner` attribute convention we set on PyMlxTargetBackend.
-        let target_box: Box<dyn TargetBackend> = if let Some(t) = target {
+        let target_box: Box<dyn spec_decode::backend::TargetBackend> = if let Some(t) = target {
             // Two ways to pass: a PyMlxTargetBackend instance (we already
             // built the backend); or a string model id (we build a real
             // MLX target for them). This makes the API forgiving.
@@ -325,11 +72,9 @@ impl PySpecDecodeEngine {
         // Draft backend: only NullDraftBackend for now (SameModel mode is
         // handled inside the engine via prompt-lookup). Future: a real
         // PyMlxDraftBackend mirroring the target pattern.
-        let draft_box: Option<Box<dyn DraftBackend>> = if draft.is_some() {
-            Some(Box::new(NullDraftBackend))
-        } else {
-            Some(Box::new(NullDraftBackend))
-        };
+        let _ = &draft;
+        let draft_box: Option<Box<dyn spec_decode::backend::DraftBackend>> =
+            Some(Box::new(spec_decode::backend::NullDraftBackend));
 
         let engine = build_engine(cfg.inner.clone(), target_box, draft_box);
         Ok(Self { inner: engine })
@@ -347,61 +92,7 @@ impl PySpecDecodeEngine {
     }
 }
 
-/// Cheap clone wrapper around a PyMlxTargetBackend for engine use.
-struct MlxTargetBackendClone(Arc<MlxTargetBackend>);
-
-impl From<PyMlxTargetBackend> for MlxTargetBackendClone {
-    fn from(p: PyMlxTargetBackend) -> Self {
-        Self(p.inner)
-    }
-}
-
-#[async_trait]
-impl TargetBackend for MlxTargetBackendClone {
-    async fn forward(&self, ids: &[u32]) -> Result<TargetOutput, String> {
-        self.0.forward(ids).await
-    }
-    fn info(&self) -> BackendInfo {
-        self.0.info()
-    }
-}
-
-// ── Tree-attention ──────────────────────────────────────────────────────────
-
-#[pyclass]
-struct PyTreePlan {
-    inner: std::sync::Mutex<TreePlan>,
-}
-
-#[pymethods]
-impl PyTreePlan {
-    #[new]
-    fn new(width: usize, depth: usize) -> Self {
-        Self {
-            inner: std::sync::Mutex::new(TreePlan::new(width, depth)),
-        }
-    }
-    fn total_nodes(&self) -> PyResult<usize> {
-        Ok(self.inner.lock().unwrap().total_nodes())
-    }
-}
-
-#[pyfunction]
-fn tree_attn_causal_mask(
-    py: Python<'_>,
-    seq_len: usize,
-    tree_width: usize,
-    tree_depth: usize,
-    offset: usize,
-) -> PyResult<Py<PyAny>> {
-    let m = tree_causal_mask(seq_len, tree_width, tree_depth, offset);
-    let outer = pyo3::types::PyList::empty(py);
-    for row in m {
-        let inner = pyo3::types::PyList::new(py, row.iter().copied())?;
-        outer.append(inner)?;
-    }
-    Ok(outer.into())
-}
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 fn py_to_exec_request(req: &Bound<'_, PyDict>) -> PyResult<RustExecRequest> {
     let stop: Vec<String> = match req.get_item("stop").ok().flatten() {
@@ -443,6 +134,8 @@ fn runtime() -> PyResult<Runtime> {
 fn device_arc(d: Option<String>) -> Arc<str> {
     Arc::from(d.unwrap_or_else(|| "cpu".into()).into_boxed_str())
 }
+
+// ── Concurrent-exec agent runners ──────────────────────────────────────────
 
 // LatentMAS
 #[pyfunction]
@@ -518,16 +211,22 @@ fn run_ssd(
     exec_result_to_py(py, res)
 }
 
+// ── Module registration ────────────────────────────────────────────────────
+
 #[pymodule]
 fn _perf(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // turbo-quant
     m.add_function(wrap_pyfunction!(turbo_quant_label_for_bits, m)?)?;
     m.add_function(wrap_pyfunction!(turbo_quant_encode, m)?)?;
     m.add_function(wrap_pyfunction!(turbo_quant_decode, m)?)?;
+    // tree-attention
     m.add_function(wrap_pyfunction!(tree_attn_causal_mask, m)?)?;
+    // concurrent-exec agents
     m.add_function(wrap_pyfunction!(run_latentmas, m)?)?;
     m.add_function(wrap_pyfunction!(run_tidar, m)?)?;
     m.add_function(wrap_pyfunction!(run_jetspec, m)?)?;
     m.add_function(wrap_pyfunction!(run_ssd, m)?)?;
+    // classes
     m.add_class::<PyDraftMode>()?;
     m.add_class::<PySpecDecodeConfig>()?;
     m.add_class::<PySpecDecodeEngine>()?;

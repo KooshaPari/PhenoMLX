@@ -43,7 +43,7 @@ impl PyDraftMode {
 
 #[pyclass]
 pub(crate) struct PySpecDecodeConfig {
-    inner: RustSpecDecodeConfig,
+    pub(crate) inner: RustSpecDecodeConfig,
 }
 
 #[pymethods]
