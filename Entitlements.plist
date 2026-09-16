@@ -12,16 +12,12 @@
   <!-- <key>com.apple.security.app-sandbox</key>
   <true/> -->
 
+  <!-- Network access (outbound connections for MLX model downloads + remote inference) -->
   <key>com.apple.security.network.client</key>
   <true/>
 
-  
   <!-- MLX/Metal runtime on Apple Silicon -->
   <key>com.apple.security.device.metal</key>
-  <true/>
-
-  <!-- MLX model downloads + remote inference calls -->
-  <key>com.apple.security.network.client</key>
   <true/>
 </dict>
 </plist>
