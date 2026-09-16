@@ -55,18 +55,13 @@
   },
 
   "trust_limits": {
-    "network": "PENDING",
-    "note": "Network for model download only, or fully offline after download?"
+    "network": "offline_after_download",
+    "note": "Network allowed for model download only, fully offline during benchmarking"
   },
 
   "outcome_oracle": {
-    "method": "PENDING",
-    "options": [
-      "operator_review",
-      "second_agent",
-      "automated_script_plus_spot_check"
-    ],
-    "recommendation": "automated_script_plus_spot_check"
+    "method": "automated_script_plus_spot_check",
+    "note": "Automated pass/fail script with operator spot-check of raw results"
   },
 
   "failed_trial_policy": {
@@ -99,8 +94,8 @@
     "versioned_subjects_and_fixtures": "DECIDED",
     "predeclared_critical_invariants": "DECIDED",
     "reviewed_non_inferiority_margins": "DECIDED",
-    "resource_and_trust_limits": "PARTIAL (network access TBD)",
-    "independent_outcome_oracle": "PENDING",
+    "resource_and_trust_limits": "DECIDED",
+    "independent_outcome_oracle": "DECIDED",
     "retained_failed_trial_policy": "DECIDED"
   }
 }
