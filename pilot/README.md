@@ -9,9 +9,37 @@ Per `docs-3/products/PhenoMLX/PILOT.json`, execution requires:
 | Versioned subjects/fixtures | PENDING | Which model + quantization to test |
 | Predeclared invariants | PENDING | Quality thresholds, pass/fail criteria |
 | Non-inferiority margins | PENDING | Max acceptable degradation |
-| Resource/trust limits | PENDING | Hardware constraints, security bounds |
-| Independent outcome oracle | PENDING | Who/what validates results |
-| Failed-trial policy | PENDING | How failures are retained/reported |
+| Resource/trust limits | ✓ | M1 Pro 16GB, offline after download |
+| Independent outcome oracle | ✓ | Automated script + operator spot-check |
+| Failed-trial policy | ✓ | All failures retained, never re-run until green |
+
+## Usage
+
+### 1. Start server
+```bash
+python -m omlx_research.harbor_mlx_server --model <model> --port 8766
+```
+
+### 2. Run benchmark
+```bash
+python pilot/run_benchmark.py
+# Or with custom URL:
+BASE_URL=http://127.0.0.1:8766/v1 python pilot/run_benchmark.py
+```
+
+### 3. Evaluate results
+```bash
+python pilot/evaluate.py --latest
+# Or specific run:
+python pilot/evaluate.py pilot/results/<run_id>.json
+```
+
+### 4. Pin upstream baseline
+```bash
+git fetch jundot-omlx
+git merge-base origin/main jundot-omlx/main
+# Update pilot/config.json with the SHA
+```
 
 ## Protocol
 

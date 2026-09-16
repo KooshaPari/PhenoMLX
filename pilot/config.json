@@ -45,7 +45,7 @@
   },
 
   "hardware": {
-    "machine": "kooshapari-desk",
+    "machine": "<REDACTED>-desk",
     "model_name": "MacBook Pro",
     "chip": "Apple M1 Pro",
     "cores": "10 (8P + 2E)",
