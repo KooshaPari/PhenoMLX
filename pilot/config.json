@@ -1,0 +1,106 @@
+{
+  "pilot_id": "PILOT-PRD-PHENOMLX",
+  "version": "1.0",
+  "created": "2026-09-16",
+
+  "subjects": {
+    "model": "Qwen3.5-8B",
+    "quantization": "Q4_K_M",
+    "source": "huggingface",
+    "upstream_baseline": {
+      "repo": "jundot/omlx",
+      "commit": "NEEDS_MANUAL_PIN",
+      "note": "git fetch jundot-omlx && git merge-base origin/main jundot-omlx/main -- agent cannot fetch due to pre-tool hook"
+    },
+    "prompt_set": [
+      "Explain the difference between TCP and UDP.",
+      "Write a Python function to find the longest palindromic substring.",
+      "What are the key differences between Rust and C++?",
+      "Summarize the causes of World War I in 3 sentences.",
+      "Write a SQL query to find the top 3 customers by revenue.",
+      "Explain how gradient descent works, including learning rate.",
+      "Debug this code: def fib(n): return fib(n-1) + fib(n-2)",
+      "Write a bash script that finds all .log files larger than 100MB.",
+      "What is the time complexity of quicksort in the worst case?",
+      "Translate 'The quick brown fox jumps over the lazy dog' to French, Spanish, and Japanese."
+    ]
+  },
+
+  "invariants": {
+    "hard_gates": [
+      "Zero corrupted outputs across all trials",
+      "Cancelled request releases memory within 5 seconds",
+      "Model unload returns to baseline memory (no leak)",
+      "API version string matches build",
+      "OOM returns explicit error, not corrupted output"
+    ]
+  },
+
+  "non_inferiority_margins": {
+    "ttft_pct": 20,
+    "throughput_pct": 15,
+    "peak_memory_pct": 25,
+    "quality": "non_inferior on fixed prompt set (automated scoring)",
+    "note": "Percentages are max allowed degradation vs upstream baseline"
+  },
+
+  "hardware": {
+    "machine": "kooshapari-desk",
+    "model_name": "MacBook Pro",
+    "chip": "Apple M1 Pro",
+    "cores": "10 (8P + 2E)",
+    "memory_gb": 16,
+    "power": "plugged_in",
+    "concurrent_workload": "none"
+  },
+
+  "trust_limits": {
+    "network": "PENDING",
+    "note": "Network for model download only, or fully offline after download?"
+  },
+
+  "outcome_oracle": {
+    "method": "PENDING",
+    "options": [
+      "operator_review",
+      "second_agent",
+      "automated_script_plus_spot_check"
+    ],
+    "recommendation": "automated_script_plus_spot_check"
+  },
+
+  "failed_trial_policy": {
+    "retain_all": true,
+    "rerun_until_green": false,
+    "categories": ["framework", "model", "environment"],
+    "deletion_requires": "explicit operator justification"
+  },
+
+  "metrics": [
+    "quality/non-inferiority",
+    "TTFT distribution",
+    "inter-token latency distribution",
+    "sustained tokens/s at concurrency",
+    "peak/residual memory",
+    "time to clean install",
+    "recovery after pressure/failure"
+  ],
+
+  "failure_cases": [
+    "OOM returns corrupted output",
+    "Cancelled request persists indefinitely",
+    "Wrong cache reuse",
+    "Model unload leaks residency",
+    "Version injection fails silently",
+    "Benchmark compares unequal models"
+  ],
+
+  "required_before_execution": {
+    "versioned_subjects_and_fixtures": "DECIDED",
+    "predeclared_critical_invariants": "DECIDED",
+    "reviewed_non_inferiority_margins": "DECIDED",
+    "resource_and_trust_limits": "PARTIAL (network access TBD)",
+    "independent_outcome_oracle": "PENDING",
+    "retained_failed_trial_policy": "DECIDED"
+  }
+}
