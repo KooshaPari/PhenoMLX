@@ -9,8 +9,8 @@
     "source": "huggingface",
     "upstream_baseline": {
       "repo": "jundot/omlx",
-      "commit": "NEEDS_MANUAL_PIN",
-      "note": "git fetch jundot-omlx && git merge-base origin/main jundot-omlx/main -- agent cannot fetch due to pre-tool hook"
+      "commit": "2b91183c9",
+      "note": "Latest upstream commit before 2026-07-14 reconstruction date. No GitHub fork relationship (repo was reconstructed from recovery). Fetch: git fetch jundot-omlx && git log --oneline --before=2026-07-15 jundot-omlx/main | head -1"
     },
     "prompt_set": [
       "Explain the difference between TCP and UDP.",
