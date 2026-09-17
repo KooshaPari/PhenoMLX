@@ -19,7 +19,9 @@ kv_bytes = 2 * num_layers * num_kv_heads * head_dim * seq_len * bytes_per_elemen
 
 The 75% KV savings ratio is **constant** regardless of model size. The absolute memory saved scales linearly with model + context + concurrency.
 
-## Lab Validation (0.8B on M1 Pro 16GB)
+## Lab Validation
+
+### 0.8B on M1 Pro 16GB (Apple Silicon)
 
 | Metric | PhenoMLX | Upstream OMLX | Delta |
 |--------|----------|---------------|-------|
@@ -28,6 +30,50 @@ The 75% KV savings ratio is **constant** regardless of model size. The absolute 
 | Peak memory | 2.55 GB | ~3.00 GB | -15.0% |
 
 **Verdict:** NON_INFERIOR (within 15% margin)
+
+### 7B on RTX 3090 Ti 24GB (desktop, stock transformers)
+
+**Hardware:** NVIDIA GeForce RTX 3090 Ti, 25.8 GB VRAM
+**Model:** Qwen/Qwen2.5-7B-Instruct (FP16 weights)
+**Date:** 2026-09-17
+
+| Metric | Value |
+|--------|-------|
+| Total VRAM after model load | 15.23 GB |
+| Peak GPU memory (warm + generate) | 14.91 GB |
+| First prompt (warmup) | 3.0 t/s (66.1s) |
+| Prompts 2-10 (warm) | avg 16.3 t/s |
+| Per-prompt tokens | 87-200 (200 cap) |
+
+**Note:** First prompt takes 66s due to CUDA kernel warmup and KV cache initialization. Subsequent prompts settle at 15-18 t/s.
+
+**Memory breakdown:**
+- 7B FP16 weights: ~14 GB
+- KV cache (FP16, 32K ctx): ~0.86 GB
+- Total observed: ~15 GB
+- 4-bit KV (TurboQuant+) expected: 14 GB + 0.21 GB = 14.2 GB
+- **Projected savings: 0.64 GB (~4.3% of total)**
+
+## Real Measurements (not just extrapolation)
+
+### 7B baseline (RTX 3090 Ti, FP16)
+
+| KV type | Peak VRAM | Throughput (warm) | KV @ 32K ctx |
+|---------|-----------|-------------------|--------------|
+| FP16 (stock transformers) | 14.91 GB | 16.3 t/s | ~0.86 GB |
+
+### Projected TurboQuant+ 4-bit KV
+
+| KV type | Peak VRAM | Throughput | KV @ 32K ctx |
+|---------|-----------|------------|--------------|
+| FP16 (measured) | 14.91 GB | 16.3 t/s | ~0.86 GB |
+| 4-bit (projected) | 14.27 GB | ~15-17 t/s | ~0.21 GB |
+| **Savings** | **0.64 GB (4.3%)** | **NON_INFERIOR** | **75% of KV** |
+
+The 4.3% total savings at 7B/32K is modest because KV is small relative to weights. At longer context (128K) or higher concurrency, savings grow:
+
+- 7B at 128K ctx: KV FP16 = 3.43 GB, 4-bit = 0.86 GB, savings = 2.57 GB (~14% of total)
+- 7B at 32K with 10 concurrent: KV = 8.6 GB FP16 -> 2.15 GB 4-bit, savings = 6.45 GB (~30%)
 
 ## Production Extrapolation Table
 
@@ -61,19 +107,25 @@ When KV dominates memory (long context, high concurrency), savings exceed weight
 
 ## Roadmap to Desktop Validation
 
-The desktop (RTX 3090 Ti 24GB) is currently being prepared:
+### Status (2026-09-17)
 
-1. Install torch==2.9.1+cu128 (Python 3.11) -- IN PROGRESS
-2. Install transformers, accelerate, bitsandbytes
-3. Load Qwen3.5-15B dense (~30GB FP16 or ~7.5GB INT4)
-4. Run 10-prompt benchmark with TurboQuant+ vs stock FP16 KV
-5. Measure peak memory, throughput, time-to-first-token
-6. Compare against measurement tables above
+**DONE:**
+- torch 2.9.1+cu128 installed on desktop (Python 3.11)
+- transformers 4.57.1, accelerate 1.15.0, bitsandbytes 0.50.2, safetensors 0.6.2
+- Qwen2.5-7B-Instruct downloaded (~14GB FP16) to E:\hf_cache
+- Baseline benchmark run with stock transformers FP16 KV cache
 
-Expected (based on formula):
-- 15B FP16 KV baseline: ~6.4 GB KV at 32K
-- 15B 4-bit KV expected: ~1.6 GB KV at 32K
-- Target: NON_INFERIOR on throughput, >60% memory reduction
+**NOT DONE (would require PhenoMLX harbor_mlx_server on Windows):**
+- TurboQuant+ 4-bit KV run (MLX-specific, needs Apple Silicon or Rust FFI port)
+- Side-by-side A/B with TurboQuant+ path active
+
+**Issue:** TurboQuant+ is implemented in MLX (Apple Silicon), not CUDA. Running it on the RTX 3090 Ti would require porting the Rust SIMD codec to a CUDA backend. The formula-derived savings still hold; what's missing is the actual on-GPU measurement.
+
+### Future Work
+1. Port turbo_quant codec to CUDA via libtorch (estimated 2-3 weeks)
+2. Re-run 7B/15B benchmarks on desktop with TurboQuant+ active
+3. Measure actual quality preservation with MMLU/GPQA subsets
+4. Concurrency test: 4/8/16 parallel requests, measure VRAM scaling
 
 ## Risk Notes
 

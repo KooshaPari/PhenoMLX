@@ -1,0 +1,80 @@
+{
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "dtype": "fp16",
+  "gpu": "NVIDIA GeForce RTX 3090 Ti",
+  "vram_total_gb": 25.756565504,
+  "results": [
+    {
+      "prompt_idx": 0,
+      "n_tokens": 200,
+      "elapsed_ms": 66074.46837425232,
+      "tokens_per_sec": 3.0268877664997658,
+      "peak_gpu_mem_mb": 15267.505152
+    },
+    {
+      "prompt_idx": 1,
+      "n_tokens": 200,
+      "elapsed_ms": 13756.972789764404,
+      "tokens_per_sec": 14.538082109808775,
+      "peak_gpu_mem_mb": 15268.029952
+    },
+    {
+      "prompt_idx": 2,
+      "n_tokens": 200,
+      "elapsed_ms": 11896.056413650513,
+      "tokens_per_sec": 16.81229417931337,
+      "peak_gpu_mem_mb": 15267.716096
+    },
+    {
+      "prompt_idx": 3,
+      "n_tokens": 87,
+      "elapsed_ms": 5254.258394241333,
+      "tokens_per_sec": 16.557998003172436,
+      "peak_gpu_mem_mb": 15256.4992
+    },
+    {
+      "prompt_idx": 4,
+      "n_tokens": 200,
+      "elapsed_ms": 11522.733449935913,
+      "tokens_per_sec": 17.356992667491788,
+      "peak_gpu_mem_mb": 15268.028928
+    },
+    {
+      "prompt_idx": 5,
+      "n_tokens": 200,
+      "elapsed_ms": 11196.39277458191,
+      "tokens_per_sec": 17.862896026123764,
+      "peak_gpu_mem_mb": 15267.716096
+    },
+    {
+      "prompt_idx": 6,
+      "n_tokens": 200,
+      "elapsed_ms": 12613.51752281189,
+      "tokens_per_sec": 15.856005245031337,
+      "peak_gpu_mem_mb": 15268.657152
+    },
+    {
+      "prompt_idx": 7,
+      "n_tokens": 200,
+      "elapsed_ms": 13727.454900741577,
+      "tokens_per_sec": 14.56934307532824,
+      "peak_gpu_mem_mb": 15268.448256
+    },
+    {
+      "prompt_idx": 8,
+      "n_tokens": 200,
+      "elapsed_ms": 12210.529565811157,
+      "tokens_per_sec": 16.37930598522029,
+      "peak_gpu_mem_mb": 15267.925504
+    },
+    {
+      "prompt_idx": 9,
+      "n_tokens": 200,
+      "elapsed_ms": 12028.12147140503,
+      "tokens_per_sec": 16.627700383261725,
+      "peak_gpu_mem_mb": 15268.657152
+    }
+  ],
+  "peak_overall_mb": 15268.657152,
+  "avg_tokens_per_sec": 14.958750544125149
+}
