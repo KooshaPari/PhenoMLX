@@ -2,7 +2,7 @@
 
 **Source:** docs-3/products/PhenoMLX/DOSSIER.md (management discussion)
 **Created:** 2026-09-16
-**Status:** Converged — PR #227 merged, PR #232 pending
+**Status:** Pilot run 1 complete. 7/10 prompts OK, 3 timeouts, 10.6 avg t/s (0.8B model)
 
 ---
 
@@ -25,10 +25,12 @@
 |---|---|---|
 | Build | PASS | Trunk check passes, CI green |
 | PR #227 (release-macos.yml) | MERGED | Release workflow on main |
-| PR #232 (Entitlements.plist fix) | OPEN | Duplicate network.client key removed |
+| PR #232 (Entitlements.plist fix) | MERGED | Duplicate network.client key removed |
+| Pilot run 1 | COMPLETE | 7/10 OK, 3 timeouts, 10.6 t/s avg |
+| Upstream comparison | PENDING | Needs upstream OMLX install |
 | Entitlements.plist | CLEAN | 1 network.client, 1 metal |
 | Working tree | CLEAN | 0 uncommitted changes |
-| Default branch | main | ca182cdf |
+| Default branch | main | eee38b5a4 |
 
 ---
 
@@ -72,11 +74,11 @@ A reproducible quality-preserving throughput, memory or workflow improvement ove
 
 ## 7. Next Deliverables
 
-1. PR #232 merge (Entitlements.plist fix)
+1. PR #232 merge (Entitlements.plist fix) -- DONE
 2. SHIP.sh operator run for release signing
-3. Atlas extraction: map inference paths, model compatibility, memory lifecycle
-4. Controlled pilot: cold/warm request sets, cancel/unload/restart
-5. Comparative baseline: pinned upstream OMLX
+3. Atlas extraction: map inference paths, model compatibility, memory lifecycle -- DONE
+4. Controlled pilot: run 1 complete (0.8B model), run 2 needed (8B model)
+5. Comparative baseline: pinned upstream OMLX (script ready)
 
 ---
 

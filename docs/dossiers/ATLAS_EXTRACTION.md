@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-16
 **Phase:** B (docs-3 atlas program)
-**Status:** Extraction complete — source-evidenced, no guesses
+**Status:** Extraction complete -- source-evidenced, no guesses. Pilot run 1 complete.
 
 ---
 
@@ -457,3 +457,45 @@ From `backends/mlx_backend.py :: quantization_execution_provenance()` (lines 13-
 - **docs-3 product dossier:** Not found at `~/Downloads/docs-3/products/PhenoMLX/` — may need to be created for docs-3 Phase B
 - **Atlas questions answered:** Inference paths, model/quantization compatibility, memory lifecycle, build artifacts, runtime deps
 - **Remaining carry-forwards:** See section-specific carry-forward questions above
+
+---
+
+## 6. Pilot Results (2026-09-17)
+
+### 6.1 Run 1: Qwen3.5-0.8B-OptiQ-4bit
+
+| Metric | Value |
+|---|---|
+| Model | `mlx-community/Qwen3.5-0.8B-OptiQ-4bit` |
+| Hardware | M1 Pro 16GB |
+| Prompts OK | 7/10 |
+| Prompts timed out | 3/10 (Rust vs C++, debug code, bash script) |
+| Avg time | 32.7s |
+| Avg throughput | 10.6 tokens/s |
+| Avg completion tokens | 296 |
+| Concurrent throughput | 9.44 t/s (3 requests) |
+| Corrupted outputs | 0 |
+| Memory drift | -836 MB (decreased) |
+| Version string | Not in / response (upstream issue) |
+
+### 6.2 Failed Prompts
+
+| # | Prompt | Reason |
+|---|---|---|
+| 2 | "What are the key differences between Rust and C++?" | Timeout (120s) |
+| 6 | "Debug this code: def fib(n): return fib(n-1) + fib(n-2)" | Timeout (120s) |
+| 7 | "Write a bash script that finds all .log files larger than 100MB" | Timeout (120s) |
+
+### 6.3 Interpretation
+
+- The 0.8B model handles simple factual and generation prompts well (17-21 t/s on easy prompts)
+- Complex reasoning/code prompts exhaust the 120s timeout, likely due to extended thinking loops
+- No corrupted outputs -- the model fails cleanly
+- Memory actually decreased during the run, suggesting no leak
+- The version string issue is upstream OMLX's, not PhenoMLX's
+
+### 6.4 Next Runs Needed
+
+1. **Upstream comparison** -- same model, same prompts, same hardware, on stock upstream OMLX
+2. **8B model** -- `Qwen3.5-8B Q4_K_M` per pilot config (better quality on complex prompts)
+3. **TurboQuant+ A/B** -- test with and without KV compression to measure memory advantage

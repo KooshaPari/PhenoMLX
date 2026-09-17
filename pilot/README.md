@@ -34,7 +34,19 @@ python pilot/evaluate.py --latest
 python pilot/evaluate.py pilot/results/<run_id>.json
 ```
 
-### 4. Pin upstream baseline
+### 4. Upstream comparison
+```bash
+# Start upstream OMLX server on port 8767
+python -m mlx_lm.server --model mlx-community/Qwen3.5-0.8B-OptiQ-4bit --port 8767
+
+# Run comparison (both servers)
+python pilot/compare_upstream.py --compare
+
+# Or upstream-only
+python pilot/compare_upstream.py --upstream-only
+```
+
+### 5. Pin upstream baseline
 ```bash
 git fetch jundot-omlx
 git merge-base origin/main jundot-omlx/main

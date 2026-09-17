@@ -6,7 +6,7 @@
 ## Repo
 - Path: `~/CodeProjects/Phenotype/repos/phenotype-omlx`
 - Branch: main (e1f2840cd)
-- Remote: https://github.com/KooshaPari/PhenoMLX-temp (temp — original accidentally deleted, awaiting GH support restore)
+- Remote: https://github.com/<REDACTED>/PhenoMLX-temp (temp — original accidentally deleted, awaiting GH support restore)
 
 ## Current State
 - Build: PASS
