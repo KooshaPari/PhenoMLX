@@ -1,0 +1,82 @@
+{
+  "run_id": "20260917-003431",
+  "model": null,
+  "overall": "FAIL",
+  "verdicts": [
+    {
+      "check": "server_health",
+      "passed": true,
+      "detail": "model=mlx-community/Qwen3.5-0.8B-OptiQ-4bit, status=OK",
+      "critical": true
+    },
+    {
+      "check": "no_corrupted_outputs",
+      "passed": true,
+      "detail": "0 corrupted out of 7",
+      "critical": true
+    },
+    {
+      "check": "all_prompts_completed",
+      "passed": false,
+      "detail": "3 prompts failed",
+      "critical": true
+    },
+    {
+      "check": "invariant: Zero corrupted outputs across all trials",
+      "passed": true,
+      "detail": "all outputs valid",
+      "critical": true,
+      "manual": false
+    },
+    {
+      "check": "invariant: Cancelled request releases memory within 5 seconds",
+      "passed": true,
+      "detail": "requires manual cancel test (send request, abort, check memory after 5s)",
+      "critical": false,
+      "manual": true
+    },
+    {
+      "check": "invariant: Model unload returns to baseline memory (no leak)",
+      "passed": false,
+      "detail": "memory drift: -836.7 MB across 7 readings",
+      "critical": true,
+      "manual": false
+    },
+    {
+      "check": "invariant: API version string matches build",
+      "passed": false,
+      "detail": "no version in / response",
+      "critical": true,
+      "manual": false
+    },
+    {
+      "check": "invariant: OOM returns explicit error, not corrupted output",
+      "passed": true,
+      "detail": "requires manual OOM test (load model larger than available memory)",
+      "critical": false,
+      "manual": true
+    },
+    {
+      "check": "concurrent_throughput",
+      "passed": true,
+      "detail": "9.44 tokens/s at concurrency=3",
+      "critical": false
+    },
+    {
+      "check": "non_inferiority_vs_baseline",
+      "passed": true,
+      "detail": "requires baseline measurement for comparison \u2014 logged as DOCUMENTED_CAPABILITY",
+      "critical": false,
+      "note": "run upstream baseline and compare"
+    }
+  ],
+  "critical_failures": 3,
+  "manual_pending": 0,
+  "summary": {
+    "prompts_ok": 7,
+    "prompts_failed": 3,
+    "prompts_corrupted": 0,
+    "avg_throughput_tps": 10.57,
+    "concurrent_throughput_tps": 9.44
+  }
+}

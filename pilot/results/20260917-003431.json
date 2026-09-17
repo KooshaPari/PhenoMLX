@@ -1,0 +1,329 @@
+{
+  "run_id": "20260917-003431",
+  "timestamp": "2026-09-17T00:44:58.217686+00:00",
+  "base_url": "http://127.0.0.1:8766/v1",
+  "model": "mlx-community/Qwen3.5-0.8B-OptiQ-4bit",
+  "hardware": "MacBook Pro M1 Pro 16GB",
+  "status": "INVARIANT_FAILURE",
+  "phases": {
+    "health_check": {
+      "status": "OK",
+      "model": "mlx-community/Qwen3.5-0.8B-OptiQ-4bit",
+      "models_available": [
+        "mlx-community/Qwen3.5-0.8B-OptiQ-4bit"
+      ],
+      "memory_before": {
+        "free_mb": 68.4,
+        "active_mb": 4160.3,
+        "wired_mb": 2618.4,
+        "used_mb": 6778.7
+      }
+    },
+    "prompt_results": [
+      {
+        "prompt_index": 0,
+        "prompt": "Explain the difference between TCP and UDP.",
+        "status": "OK",
+        "content_length": 2185,
+        "content_preview": "TCP (Transmission Control Protocol) and UDP (User Datagram Protocol) are both used for communication over networks, but they differ fundamentally in how they handle data transmission and reliability.\n",
+        "prompt_tokens": 32,
+        "completion_tokens": 512,
+        "total_time_s": 29.01,
+        "throughput_tps": 17.65,
+        "memory_before": {
+          "free_mb": 71.4,
+          "active_mb": 4156.5,
+          "wired_mb": 2618.2,
+          "used_mb": 6774.7
+        },
+        "memory_after": {
+          "free_mb": 62.5,
+          "active_mb": 3320.3,
+          "wired_mb": 3771.7,
+          "used_mb": 7092.1
+        },
+        "is_corrupted": false
+      },
+      {
+        "prompt_index": 1,
+        "prompt": "Write a Python function to find the longest palindromic substring.",
+        "status": "OK",
+        "content_length": 1190,
+        "content_preview": "```python\ndef longest_palindromic_substring(s: str) -> str:\n    \"\"\"\n    Find the longest palindromic substring in a string.\n\n    Returns:\n        str: The longest palindromic substring.\n    \"\"\"\n    n ",
+        "prompt_tokens": 37,
+        "completion_tokens": 375,
+        "total_time_s": 17.627,
+        "throughput_tps": 21.27,
+        "memory_before": {
+          "free_mb": 191.7,
+          "active_mb": 3310.7,
+          "wired_mb": 3747.9,
+          "used_mb": 7058.6
+        },
+        "memory_after": {
+          "free_mb": 66.4,
+          "active_mb": 3080.4,
+          "wired_mb": 3858.9,
+          "used_mb": 6939.4
+        },
+        "is_corrupted": false
+      },
+      {
+        "prompt_index": 2,
+        "prompt": "What are the key differences between Rust and C++?",
+        "status": "ERROR",
+        "error": "timed out",
+        "total_time_s": 120.005,
+        "is_corrupted": false
+      },
+      {
+        "prompt_index": 3,
+        "prompt": "Summarize the causes of World War I in 3 sentences.",
+        "status": "OK",
+        "content_length": 589,
+        "content_preview": "World War I was primarily caused by a combination of economic instability, the rise of nationalism, and the failure of the international alliance system to prevent a global conflict. The economic cris",
+        "prompt_tokens": 37,
+        "completion_tokens": 112,
+        "total_time_s": 29.059,
+        "throughput_tps": 3.85,
+        "memory_before": {
+          "free_mb": 63.7,
+          "active_mb": 2467.6,
+          "wired_mb": 3961.1,
+          "used_mb": 6428.7
+        },
+        "memory_after": {
+          "free_mb": 323.3,
+          "active_mb": 3299.7,
+          "wired_mb": 4026.0,
+          "used_mb": 7325.7
+        },
+        "is_corrupted": false
+      },
+      {
+        "prompt_index": 4,
+        "prompt": "Write a SQL query to find the top 3 customers by revenue.",
+        "status": "OK",
+        "content_length": 343,
+        "content_preview": "```sql\nSELECT \n    customer_id,\n    customer_name,\n    revenue\nFROM \n    customers\nORDER BY \n    revenue DESC\nLIMIT 3;\n```\n\nThis query:\n- Selects the top 3 customers by revenue\n- Orders them in descen",
+        "prompt_tokens": 37,
+        "completion_tokens": 92,
+        "total_time_s": 18.102,
+        "throughput_tps": 5.08,
+        "memory_before": {
+          "free_mb": 265.9,
+          "active_mb": 3334.3,
+          "wired_mb": 4026.1,
+          "used_mb": 7360.3
+        },
+        "memory_after": {
+          "free_mb": 62.6,
+          "active_mb": 3183.6,
+          "wired_mb": 4033.1,
+          "used_mb": 7216.7
+        },
+        "is_corrupted": false
+      },
+      {
+        "prompt_index": 5,
+        "prompt": "Explain how gradient descent works, including learning rate.",
+        "status": "OK",
+        "content_length": 2131,
+        "content_preview": "Gradient descent is a fundamental algorithm used to minimize a loss function in machine learning and optimization problems. It iteratively adjusts the parameters of a model to reduce the error between",
+        "prompt_tokens": 34,
+        "completion_tokens": 512,
+        "total_time_s": 87.953,
+        "throughput_tps": 5.82,
+        "memory_before": {
+          "free_mb": 65.0,
+          "active_mb": 3165.0,
+          "wired_mb": 4033.4,
+          "used_mb": 7198.4
+        },
+        "memory_after": {
+          "free_mb": 64.4,
+          "active_mb": 3184.5,
+          "wired_mb": 4002.1,
+          "used_mb": 7186.6
+        },
+        "is_corrupted": false
+      },
+      {
+        "prompt_index": 6,
+        "prompt": "Debug this code: def fib(n): return fib(n-1) + fib(n-2)",
+        "status": "ERROR",
+        "error": "timed out",
+        "total_time_s": 120.018,
+        "is_corrupted": false
+      },
+      {
+        "prompt_index": 7,
+        "prompt": "Write a bash script that finds all .log files larger than 100MB.",
+        "status": "ERROR",
+        "error": "timed out",
+        "total_time_s": 120.017,
+        "is_corrupted": false
+      },
+      {
+        "prompt_index": 8,
+        "prompt": "What is the time complexity of quicksort in the worst case?",
+        "status": "OK",
+        "content_length": 1019,
+        "content_preview": "The time complexity of quicksort in the worst case is **O(n\u00b2)**.\n\n### Explanation:\nQuicksort is a divide-and-conquer algorithm that works by selecting a pivot element and partitioning the array around",
+        "prompt_tokens": 36,
+        "completion_tokens": 251,
+        "total_time_s": 27.042,
+        "throughput_tps": 9.28,
+        "memory_before": {
+          "free_mb": 118.8,
+          "active_mb": 2910.7,
+          "wired_mb": 3972.2,
+          "used_mb": 6882.9
+        },
+        "memory_after": {
+          "free_mb": 64.3,
+          "active_mb": 2520.4,
+          "wired_mb": 3814.7,
+          "used_mb": 6335.1
+        },
+        "is_corrupted": false
+      },
+      {
+        "prompt_index": 9,
+        "prompt": "Translate 'The quick brown fox jumps over the lazy dog' to French, Spanish, and ...",
+        "status": "OK",
+        "content_length": 787,
+        "content_preview": "Voici la traduction de la phrase \u00ab The quick brown fox jumps over the lazy dog \u00bb en fran\u00e7ais, espagnol et japonais :\n\n**Fran\u00e7ais :**\n> Le chevron rouge qui court sur le chien qui est lent.\n\n**Espagnol",
+        "prompt_tokens": 43,
+        "completion_tokens": 221,
+        "total_time_s": 20.028,
+        "throughput_tps": 11.03,
+        "memory_before": {
+          "free_mb": 89.5,
+          "active_mb": 2493.2,
+          "wired_mb": 3856.9,
+          "used_mb": 6350.1
+        },
+        "memory_after": {
+          "free_mb": 60.7,
+          "active_mb": 2309.1,
+          "wired_mb": 3946.3,
+          "used_mb": 6255.4
+        },
+        "is_corrupted": false
+      }
+    ],
+    "concurrent": {
+      "concurrency": 3,
+      "wall_time_s": 32.418,
+      "total_completion_tokens": 306,
+      "aggregate_throughput_tps": 9.44,
+      "successes": 3,
+      "failures": 0,
+      "results": [
+        {
+          "index": 0,
+          "status": "OK",
+          "time_s": 32.186,
+          "completion_tokens": 102,
+          "content_length": 395
+        },
+        {
+          "index": 1,
+          "status": "OK",
+          "time_s": 32.4,
+          "completion_tokens": 102,
+          "content_length": 395
+        },
+        {
+          "index": 2,
+          "status": "OK",
+          "time_s": 32.208,
+          "completion_tokens": 102,
+          "content_length": 395
+        }
+      ],
+      "memory_before": {
+        "free_mb": 59.4,
+        "active_mb": 2337.8,
+        "wired_mb": 3943.1,
+        "used_mb": 6280.8
+      },
+      "memory_after": {
+        "free_mb": 70.9,
+        "active_mb": 2372.8,
+        "wired_mb": 4297.9,
+        "used_mb": 6670.7
+      }
+    },
+    "invariant_checks": [
+      {
+        "invariant": "Zero corrupted outputs across all trials",
+        "passed": true,
+        "detail": "all outputs valid",
+        "failures": []
+      },
+      {
+        "invariant": "Cancelled request releases memory within 5 seconds",
+        "passed": true,
+        "detail": "requires manual cancel test (send request, abort, check memory after 5s)",
+        "manual": true
+      },
+      {
+        "invariant": "Model unload returns to baseline memory (no leak)",
+        "passed": false,
+        "detail": "memory drift: -836.7 MB across 7 readings"
+      },
+      {
+        "invariant": "API version string matches build",
+        "passed": false,
+        "detail": "no version in / response"
+      },
+      {
+        "invariant": "OOM returns explicit error, not corrupted output",
+        "passed": true,
+        "detail": "requires manual OOM test (load model larger than available memory)",
+        "manual": true
+      }
+    ]
+  },
+  "summary": {
+    "prompts_ok": 7,
+    "prompts_failed": 3,
+    "prompts_corrupted": 0,
+    "all_invariants_pass": false,
+    "manual_invariants_pending": [
+      "Cancelled request releases memory within 5 seconds",
+      "OOM returns explicit error, not corrupted output"
+    ],
+    "avg_time_s": 32.689,
+    "avg_throughput_tps": 10.57,
+    "concurrent_throughput_tps": 9.44
+  },
+  "config": {
+    "margins": {
+      "ttft_pct": 20,
+      "throughput_pct": 15,
+      "peak_memory_pct": 25
+    },
+    "invariants": [
+      "Zero corrupted outputs across all trials",
+      "Cancelled request releases memory within 5 seconds",
+      "Model unload returns to baseline memory (no leak)",
+      "API version string matches build",
+      "OOM returns explicit error, not corrupted output"
+    ],
+    "prompts": [
+      "Explain the difference between TCP and UDP.",
+      "Write a Python function to find the longest palindromic substring.",
+      "What are the key differences between Rust and C++?",
+      "Summarize the causes of World War I in 3 sentences.",
+      "Write a SQL query to find the top 3 customers by revenue.",
+      "Explain how gradient descent works, including learning rate.",
+      "Debug this code: def fib(n): return fib(n-1) + fib(n-2)",
+      "Write a bash script that finds all .log files larger than 100MB.",
+      "What is the time complexity of quicksort in the worst case?",
+      "Translate 'The quick brown fox jumps over the lazy dog' to French, Spanish, and Japanese."
+    ]
+  }
+}
