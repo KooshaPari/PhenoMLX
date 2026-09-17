@@ -1,0 +1,22 @@
+CUDA QDQ SMOKE PASS {"roundtrip_shape_dtype_device_finite": true, "nonidentity_control": true, "constant_group": true, "shapes": 4}
+A_fp16 1/10 13.46 t/s
+A_fp16 2/10 13.36 t/s
+A_fp16 3/10 14.08 t/s
+A_fp16 4/10 14.59 t/s
+A_fp16 5/10 13.41 t/s
+A_fp16 6/10 14.52 t/s
+A_fp16 7/10 14.11 t/s
+A_fp16 8/10 14.25 t/s
+A_fp16 9/10 14.08 t/s
+A_fp16 10/10 13.21 t/s
+B_qdq4 1/10 3.39 t/s
+B_qdq4 2/10 3.64 t/s
+B_qdq4 3/10 3.59 t/s
+B_qdq4 4/10 3.75 t/s
+B_qdq4 5/10 3.82 t/s
+B_qdq4 6/10 3.77 t/s
+B_qdq4 7/10 3.76 t/s
+B_qdq4 8/10 3.65 t/s
+B_qdq4 9/10 3.38 t/s
+B_qdq4 10/10 4.05 t/s
+COMPLETE C:\bench\turboquant_diagnostic.json
