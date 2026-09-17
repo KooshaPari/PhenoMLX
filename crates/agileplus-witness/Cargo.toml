@@ -1,0 +1,30 @@
+[package]
+name = "agileplus-witness"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Witness primitive: evidence-based verdict engine for MEOW"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+documentation = "https://docs.rs/agileplus-witness"
+keywords = ["phenotype", "agileplus", "witness"]
+categories = ["development-tools::profiling"]
+authors = ["kooshapari"]
+
+[dependencies]
+agileplus-convoy = { path = "../agileplus-convoy" }
+agileplus-triage = { path = "../agileplus-triage" }
+anyhow.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "macros"] }
+
+[package.metadata.cargo-machete]
+ignored = ["thiserror"]

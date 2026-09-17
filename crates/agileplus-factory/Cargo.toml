@@ -1,0 +1,35 @@
+[package]
+name = "agileplus-factory"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Dark-factory loop: queue -> claim -> worktree -> trail -> PR. Unattended code factory for AgilePlus."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+documentation = "https://docs.rs/agileplus-factory"
+keywords = ["phenotype", "agileplus", "factory"]
+categories = ["rust-patterns"]
+authors = ["kooshapari"]
+
+[dependencies]
+agileplus-triage = { path = "../agileplus-triage" }
+agileplus-git = { path = "../agileplus-git" }
+agileplus-events = { path = "../agileplus-events" }
+agileplus-domain = { path = "../agileplus-domain" }
+tokio.workspace = true
+reqwest = { version = "0.12", features = ["json"] }
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+tempfile = "3"
+
+[package.metadata.cargo-machete]
+ignored = ["agileplus-domain", "agileplus-events", "thiserror"]

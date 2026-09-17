@@ -1,0 +1,33 @@
+[package]
+name = "agileplus-pipeline"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "DOT-graph pipeline runner — executes DAGs parsed from DOT files with shell commands, guards, retries, and resource limits."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+documentation = "https://docs.rs/agileplus-pipeline"
+keywords = ["phenotype", "agileplus", "pipeline"]
+categories = ["asynchronous"]
+authors = ["kooshapari"]
+
+[dependencies]
+agileplus-graph = { path = "../agileplus-graph" }
+agileplus-triage = { path = "../agileplus-triage" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["process"] }
+tokio-stream.workspace = true
+tracing.workspace = true
+uuid = { version = "1", features = ["v4", "serde"] }
+tempfile = "3"
+regex = "1"
+petgraph = "0.7"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "macros"] }
+
+[package.metadata.cargo-machete]
+ignored = ["agileplus-triage", "tokio-stream", "tracing"]

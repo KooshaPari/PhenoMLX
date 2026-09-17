@@ -1,0 +1,12 @@
+[package]
+name = "basic"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+clap-ext = { path = "../../crates/clap-ext" }
+clap = { version = "4.5", features = ["derive", "env", "string"] }
+anyhow = "1.0"
+tracing = "0.1"

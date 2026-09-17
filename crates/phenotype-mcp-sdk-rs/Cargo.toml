@@ -1,0 +1,28 @@
+[package]
+name = "phenotype-mcp-sdk-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Rust MCP SDK — server trait, tool/resource abstractions, and stdio/SSE transports"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+documentation = "https://docs.rs/phenotype-mcp-sdk-rs"
+keywords = ["phenotype", "agileplus", "mcp"]
+categories = ["api-bindings"]
+authors = ["kooshapari"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "macros"] }
+
+[package.metadata.cargo-machete]
+ignored = ["anyhow", "futures", "tracing"]

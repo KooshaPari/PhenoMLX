@@ -1,0 +1,36 @@
+name: ci-python
+
+# Python-specific workflow that includes the shared
+# `ci-base` and adds the `uv` / `pytest` / `ruff` matrix.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: python
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: install uv
+        run: pip install uv
+
+      - name: install deps
+        run: uv sync --frozen
+
+      - name: lint
+        run: uv run ruff check .
+
+      - name: test
+        run: uv run pytest

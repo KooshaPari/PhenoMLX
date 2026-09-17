@@ -1,0 +1,38 @@
+[package]
+name = "agileplus-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# workspace crates
+agileplus-domain = { path = "../agileplus-domain" }
+agileplus-application = { path = "../agileplus-application" }
+agileplus-git = { path = "../agileplus-git" }
+agileplus-sqlite = { path = "../agileplus-sqlite" }
+# workspace-managed external deps
+anyhow.workspace = true
+tokio.workspace = true
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+tracing.workspace = true
+chrono.workspace = true
+utoipa.workspace = true
+thiserror.workspace = true
+# non-workspace external deps
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+askama = "0.12"
+rand = "0.8"
+base64 = "0.22"
+async-trait = "0.1"
+sha2.workspace = true
+
+[dev-dependencies]
+axum-test = "20"
+
+[package.metadata.cargo-machete]
+ignored = ["tracing-subscriber", "agileplus-telemetry"]

@@ -1,0 +1,64 @@
+[package]
+name = "agileplus-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT OR Apache-2.0"
+repository.workspace = true
+homepage.workspace = true
+description.workspace = true
+documentation = "https://docs.rs/agileplus-cli"
+keywords = ["project-management", "traceability", "agile", "spec-first"]
+categories = ["command-line-utilities", "development-tools"]
+authors = ["kooshapari"]
+
+[[bin]]
+name = "agileplus"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap = { version = "4", features = ["derive", "env"] }
+chrono.workspace = true
+sha2.workspace = true
+agileplus-application = { path = "../agileplus-application" }
+agileplus-domain = { path = "../agileplus-domain" }
+agileplus-git = { path = "../agileplus-git" }
+agileplus-github = { path = "../agileplus-github" }
+agileplus-governance = { path = "../agileplus-governance" }
+agileplus-plane = { path = "../agileplus-plane" }
+agileplus-sqlite = { path = "../agileplus-sqlite" }
+agileplus-subcmds = { path = "../agileplus-subcmds", default-features = true }
+agileplus-triage = { path = "../agileplus-triage" }
+agileplus-events = { path = "../agileplus-events", optional = true }
+agileplus-telemetry.workspace = true
+rusqlite = { version = "0.32", features = ["bundled"] }
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+comfy-table = "7"
+similar = "2"
+dashmap = "6"
+uuid = { workspace = true }
+regex = { workspace = true }
+colored = "2"
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+proptest = "1"
+tokio-test = "0.4"
+tempfile = "3"
+
+[package.metadata.cargo-machete]
+ignored = ["agileplus-git", "tracing-subscriber"]
+
+[features]
+default = ["full-deps"]
+full-deps = ["events", "plane", "triage"]
+events = ["dep:agileplus-events"]
+plane = []
+triage = []

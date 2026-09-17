@@ -1,0 +1,30 @@
+[package]
+name = "agileplus-github"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+description = "agileplus github — Phenotype infrastructure crate (AgilePlus)"
+documentation = "https://docs.rs/agileplus-github"
+keywords = ["phenotype", "agileplus", "git"]
+categories = ["development-tools::version-control"]
+authors = ["kooshapari"]
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+octocrab = "0.42"
+reqwest = { version = "0.12", features = ["json"] }
+sha2.workspace = true
+chrono.workspace = true
+agileplus-domain = { path = "../agileplus-domain" }
+agileplus-triage = { path = "../agileplus-triage" }
+
+[package.metadata.cargo-machete]
+ignored = ["chrono", "tracing"]

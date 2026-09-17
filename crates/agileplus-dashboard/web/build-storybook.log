@@ -1,0 +1,58 @@
+
+> web@0.0.0 build-storybook
+> storybook build --output-dir=/var/folders/wl/z8733y815nzg28yy0_1_lh7w0000gn/T/chromatic--76407-UVP3nGJR4Py9
+
+
+[90m┌[39m  Building storybook v10.3.3
+[90m│[39m
+[32m◇[39m  Cleaning outputDir:
+[90m│[39m  [36m../../../../../../../../../var/folders/wl/z8733y815nzg28yy0_1_lh7w0000gn/T/chromatic--76407-UVP3nGJR4Py9[39m
+[90m│[39m
+[32m◇[39m  Loading presets
+[90m│[39m
+[32m◇[39m  Building manager..
+[90m│[39m
+[34m●[39m  Building preview..
+[90m│[39m
+[33m▲[39m  No story files found for the specified pattern: [34msrc/**/*.mdx[39m
+[90m│[39m  [43mVite[49m [36mvite v8.0.3 [32mbuilding client environment for production...[36m[39m
+[2Ktransforming...[90m│[39m
+[33m▲[39m  Expected '@storybook/addon-actions' (or '@storybook/addon-essentials')
+[90m│[39m  to be listed before '@storybook/addon-interactions' in main Storybook
+[90m│[39m  config.
+[32m✓[39m 51 modules transformed.
+rendering chunks...
+computing gzip size...
+[90m│[39m  [43mVite[49m
+[90m│[39m  [2m../../../../../../../../../var/folders/wl/z8733y815nzg28yy0_1_lh7w0000gn/T/chromatic--76407-UVP3nGJR4Py9/[0m[32miframe.html[39m[2m[1m[22m
+[90m│[39m  [1m18.70 kB[0m[0m[2m │ gzip:   5.27 kB[0m
+[90m│[39m  [2m../../../../../../../../../var/folders/wl/z8733y815nzg28yy0_1_lh7w0000gn/T/chromatic--76407-UVP3nGJR4Py9/[0m[2massets/[0m[35miframe-BBywbmZh.css[39m[2m[1m[22m
+[90m│[39m  [1m2.93 kB[0m[0m[2m │ gzip:   1.16 kB[0m
+[90m│[39m  [2m../../../../../../../../../var/folders/wl/z8733y815nzg28yy0_1_lh7w0000gn/T/chromatic--76407-UVP3nGJR4Py9/[0m[2massets/[0m[36mchunk-BneVvdWh.js[39m[2m[1m[22m
+[90m│[39m  [1m1.11 kB[0m[0m[2m │ gzip:   0.63 kB[0m
+[90m│[39m  [2m../../../../../../../../../var/folders/wl/z8733y815nzg28yy0_1_lh7w0000gn/T/chromatic--76407-UVP3nGJR4Py9/[0m[2massets/[0m[36mpreload-helper-CV6hqhE5.js[39m[2m[1m[22m
+[90m│[39m  [1m1.27 kB[0m[0m[2m │ gzip:   0.73 kB[0m
+[90m│[39m  [2m../../../../../../../../../var/folders/wl/z8733y815nzg28yy0_1_lh7w0000gn/T/chromatic--76407-UVP3nGJR4Py9/[0m[36mvite-inject-mocker-entry.js[39m[2m[1m[22m
+[90m│[39m  [1m27.85 kB[0m[0m[2m │ gzip:   9.64 kB[0m
+[90m│[39m  [2m../../../../../../../../../var/folders/wl/z8733y815nzg28yy0_1_lh7w0000gn/T/chromatic--76407-UVP3nGJR4Py9/[0m[2massets/[0m[36mreact-18-BEoUPeuE.js[39m[2m[1m[22m
+[90m│[39m  [1m182.50 kB[0m[0m[2m │ gzip:  57.50 kB[0m
+[90m│[39m  [2m../../../../../../../../../var/folders/wl/z8733y815nzg28yy0_1_lh7w0000gn/T/chromatic--76407-UVP3nGJR4Py9/[0m[2massets/[0m[36mButton.stories-DJg6pY3d.js[39m[33m[1m[22m
+[90m│[39m  [1m683.62 kB[0m[39m[2m │ gzip: 163.55 kB[0m
+[90m│[39m  [2m../../../../../../../../../var/folders/wl/z8733y815nzg28yy0_1_lh7w0000gn/T/chromatic--76407-UVP3nGJR4Py9/[0m[2massets/[0m[36miframe-C_7OixBy.js[39m
+[90m│[39m  [36m[39m[33m[1m1,725.35 kB[0m[39m[2m │ gzip: 455.49 kB[0m
+
+[90m│[39m
+[33m▲[39m  [43mVite[49m [33m[plugin builtin:vite-reporter][33m[1m
+[90m│[39m  (!) Some chunks are larger than 500 kB after minification. Consider:
+[90m│[39m  - Using dynamic import() to code-split the application
+[90m│[39m  - Use build.rolldownOptions.output.codeSplitting to improve chunking:
+[90m│[39m  ]8;;https://rolldown.rs/reference/OutputOptions.codeSplittinghttps://rolldown.rs/reference/OutputOptions.codeSplitting]8;;
+[90m│[39m  - Adjust chunk size limit for this warning via
+[90m│[39m  build.chunkSizeWarningLimit.[0m[33m[39m
+[90m│[39m  [43mVite[49m [32m✓ built in 19.89s[39m
+[90m│[39m
+[32m◇[39m  Output directory:
+[90m│[39m  /var/folders/wl/z8733y815nzg28yy0_1_lh7w0000gn/T/chromatic--76407-UVP3nGJR4Py9
+[90m│[39m
+[90m└[39m  Storybook build completed successfully
+

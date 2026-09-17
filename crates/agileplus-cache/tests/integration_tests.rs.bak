@@ -1,0 +1,328 @@
+use agileplus_cache::{
+    CacheError, CacheStore, CacheConfig, InMemoryCacheStore, ProjectionCache, RateLimiter,
+    TypedCacheStore,
+};
+use agileplus_domain::domain::feature::Feature;
+use agileplus_domain::domain::work_package::WorkPackage;
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
+use std::sync::Arc;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+struct TestValue {
+    name: String,
+    value: i32,
+}
+
+#[tokio::test]
+async fn test_in_memory_cache_set_and_get() {
+    let base_store = InMemoryCacheStore::new(3600);
+    let store = TypedCacheStore::new(base_store);
+    let value = TestValue {
+        name: "test".to_string(),
+        value: 42,
+    };
+
+    store.set("key1", &value, None).await.unwrap();
+    let retrieved: Option<TestValue> = store.get("key1").await.unwrap();
+
+    assert_eq!(retrieved, Some(value));
+}
+
+#[tokio::test]
+async fn test_in_memory_cache_get_nonexistent() {
+    let store = InMemoryCacheStore::new(3600);
+    let result: Option<TestValue> = store.get("nonexistent").await.unwrap();
+    assert_eq!(result, None);
+}
+
+#[tokio::test]
+async fn test_in_memory_cache_delete() {
+    let store = InMemoryCacheStore::new(3600);
+    let value = TestValue {
+        name: "test".to_string(),
+        value: 42,
+    };
+
+    store.set("key1", &value, None).await.unwrap();
+    assert!(store.exists("key1").await.unwrap());
+
+    store.delete("key1").await.unwrap();
+    assert!(!store.exists("key1").await.unwrap());
+}
+
+#[tokio::test]
+async fn test_in_memory_cache_exists() {
+    let store = InMemoryCacheStore::new(3600);
+    let value = TestValue {
+        name: "test".to_string(),
+        value: 42,
+    };
+
+    assert!(!store.exists("key1").await.unwrap());
+    store.set("key1", &value, None).await.unwrap();
+    assert!(store.exists("key1").await.unwrap());
+}
+
+#[tokio::test]
+async fn test_in_memory_cache_with_ttl() {
+    let store = InMemoryCacheStore::new(1);
+    let value = TestValue {
+        name: "test".to_string(),
+        value: 42,
+    };
+
+    store.set("key1", &value, Some(Duration::from_secs(1))).await.unwrap();
+    assert!(store.exists("key1").await.unwrap());
+
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    assert!(!store.exists("key1").await.unwrap());
+}
+
+#[tokio::test]
+async fn test_in_memory_cache_overwrite() {
+    let store = InMemoryCacheStore::new(3600);
+    let value1 = TestValue {
+        name: "test1".to_string(),
+        value: 42,
+    };
+    let value2 = TestValue {
+        name: "test2".to_string(),
+        value: 100,
+    };
+
+    store.set("key1", &value1, None).await.unwrap();
+    store.set("key1", &value2, None).await.unwrap();
+
+    let retrieved: Option<TestValue> = store.get("key1").await.unwrap();
+    assert_eq!(retrieved, Some(value2));
+}
+
+#[tokio::test]
+async fn test_in_memory_cache_clear() {
+    let store = InMemoryCacheStore::new(3600);
+    let value = TestValue {
+        name: "test".to_string(),
+        value: 42,
+    };
+
+    store.set("key1", &value, None).await.unwrap();
+    store.set("key2", &value, None).await.unwrap();
+    assert!(store.exists("key1").await.unwrap());
+    assert!(store.exists("key2").await.unwrap());
+
+    store.delete("key1").await.unwrap();
+    assert!(!store.exists("key1").await.unwrap());
+    assert!(store.exists("key2").await.unwrap());
+}
+
+#[test]
+fn test_cache_config_default() {
+    let config = CacheConfig::default();
+    assert_eq!(config.host, "localhost");
+    assert_eq!(config.port, 6379);
+    assert_eq!(config.pool_size, 16);
+    assert_eq!(config.default_ttl_secs, 3600);
+    assert_eq!(config.connection_timeout_secs, 5);
+}
+
+#[test]
+fn test_cache_config_builder() {
+    let config = CacheConfig::new("127.0.0.1", 6380)
+        .with_pool_size(32)
+        .with_default_ttl(7200);
+    assert_eq!(config.host, "127.0.0.1");
+    assert_eq!(config.port, 6380);
+    assert_eq!(config.pool_size, 32);
+    assert_eq!(config.default_ttl_secs, 7200);
+}
+
+#[test]
+fn test_cache_config_redis_url() {
+    let config = CacheConfig::new("localhost", 6379);
+    assert_eq!(config.redis_url(), "redis://localhost:6379");
+}
+
+#[test]
+fn test_cache_config_redis_url_custom() {
+    let config = CacheConfig::new("192.168.1.1", 6380);
+    assert_eq!(config.redis_url(), "redis://192.168.1.1:6380");
+}
+
+#[test]
+fn test_cache_error_display() {
+    let err = CacheError::NotFound;
+    assert_eq!(err.to_string(), "Cache error: Key not found");
+
+    let err = CacheError::SerializationError("json error".to_string());
+    assert_eq!(err.to_string(), "Cache error: Serialization error: json error");
+
+    let err = CacheError::RedisError("connection failed".to_string());
+    assert_eq!(err.to_string(), "Cache error: Redis error: connection failed");
+
+    let err = CacheError::ConnectionError("timeout".to_string());
+    assert_eq!(err.to_string(), "Cache error: Connection error: timeout");
+}
+
+#[test]
+fn test_cache_error_from_serialization() {
+    let json_err = serde_json::from_str::<TestValue>("invalid json").unwrap_err();
+    let err: CacheError = CacheError::SerializationError(json_err.to_string());
+    assert!(err.to_string().contains("Serialization error"));
+}
+
+#[tokio::test]
+async fn test_projection_cache_store_trait_impl() {
+    let store = InMemoryCacheStore::new(3600);
+    let value = TestValue {
+        name: "feature1".to_string(),
+        value: 1,
+    };
+
+    #[derive(Serialize, Deserialize)]
+    struct MockFeature {
+        id: i64,
+        data: TestValue,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct MockProjection {
+        feature: MockFeature,
+        cached_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    let feature = MockFeature {
+        id: 1,
+        data: value.clone(),
+    };
+    let projection = MockProjection {
+        feature,
+        cached_at: chrono::Utc::now(),
+    };
+
+    store
+        .set("feature:1", &projection, Some(Duration::from_secs(60)))
+        .await
+        .unwrap();
+
+    let retrieved: Option<MockProjection> = store.get("feature:1").await.unwrap();
+    assert!(retrieved.is_some());
+    assert_eq!(retrieved.unwrap().feature.id, 1);
+}
+
+#[tokio::test]
+async fn test_concurrent_cache_access() {
+    use std::sync::Arc;
+    let store = Arc::new(InMemoryCacheStore::new(3600));
+    let value = TestValue {
+        name: "concurrent".to_string(),
+        value: 100,
+    };
+
+    let store_clone = store.clone();
+    let handle = tokio::spawn(async move {
+        store_clone.set("concurrent_key", &value, None).await
+    });
+
+    store.set("concurrent_key", &value, None).await.unwrap();
+    handle.await.unwrap().unwrap();
+
+    let retrieved: Option<TestValue> = store.get("concurrent_key").await.unwrap();
+    assert_eq!(retrieved, Some(value));
+}
+
+#[tokio::test]
+async fn test_in_memory_health_check() {
+    let store = InMemoryCacheStore::new(3600);
+    assert!(store.health_check().await.unwrap());
+}
+
+#[tokio::test]
+async fn test_projection_cache_with_in_memory_store() {
+    use std::sync::Arc;
+    let store = Arc::new(InMemoryCacheStore::new(60));
+    let cache = ProjectionCache::new(store.clone());
+
+    let feature = Feature::new(
+        "test-feature",
+        "Test Feature",
+        [0u8; 32],
+        None,
+    );
+
+    cache.set_feature(&feature).await.unwrap();
+
+    let cached = cache.get_feature(feature.id).await.unwrap();
+    assert!(cached.is_some());
+    assert_eq!(cached.unwrap().feature.id, feature.id);
+}
+
+#[tokio::test]
+async fn test_projection_cache_invalidate() {
+    use std::sync::Arc;
+    let store = Arc::new(InMemoryCacheStore::new(60));
+    let cache = ProjectionCache::new(store.clone());
+
+    let feature = Feature::new(
+        "test-feature-2",
+        "Feature to invalidate",
+        [0u8; 32],
+        None,
+    );
+
+    cache.set_feature(&feature).await.unwrap();
+    assert!(cache.get_feature(feature.id).await.unwrap().is_some());
+
+    cache.invalidate_feature(feature.id).await.unwrap();
+    assert!(cache.get_feature(feature.id).await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn test_projection_cache_workpackage() {
+    use std::sync::Arc;
+    let store = Arc::new(InMemoryCacheStore::new(60));
+    let cache = ProjectionCache::new(store.clone());
+
+    let wp = WorkPackage::new(
+        1,
+        "Test WorkPackage",
+        1,
+        "Acceptance criteria here",
+    );
+
+    cache.set_workpackage(&wp).await.unwrap();
+
+    let cached = cache.get_workpackage(wp.id).await.unwrap();
+    assert!(cached.is_some());
+    assert_eq!(cached.unwrap().workpackage.id, wp.id);
+}
+
+#[test]
+fn test_rate_limiter_error_display() {
+    use agileplus_cache::limiter::LimiterError;
+    let err = LimiterError::Error("rate limit exceeded".to_string());
+    assert!(err.to_string().contains("Rate limit error"));
+}
+
+#[test]
+fn test_projection_error_display() {
+    use agileplus_cache::projection::ProjectionError;
+    let err = ProjectionError::CacheError("connection failed".to_string());
+    assert!(err.to_string().contains("Cache error"));
+}
+
+#[test]
+fn test_cache_config_clone() {
+    let config = CacheConfig::new("localhost", 6379);
+    let cloned = config.clone();
+    assert_eq!(cloned.host, "localhost");
+    assert_eq!(cloned.port, 6379);
+}
+
+#[test]
+fn test_cache_config_debug() {
+    let config = CacheConfig::default();
+    let debug_str = format!("{:?}", config);
+    assert!(debug_str.contains("CacheConfig"));
+}

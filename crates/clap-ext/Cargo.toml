@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = ["crates/clap-ext", "examples/basic"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/clap-ext"
+authors = ["KooshaPari <kooshapari@kooshapari.com>"]
+
+[workspace.dependencies]
+clap = { version = "4.5", features = ["derive", "wrap_help", "env", "string"] }
+anyhow = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

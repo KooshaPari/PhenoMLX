@@ -1,0 +1,38 @@
+[package]
+name = "agileplus-refinery"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+description = "agileplus refinery — Phenotype infrastructure crate (AgilePlus)"
+documentation = "https://docs.rs/agileplus-refinery"
+keywords = ["phenotype", "agileplus", "refinery"]
+categories = ["data-structures"]
+authors = ["kooshapari"]
+
+[features]
+default = []
+gpg = ["dep:gpgme"]
+ssh-sign = ["dep:ssh-key"]
+
+[dependencies]
+agileplus-git = { path = "../agileplus-git" }
+agileplus-triage = { path = "../agileplus-triage" }
+agileplus-domain = { path = "../agileplus-domain" }
+anyhow.workspace = true
+async-trait.workspace = true
+tokio = { version = "1", features = ["process", "rt-multi-thread", "macros"] }
+serde = { workspace = true, features = ["derive"] }
+chrono.workspace = true
+tracing = "0.1"
+
+# Optional signing backends
+gpgme = { version = "0.11", optional = true }
+ssh-key = { version = "0.6", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[package.metadata.cargo-machete]
+ignored = ["agileplus-domain", "agileplus-triage", "chrono", "tracing"]

@@ -1,0 +1,47 @@
+name: ci-base
+
+# `pheno-ci-templates`'s base workflow. Other repos include
+# this with:
+#
+#     uses: agileplus-ai/pheno-ci-templates/.github/workflows/ci-base.yml@v0.1
+#
+# It sets up the cross-cutting concerns (checkout, cache
+# key, concurrency) and declares the `build` and `test`
+# jobs as `needs: []` placeholders. The including workflow
+# is expected to override or extend with the language-
+# specific steps (Rust, Node, Python).
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+# Cancel in-flight runs on the same ref so we don't burn
+# minutes on a stale push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The including workflow is expected to add
+      # language-specific build steps here.
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The including workflow is expected to add
+      # language-specific test steps here.

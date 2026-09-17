@@ -1,0 +1,23 @@
+[package]
+name = "agileplus-graph"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+neo4j = ["dep:neo4rs"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+uuid = { version = "1", features = ["v4", "serde"] }
+tracing = { workspace = true }
+neo4rs = { version = "0.7", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "macros"] }

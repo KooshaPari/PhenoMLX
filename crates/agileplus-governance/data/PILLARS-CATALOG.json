@@ -1,0 +1,729 @@
+{
+  "version": "1.0",
+  "schema": "phenotype/audit-v38",
+  "clusters": 12,
+  "sub_pillars_enumerated": 54,
+  "note": "L0-L80 clusters reference prose defs at audit-30-pillar/ (sub_pillars enumerated for L30 + L81-L122 only).",
+  "pillars": [
+    {
+      "cluster": "C00",
+      "pillar_range": "L0-L9",
+      "category": "Architecture + Module",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-30-pillar/",
+      "defs_ref": "audit-30-pillar-L{0..9}.md",
+      "sub_pillars": []
+    },
+    {
+      "cluster": "C01",
+      "pillar_range": "L10-L19",
+      "category": "CI, DX, Observability",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-30-pillar/",
+      "defs_ref": "audit-30-pillar-L{10..19}.md",
+      "sub_pillars": []
+    },
+    {
+      "cluster": "C02",
+      "pillar_range": "L20-L29",
+      "category": "Error handling, API, Governance",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-30-pillar/",
+      "defs_ref": "audit-30-pillar-L{20..29}.md",
+      "sub_pillars": []
+    },
+    {
+      "cluster": "C03",
+      "pillar_range": "L30",
+      "category": "Agent Readiness",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-v38/catalog/L30-agent-readiness.md",
+      "sub_pillars": [
+        {
+          "id": "L30.1",
+          "title": "Spec & FR Clarity",
+          "name": "Functional Requirements are machine-readable and agent-consumable.",
+          "acceptance": "A `docs/functional_requirements.md` (or equivalent) exists, is structured (section-per-FR with an `FR-NNN` ID, an `as a <role>` sentence, and at least one acceptance test reference), and covers ≥80% of the observable public surface. The FR document must not require human interpretation to extract task decompositions.",
+          "soft_goal": "FR coverage tool (e.g., Tracera) reports ≥85% traceability; FR-IDs appear in commit messages and PR titles.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L30.2",
+          "title": "Task Decomposability",
+          "name": "Every feature / user story is decomposable into ≤1-day atomic tasks an agent can claim independently.",
+          "acceptance": "The repo's backlog or issue tracker contains issues tagged with effort estimates ≤ \"M\" (≤4h of agent work), each referencing an FR-ID and having a clear \"done when\" statement. Alternatively, a `PLAN.md` or `WORK_DAG.md` with DAG-structured tasks satisfies this.",
+          "soft_goal": "Every open issue has a DAG predecessor list; issues blocked by infra gaps are tagged `blocker:infra`; new FRs auto-open issues via a GitHub Action.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L30.3",
+          "title": "Test-as-Guardrail Coverage",
+          "name": "The test suite runs fast, hermetically, and provides meaningful signal to an agent that its change is correct.",
+          "acceptance": "`task test` (or `cargo test`/`pytest`/`bun test`) exits in ≤3 min on a clean checkout; overall coverage ≥70% (line); tests are named as `<subject>_<scenario>_<expected_outcome>` (a readable sentence); no test that requires a running external service (all network calls mocked or behind a feature flag).",
+          "soft_goal": "Coverage ≥85%; test names match FR-IDs (`test_fr042_*`); a `cargo mutants` nightly gate is wired; flaky tests tracked in `docs/flaky-test-log.md`.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L30.4",
+          "title": "Docs-as-Agent-Context",
+          "name": "Documentation is structured so an agent can index it without reading every file.",
+          "acceptance": "`README.md` has a ≤20-line quick-start that actually works; `AGENTS.md` exists and lists: working dir, build command, test command, lint command, key files/dirs; every public function/type has a doc comment (≥80% coverage by `cargo doc --document-private-items 2>&1 | grep \"warning: missing\"` count).",
+          "soft_goal": "`llms.txt` is machine-generated from the FR file; every module has an `//! Module overview` rustdoc; docs deployed as a VitePress/MkDocs site with a search index.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L30.5",
+          "title": "Build & Setup Hermetics",
+          "name": "A fresh agent (no prior state, no env vars except those listed in `.env.example`) can build and test the repo.",
+          "acceptance": "`cp .env.example .env && task dev` (or equivalent) succeeds; no undocumented env vars break the build; a `mise.toml` or `.tool-versions` pins every tool version; `cargo check` exits 0 with no warnings suppressed by `#[allow(...)]` unless each has a tracking issue.",
+          "soft_goal": "Zero warnings; `cargo deny check` passes; `Dockerfile.dev` or `.devcontainer/` for hermetic setup; `mise x -- cargo check` produces identical output across macOS + Linux.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L30.6",
+          "title": "User-Story Gap Detection Readiness",
+          "name": "The repo's observability surface makes it possible for an agent to identify WHERE users are experiencing friction — not just where bugs exist.",
+          "acceptance": "User-facing error messages are non-generic (contain context, a cause, and a suggested action); `CHANGELOG.md` or `USER_JOURNEYS.md` exists and maps features to user stories; any crash or unexpected exit emits a structured log event that links back to a FR-ID or user journey step; at least one \"user journey\" integration test exercises the product from outside-in (CLI invocation / API endpoint / UI action), not just internal unit logic.",
+          "soft_goal": "Every `AppError` variant has a user-visible message + a `docs_url`; error messages tested via snapshot tests; `USER_JOURNEYS.md` auto-generated from acceptance tests.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L30.7",
+          "title": "Visual / Creative Polish Gap Detection Readiness",
+          "name": "For repos with a UI surface, the repo includes visual acceptance criteria so an agent can detect when the UI lacks polish — not just when it crashes.",
+          "acceptance": "A `VISUAL_SPEC.md` or `docs/visual/` directory exists with: color palette + typography decisions; expected empty-state designs (what the user sees with no data); expected loading/skeleton states; expected error states; at least one screenshot or Figma-export reference per major view. For CLI/TUI repos: expected terminal color scheme, expected output structure for each command, and a golden-output test.",
+          "soft_goal": "Visual spec reviewed quarterly; golden tests cover all major views; Storybook / Dioxus preview / ratatui-test screenshot tests block merge if they regress.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L30.8",
+          "title": "Autonomous PR Quality",
+          "name": "PRs opened by agents are indistinguishable (in quality) from human PRs.",
+          "acceptance": "A `.github/PULL_REQUEST_TEMPLATE.md` exists with required sections (`## What`, `## Why`, `## How tested`, `## FR-IDs`, `## Risk`, `## Rollback`); CI gates must pass (no `--no-verify`); PR body must reference at least one FR-ID; the PR description accurately describes the diff (cross-checked by `gh pr diff` summary).",
+          "soft_goal": "AI-authored PRs auto-tagged `agent:claude`; PR description quality gate (readability score); semantic diff check ensures description matches code.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L30.9",
+          "title": "Conflict & Concurrency Safety",
+          "name": "The repo's structure allows multiple agents to work concurrently without trampling each other.",
+          "acceptance": "Worktree support documented in `AGENTS.md` (e.g., `git worktree add ../repo-wtrees/topic`); no global mutable state in test setup that prevents parallel test runs; database fixtures are per-test-run (e.g., temp DB files, not a shared `test.db`); lockfile strategy documented.",
+          "soft_goal": "`.git/config` has `worktree.prune = true`; CI runs tests with maximum parallelism; a `claim-lock` mechanism (e.g., phenofleet atomic INSERT) guards shared resources.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L30.10",
+          "title": "Feedback Loop Speed",
+          "name": "An agent's edit-verify cycle is fast enough that autonomous iteration is practical.",
+          "acceptance": "`cargo check` (or equivalent fast lint) exits in ≤30s on a warmed cache; the full unit test suite exits in ≤3 min; incremental tests (`cargo test <specific_crate>`) exit in ≤30s; `task lint` exits in ≤60s.",
+          "soft_goal": "Incremental compile cache (sccache/mold) configured; CI caches `~/.cargo/registry`; `cargo nextest` used for parallel test execution; median CI feedback loop ≤5 min.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L30.11",
+          "title": "Agent Context Entrypoint",
+          "name": "A single entrypoint file tells an agent everything it needs to start working.",
+          "acceptance": "`AGENTS.md` exists at repo root and contains: (1) working directory, (2) build command, (3) test command, (4) lint command, (5) key file paths (spec, domain model, main entry), (6) forbidden operations (no `rm -rf`, no direct main-branch commits), (7) agent-specific gotchas (e.g., \"run `cargo check` before `Edit`\").",
+          "soft_goal": "`AGENTS.md` is auto-validated by a CI job; `llms.txt` is auto-regenerated from `AGENTS.md` + `docs/functional_requirements.md`; a `make validate-agents` or `task validate:agents` target exists.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L30.12",
+          "title": "Story-Gap & Friction Detection Tooling",
+          "name": "The repo ships or references tooling that can surface user-story gaps and friction (not just bugs).",
+          "acceptance": "At least one of: (a) a traceability tool (`tracera`, custom script) that maps code coverage to FR-IDs and surfaces uncovered FRs; (b) a user-journey test that exercises the \"unhappy path\" for each major journey (missing data, invalid input, network timeout); (c) a `friction-log.md` or `docs/friction-log.md` that records known UX friction and links to issues; (d) a structured user-feedback intake (GitHub Discussions / issue template `user-friction.yml`).",
+          "soft_goal": "Automated FR gap report posted as a PR comment; user-friction issues auto-triaged with `friction:UX` label; monthly friction review in `CHANGELOG.md`.",
+          "evidence_pattern": "file:line"
+        }
+      ]
+    },
+    {
+      "cluster": "C04",
+      "pillar_range": "L31-L40",
+      "category": "Security",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-30-pillar/",
+      "defs_ref": "audit-30-pillar-L31-L40-security.md",
+      "sub_pillars": []
+    },
+    {
+      "cluster": "C05",
+      "pillar_range": "L41-L50",
+      "category": "Observability (deep)",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-30-pillar/",
+      "defs_ref": "audit-30-pillar-L41-L50-observability.md",
+      "sub_pillars": []
+    },
+    {
+      "cluster": "C06",
+      "pillar_range": "L51-L60",
+      "category": "Supply Chain",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-30-pillar/",
+      "defs_ref": "audit-30-pillar-L51-L60-supply-chain.md",
+      "sub_pillars": []
+    },
+    {
+      "cluster": "C07",
+      "pillar_range": "L61-L70",
+      "category": "DX, QEng, Portability",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-30-pillar/",
+      "defs_ref": "audit-30-pillar-L61-L70-dx-qeng-portability.md",
+      "sub_pillars": []
+    },
+    {
+      "cluster": "C08",
+      "pillar_range": "L71-L80",
+      "category": "Eval Coverage",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-30-pillar/",
+      "defs_ref": "audit-30-pillar-L71-L80-eval-coverage.md",
+      "sub_pillars": []
+    },
+    {
+      "cluster": "C09",
+      "pillar_range": "L81-L95",
+      "category": "Accessibility + UX",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-v38/catalog/X-ax-L81-L95.md",
+      "sub_pillars": [
+        {
+          "id": "L81.1",
+          "title": "WCAG 2.2 Level A Baseline",
+          "name": "All user-facing views meet WCAG 2.2 Level A minimum compliance.",
+          "acceptance": "Automated axe-core or WAVE scan on every page/view/screen returns zero Level A violations. Color contrast ≥ 3:1 for large text, ≥ 4.5:1 for normal text (per WCAG 1.4.3). All images have `alt` text or explicit `aria-hidden=\"true\"`. All interactive elements are reachable via keyboard tab order.",
+          "soft_goal": "Zero Level A violations enforced in CI; all Level AA violations tracked in `docs/a11y-backlog.md`; automated scan runs on every PR.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L81.2",
+          "title": "WCAG 2.2 Level AA Color Contrast",
+          "name": "All text/background combinations in the UI meet WCAG 2.2 AA color contrast ratios.",
+          "acceptance": "Normal text ≥ 4.5:1 contrast ratio, large text ≥ 3:1, UI components / graphical objects ≥ 3:1 (WCAG 1.4.3, 1.4.11). Contrast ratios are documented in the design token file or design system. Automated contrast check is wired to CI.",
+          "soft_goal": "Design tokens enforce contrast at definition time (Figma token linting); `storybook-addon-a11y` blocks storybook build on contrast failures; contrast ratios documented per component.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L82.1",
+          "title": "Keyboard Navigation & Focus Management",
+          "name": "All interactive functionality is fully operable via keyboard alone, with a visible and logical focus indicator.",
+          "acceptance": "Every interactive element (buttons, links, inputs, modals, dropdowns) is reachable and operable via Tab/Shift-Tab/Enter/Space/Arrow keys without a mouse. Focus is never trapped unintentionally outside modal/dialog. Focus returns to the trigger element when a modal closes. Focus indicator is visible (WCAG 2.4.11 Focus Appearance AA: ≥2px outline, ≥3:1 contrast).",
+          "soft_goal": "Axe `keyboard` rule passes on every view; Playwright keyboard-nav test suite runs in CI; focus-visible polyfill included for legacy browser support; TUI widgets all named and keyboard-addressed.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L83.1",
+          "title": "Screen-Reader Compatibility",
+          "name": "All content and interactive controls are comprehensible and operable via a screen reader (NVDA, JAWS, VoiceOver, Orca).",
+          "acceptance": "All images have non-empty `alt` text or `aria-hidden=\"true\"`. All form inputs have an associated `<label>` or `aria-label`. All icon-only buttons have `aria-label`. Live regions (`aria-live`) announce dynamic content updates. Decorative SVGs use `aria-hidden=\"true\"`. For CLI/TUI: semantic output is line-structured; machine-readable JSON/structured output mode available.",
+          "soft_goal": "VoiceOver and NVDA manual-test checklist completed per release; `jest-axe` `toHaveNoViolations()` on every component test; CLI `--json` mode tested via golden-output tests.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L84.1",
+          "title": "ARIA Correctness & Landmark Structure",
+          "name": "ARIA roles, landmarks, and attributes are used correctly — not as cosmetic decoration.",
+          "acceptance": "Main page regions use semantic landmarks (`<main>`, `<nav>`, `<header>`, `<footer>`, `role=\"banner\"`, `role=\"contentinfo\"`). No `role` attribute that misuses semantics (e.g. `role=\"button\"` on a div when a `<button>` suffices). No orphaned `aria-labelledby` pointing to a non-existent `id`. All `aria-expanded`, `aria-selected`, `aria-checked` values are dynamically updated when state changes.",
+          "soft_goal": "ARIA linting via `eslint-plugin-jsx-a11y` with all rules enabled; zero `aria-*` misuse; semantic landmark audit automated in Playwright.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L85.1",
+          "title": "Error Prevention & Recovery (Nielsen H5, H9)",
+          "name": "The UI prevents errors where possible, and guides users to recovery when errors occur.",
+          "acceptance": "Destructive actions require confirmation (WCAG 3.3.4; Nielsen H3 user control). Error messages are written in plain language (not internal error codes), identify what went wrong, and suggest a corrective action. Input validation happens before submission, not only after. All form errors are associated with the specific input that caused them (WCAG 3.3.1 Error Identification).",
+          "soft_goal": "Snapshot tests for every error message; error-message quality gate in CI (readability score ≥ 60 Flesch-Kincaid); all error codes documented in a public errors reference.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L86.1",
+          "title": "System Status Visibility (Nielsen H1)",
+          "name": "The system always informs users about what is happening, with appropriate feedback within a reasonable time.",
+          "acceptance": "Operations taking >1s display a loading indicator. Operations taking >10s display a progress indicator with estimated time or step count. Background operations (sync, compile, fetch) have visible status. For CLI: long operations emit progress to stderr or use a progress bar library. No \"silent work\" — every user-initiated action acknowledges receipt within 100ms.",
+          "soft_goal": "All async operations expose a cancellation mechanism; loading states tested for screen-reader announcement via `aria-live`; CLI uses `indicatif` with ETA display for long-running operations.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L87.1",
+          "title": "Consistency & Standards (Nielsen H4)",
+          "name": "The interface follows platform conventions and is internally consistent in terminology, layout, and interaction patterns.",
+          "acceptance": "All like elements use the same component (no one-off button implementations); terminology is consistent (no \"delete\" in one place and \"remove\" in another for the same action); keyboard shortcuts match platform conventions (Cmd+S on macOS, Ctrl+S on Windows); TUI uses consistent keybinding patterns across screens. A design system or component library is the single source for all UI elements.",
+          "soft_goal": "Component library Storybook deployed and referenced in AGENTS.md; `eslint-plugin-react`/clippy rules catch raw native element use; UX copy reviewed by a non-engineer for terminology consistency.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L88.1",
+          "title": "User Control & Emergency Exits (Nielsen H3)",
+          "name": "Users can always undo, cancel, or escape out of any state without data loss.",
+          "acceptance": "Every multi-step form or wizard has a \"Back\" and \"Cancel\" button. Every destructive action has an undo mechanism (trash/archive with restore, or confirmation before permanent delete). CLI commands that take >5s support Ctrl+C with a clean shutdown that does not corrupt partial state. Modal dialogs close on Escape key.",
+          "soft_goal": "All state changes fully undoable (command-pattern architecture); CLI operations emit a rollback manifest on Ctrl+C; browser history reflects app navigation state (pushState).",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L89.1",
+          "title": "Inclusive Language & Cognitive Accessibility",
+          "name": "All user-visible text uses inclusive, plain language accessible to non-expert users.",
+          "acceptance": "No ableist language (e.g. \"blindly\", \"crippled\", \"dumb terminal\" without a recognized technical term exemption) in user-visible strings. Reading level of user-facing help text ≤ 8th grade Flesch-Kincaid. Error messages avoid jargon. Labels and placeholders are plain nouns/verbs, not abbreviated codes. For CLI: `--help` output is formatted, structured, and uses consistent option naming.",
+          "soft_goal": "Vale linting with inclusive-language ruleset (`vale.sh/packages/Microsoft`) enabled in CI; Flesch-Kincaid score ≥60 for all user-visible strings; UX copy reviewed quarterly.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L90.1",
+          "title": "Responsive & Adaptive Layout",
+          "name": "The UI renders correctly across the supported viewport/terminal size range without loss of content or function.",
+          "acceptance": "For web UI: responsive breakpoints tested at mobile (375px), tablet (768px), and desktop (1280px) widths; no horizontal scrollbar at any breakpoint; touch targets ≥ 44×44px (WCAG 2.5.5). For TUI/CLI: output wraps or truncates gracefully at 80-column terminals; works at 40-column minimum. For desktop: window resize does not break layout or lose data.",
+          "soft_goal": "Storybook viewport addon shows all breakpoints; TUI renders a `COLUMNS`-adaptive layout; web has a dedicated mobile smoke test in CI.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L91.1",
+          "title": "Recognition Over Recall (Nielsen H6)",
+          "name": "The UI makes options, actions, and objects visible — users are not required to remember information from one step to the next.",
+          "acceptance": "Navigation menus are persistent or discoverable without memorizing paths. Form fields show current values when editing (not blank). Wizards show a breadcrumb or step indicator. CLI: subcommands listed in `--help`; recent commands visible in history or `--list` output. Error messages repeat the invalid input value.",
+          "soft_goal": "All form edit states pre-filled; history/recent-items panel in complex UIs; CLI `--list` tested via golden snapshot; wizard step count and current step in `aria-label`.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L92.1",
+          "title": "Help & Documentation Accessibility (Nielsen H10)",
+          "name": "Help content is discoverable, contextual, and written for the actual user — not the implementer.",
+          "acceptance": "Every major feature/view has a contextual help link, tooltip, or inline explanation. `--help` for CLI is complete (all flags documented). `docs/` or in-app help covers the top-3 user journeys end-to-end. Help content does not require reading source code to understand the feature. A `CONTRIBUTING.md` or `docs/faq.md` covers the top-5 user questions.",
+          "soft_goal": "In-app contextual help pane for desktop apps; CLI man page generated via `clap_mangen` or equivalent; docs site with search (VitePress/MkDocs); help content reviewed quarterly for accuracy.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L93.1",
+          "title": "Flexibility & Efficiency (Nielsen H7)",
+          "name": "Power users can complete tasks faster via shortcuts, aliases, and accelerators, without degrading the novice experience.",
+          "acceptance": "Web/desktop UI: keyboard shortcuts documented and discoverable (keyboard shortcut overlay via `?` or `Cmd+K`). CLI: command aliases and tab-completion supported. API: a batch endpoint or bulk-operation mode exists alongside the single-item endpoint. TUI: vim-style keybindings or configurable keybindings supported.",
+          "soft_goal": "Keyboard shortcut palette (Cmd+K command palette) in web apps; CLI shell completions for bash/zsh/fish generated and tested; API batch endpoint has a load test.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L94.1",
+          "title": "Aesthetic & Minimalist Design (Nielsen H8)",
+          "name": "Every piece of information and every UI element present has a clear purpose — no decorative clutter that obscures primary functions.",
+          "acceptance": "Primary actions are visually prominent (sufficient contrast, size, position). Secondary and tertiary actions are visually de-emphasized. Error and warning states are color-coded AND use an icon or text label (not color alone, per WCAG 1.4.1). No information overload on primary views — complex data is progressively disclosed or paginated. CLI output has a structured, scannable format with aligned columns.",
+          "soft_goal": "Design audit quarterly (screenshot comparison); CLI output tested for column alignment via golden snapshots; information architecture reviewed with a first-time user per release.",
+          "evidence_pattern": "file:line"
+        }
+      ]
+    },
+    {
+      "cluster": "C10",
+      "pillar_range": "L96-L107",
+      "category": "Visual Identity",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-v38/catalog/X-visual-identity-L96-L107.md",
+      "sub_pillars": [
+        {
+          "id": "L96",
+          "title": "Design Token System",
+          "name": "A single source of truth defines color, typography, spacing, radius, elevation, and motion tokens.",
+          "acceptance": "A design-token file (`src/theme/tokens.ts`, `tailwind.config.ts`, `styles/tokens.css`, or a TUI `theme.rs`/`palette.rs`) defines named tokens for the palette, type scale, spacing scale, radii, and motion durations/easings. No hardcoded hex/ANSI/px scattered through components — components reference tokens.",
+          "soft_goal": "Tokens exported to Figma (Figma Tokens / Style Dictionary); dark + light themes both derived from one token set; motion tokens (durations, springs) tokenized too.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L97",
+          "title": "Typography System",
+          "name": "Intentional type: chosen faces, a clear hierarchy, and readable measure.",
+          "acceptance": "A named font stack (not the browser/OS default) is loaded and applied; a type scale defines ≥4 distinct roles (display/heading/body/caption/mono); mono is used for technical/code UI per org convention; line-height and measure (max line length) are set for body text. For TUI: a deliberate box-drawing/typography style, aligned columns, and consistent glyph set.",
+          "soft_goal": "Variable fonts with weight axes; fluid type scale (clamp); `font-display: swap`; a documented typographic rationale in `docs/visual/`.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L98",
+          "title": "Icon Set",
+          "name": "A cohesive, provenance-declared icon set — not mixed random glyphs.",
+          "acceptance": "Icons come from ONE cohesive set (single stroke weight, grid, style) OR a hand-authored set; provenance tier is declared; there is a real app icon / favicon / `.iconset` (not a framework placeholder). For a desktop app: a committed `.iconset`/`.icns`/`.ico` with all required sizes. For CLI/tray: a tray/menubar icon asset exists.",
+          "soft_goal": "Custom-drawn brand mark; animated icon on hover/state; icon set exported as a sprite/font for perf; monochrome + color variants.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L99",
+          "title": "Loading & Skeleton States",
+          "name": "Thematic, tasteful loading/skeleton states — not a bare spinner or blank screen.",
+          "acceptance": "Every async view has a designed loading state: content-shaped skeletons (matching the real layout) for data views, a branded spinner/progress for actions, and NO layout shift when content arrives. For TUI/CLI: a styled progress bar / spinner with a themed glyph set and a meaningful status line (not a frozen terminal). Skeletons are thematic (carry the brand's motion/shape language), not generic gray boxes.",
+          "soft_goal": "Skeletons animate with the brand's signature easing; progressive/streaming reveal; skeleton generated from the real component (no drift); a unique \"loading personality\" (themed messages, mascot).",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L100",
+          "title": "Empty & Zero-Data States",
+          "name": "Designed empty states that guide the user — not a blank void.",
+          "acceptance": "Every list/collection/dashboard view has a designed empty state: an illustration or icon, a one-line explanation, and a primary call-to-action (\"Add your first X\"). First-run empty state differs from filtered-to-zero empty state. For CLI: a helpful \"no results / get started\" message with a suggested next command, not silent exit.",
+          "soft_goal": "Bespoke empty-state illustrations (provenance-declared); empty states A/B-considered for activation; onboarding-linked empty states.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L101",
+          "title": "Error & Failure State Design",
+          "name": "Errors are visually designed and human — not raw stack traces or red walls.",
+          "acceptance": "User-facing errors have a designed presentation: a clear icon/illustration, plain-language cause, and a recovery action (\"Retry\" / \"Go back\" / link to help). No raw stack traces or framework error overlays reach the end user in production. For CLI: errors are formatted (color-coded, structured), state the cause, and suggest a fix — cross-refs L30.6 friction detection.",
+          "soft_goal": "Error illustrations per error class; `docs_url` per error; snapshot tests on error views; toast/inline severity system.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L102",
+          "title": "Motion & Animation System",
+          "name": "Purposeful, consistent motion — transitions, micro-interactions, and feedback — tuned to a signature feel.",
+          "acceptance": "Motion is tokenized (durations, easings/springs) and applied consistently: view/route transitions, hover/press feedback, enter/exit animations for lists and modals. Motion respects `prefers-reduced-motion`. Nothing janky (60fps target). For TUI: deliberate transitions (fade/slide in ratatui/bubbletea) where they aid comprehension, not gratuitous.",
+          "soft_goal": "A signature motion identity (recognizable easing/choreography); scroll-driven or spring-physics reveals; shared-element transitions; motion documented in `docs/visual/motion.md`.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L103",
+          "title": "Splash / Launch Experience",
+          "name": "A branded splash / launch / first-frame — not a white flash or blank window.",
+          "acceptance": "The app has a designed first frame: desktop app shows a branded splash/launch window (not a blank OS window) while initializing; web app has no unstyled flash-of-content and a branded initial paint; CLI has a tasteful banner/logo on `--help` or startup (ASCII/figlet art or styled header), provenance-declared. Splash assets carry a provenance tier.",
+          "soft_goal": "Animated splash (Lottie/shader); splash transitions seamlessly into first real view; seasonal/themed splash variants; splash doubles as a loading-progress surface.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L104",
+          "title": "Theming (Dark / Light / Brand)",
+          "name": "Complete, consistent theming across at least dark + light, brand-first.",
+          "acceptance": "Dark and light themes are both fully supported (org convention: dark-first, light secondary), derived from the token set, with no broken/unthemed surfaces in either. Theme switch is instant and persisted. Every component reads theme tokens (no theme-blind hardcoded colors). For TUI: a theme/palette that adapts to terminal background or offers a `--theme` flag.",
+          "soft_goal": "System-follow + manual override; high-contrast theme; per-user accent color; theme tokens shared with the marketing site/docs.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L105",
+          "title": "Visual Consistency & Brand Cohesion",
+          "name": "The surface reads as ONE product — consistent components, spacing rhythm, and voice.",
+          "acceptance": "Repeated UI patterns (buttons, cards, inputs, modals) are componentized and consistent (not visually drifting copies); spacing follows the scale (no `13px`/`17px`/`19px` drift); the same visual voice runs across all views. A `docs/visual/` or design-system reference documents the intended look. Cross-refs L81 (AX consistency heuristic).",
+          "soft_goal": "Storybook / component gallery published; visual-regression tests (Chromatic/Playwright screenshots) block drift; a brand guideline doc.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L106",
+          "title": "Signature / Unique Identity Element",
+          "name": "At least one distinctive, memorable, UNIQUE identity element — the anti-generic pillar.",
+          "acceptance": "The product has ≥1 deliberately unique, tasteful signature that makes it NOT look like a template: a bespoke mascot/logo, a signature animation, a distinctive layout motif, a unique color story, a memorable empty-state character, or a themed TUI personality. This is the operator's \"tasteful/creative/thematic/UNIQUE\" bar — a repo scoring 3 here has an identity a user would recognize. Provenance-declared.",
+          "soft_goal": "The identity element is animated/interactive; it appears across surfaces (app + docs + installer + social card); users reference it; it has a name.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L107",
+          "title": "Visual Spec & Golden Tests",
+          "name": "Visual identity is specified and regression-guarded, so an agent can DETECT polish gaps (not just crashes).",
+          "acceptance": "A `VISUAL_SPEC.md` or `docs/visual/` documents palette, typography, empty/loading/error states, and per-major-view reference (screenshot/Figma link); visual-regression or golden-output tests exist (Playwright/Chromatic screenshots for GUI; `tests/golden/*.txt`/`*.snap` for CLI/TUI) so a regression is caught in CI. This closes the L30.7 loop: the repo ships the criteria an autonomous agent uses to detect visual/creative polish gaps. Provenance table (`docs/visual/PROVENANCE.md`) lists every asset's tier.",
+          "soft_goal": "Visual-regression gates merge; golden tests cover all major views/commands; spec auto-linked from `AGENTS.md` so agents find it; quarterly visual review logged in `CHANGELOG.md`.",
+          "evidence_pattern": "file:line"
+        }
+      ]
+    },
+    {
+      "cluster": "C11",
+      "pillar_range": "L108-L122",
+      "category": "Packaging + Distribution",
+      "scoring": {
+        "scale": "0-3",
+        "glyphs": {
+          "0": "✗",
+          "1": "△",
+          "2": "~",
+          "3": "✓"
+        },
+        "grade": {
+          "A": 90,
+          "B": 75,
+          "C": 60,
+          "D": 40,
+          "F": 0
+        }
+      },
+      "source": "audit-v38/catalog/X-packaging-distribution-L108-L122.md",
+      "sub_pillars": [
+        {
+          "id": "L108",
+          "title": "Native Installer(s)",
+          "name": "First-class native installers for every target OS the product claims.",
+          "acceptance": "For a desktop/GUI app: signed native installers exist per claimed OS — macOS `.app`/`.dmg`, Windows `.msi`/`.exe`, Linux `.deb`/`.rpm`/AppImage — produced by a repeatable build (org standard: Electrobun/Tauri/Dioxus/Qt). Installer actually produces a launchable app (not an exit-0 no-op — see [[feedback_electrobun_codesign_noop_build]]). Verified in a clean checkout.",
+          "soft_goal": "One-command release for all OSes; delta installers; installer UX themed (L96–L107); Homebrew cask + winget + Flatpak in addition.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L109",
+          "title": "CLI Packaging & Install Channels",
+          "name": "The CLI is installable through standard package channels, not \"clone and build\".",
+          "acceptance": "The CLI is published/installable via the ecosystem-standard channel: Homebrew tap/formula, `cargo install`, `npm i -g`/`bunx`, `uv tool install`/`pipx`, or `go install` — with a documented one-liner in the README. A pinned version is resolvable; `--version` works.",
+          "soft_goal": "Multi-channel (brew + cargo + npm); shell-completions shipped; `self-update` subcommand; checksums + signatures published.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L110",
+          "title": "Tray / Menubar Client",
+          "name": "Where it fits, a tray/menubar companion for at-a-glance status and quick actions.",
+          "acceptance": "For daemon/background/monitoring products: a tray (Win/Linux) or menubar (macOS) client exists showing live status and offering quick actions (start/stop, open, quit), with a themed tray icon (L98). This is the operator's explicit \"tray app\" QOL ask. If the product is genuinely not daemon-shaped, `NOT_APPLICABLE` with reason.",
+          "soft_goal": "Tray shows rich live telemetry (thermal/queue/progress — cf. sharecli thermal TUI); notifications on state change; launch-at-login option; tray + CLI + GUI share one core.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L111",
+          "title": "Auto-Update",
+          "name": "The product can update itself safely.",
+          "acceptance": "Installed desktop/CLI clients have an update path: an auto-updater (Sparkle/electrobun-updater/tauri-updater), a `self-update` subcommand, or a clearly documented update channel. Updates are signature-verified. Users are not stranded on old versions.",
+          "soft_goal": "Staged/rolling rollout; delta updates; rollback on failed update; update respects a `--channel stable|beta`.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L112",
+          "title": "Code-Signing & Notarization",
+          "name": "Artifacts are signed and (macOS) notarized — no scary OS warnings.",
+          "acceptance": "macOS artifacts are Developer-ID-signed + notarized + stapled; Windows artifacts are Authenticode-signed; the release pipeline performs signing with secrets (not ad-hoc local signing). A user double-clicking the installer sees no Gatekeeper/SmartScreen block. (Ad-hoc `codesign --sign -` is acceptable only as a documented dev-build fallback — see [[feedback_electrobun_codesign_noop_build]].)",
+          "soft_goal": "Hardened runtime + entitlements minimized; timestamped signatures; reproducible signed builds; SLSA provenance on signed artifacts (ties to L51–L60).",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L113",
+          "title": "Deploy Surface: Container / OCI",
+          "name": "A working container image, org-standard OCI (Apple `container`) first.",
+          "acceptance": "A `Containerfile`/`Dockerfile` builds a minimal, working image that actually boots the service; org standard prefers Apple `container` OCI (native per-container VM) with `Dockerfile`/OrbStack as fallback; image is multi-stage (small final), runs as non-root, and has a healthcheck. `proc-compose`-native local run documented.",
+          "soft_goal": "Distroless/scratch final stage; SBOM attached to image; image signed (cosign); size-budgeted; `container`-native + Docker both verified.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L114",
+          "title": "Deploy Surface: Serverless / Edge (Vercel / Workers)",
+          "name": "Serverless/edge deploy targets are configured and proven.",
+          "acceptance": "Where the product has a web/API surface, edge/serverless targets are wired and deploy successfully: Vercel (`vercel.ts`/`vercel.json`) and/or Cloudflare Workers (`wrangler.toml` with real bindings, not `to-be-set` placeholders — cf. Tracera KV id gap). A deploy produces a reachable URL.",
+          "soft_goal": "Preview deploys per PR; edge caching/ISR configured; rollback documented; multi-region.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L115",
+          "title": "Deploy Surface: Traditional Server (Caddy / systemd / Reverse-Proxy)",
+          "name": "A self-hosted deploy path with a real reverse-proxy config.",
+          "acceptance": "A self-host path exists: a working `Caddyfile`/nginx config (TLS, correct upstream, forwarded headers), a `systemd` unit or process-manager config, and a runbook. TLS terminates correctly; the reverse proxy forwards to the app upstream without misconfigured load-balancer policy (cf. current branch's caddy lb-policy fix).",
+          "soft_goal": "Zero-downtime reload; health-gated rollout; config templated per-env; observability sidecar wired.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L116",
+          "title": "Deploy-Surface Parity & Robustness",
+          "name": "Every claimed deploy surface actually works and is kept in parity.",
+          "acceptance": "For a product claiming N surfaces (e.g. Tracera's Vercel/Workers/Docker/Apple-container/WSL/desktop), each is proven working (a recorded successful deploy/build), env/secret handling is documented per surface, and there is no \"works on laptop, fails in prod\" drift (12-factor dev/prod parity). A surface matrix documents status per target.",
+          "soft_goal": "A `task deploy:<surface>` per target; deploy smoke-tests in CI; parity test asserting identical behavior across surfaces; surface health dashboard.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L117",
+          "title": "Mobile Presence Decision",
+          "name": "The \"should this have a mobile app?\" question is deliberately answered.",
+          "acceptance": "The repo documents a deliberate decision on mobile presence (native app / PWA / responsive-web-only / N/A) with a rationale in `docs/` — the operator's explicit \"should we have a mobile app\" extraneous-ask. If mobile IS warranted, there is at least a responsive/PWA baseline or a tracked plan (Expo/native). A decision of \"no mobile, here's why\" scores 3; an unconsidered absence scores ≤1.",
+          "soft_goal": "PWA installable + offline; Expo app for daemon/monitor products; push notifications; mobile-specific UX (not just shrunk desktop).",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L118",
+          "title": "Release Automation",
+          "name": "Releases are one-command / one-tag automated, not manual.",
+          "acceptance": "Tagging a version (or a release workflow) automatically builds artifacts, generates a changelog, creates a GitHub Release with assets, and publishes to package channels — no manual asset uploads. Version bumping is scripted (release-please/cargo-release/changesets/semantic-release).",
+          "soft_goal": "Fully hands-off tag→release; signed checksums + SBOM attached; release notes categorized; pre-release/beta channel.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L119",
+          "title": "Versioning & Compatibility Policy",
+          "name": "A clear versioning scheme and compatibility guarantees.",
+          "acceptance": "SemVer (or a documented scheme) is followed; breaking changes are called out in the changelog; for libraries, an MSRV/engine-version policy is stated; deprecations have a migration note. Users can reason about upgrade safety.",
+          "soft_goal": "Automated breaking-change detection (cargo-semver-checks/api-extractor); deprecation warnings in-product; upgrade guides per major.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L120",
+          "title": "Distribution Channels & Discoverability",
+          "name": "The product is findable and gettable through real channels.",
+          "acceptance": "The product is published where its users look: package registries (crates.io/npm/PyPI), a Homebrew tap, a GitHub Releases page with assets, and a landing/README with install instructions and a project URL. A new user can find and install it without insider knowledge.",
+          "soft_goal": "Landing site/docsite; listed in awesome-lists/directories; social preview card; download analytics.",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L121",
+          "title": "Install/Uninstall Cleanliness & QOL",
+          "name": "Install is smooth and uninstall leaves no mess.",
+          "acceptance": "Installation is a single documented step and succeeds on a clean machine; the app declares where it stores config/data/cache (XDG/AppData/Library conventions); an uninstall path removes binaries and (optionally) data with consent — no orphaned files, no requiring manual cleanup. First-run works without hidden prerequisites.",
+          "soft_goal": "`uninstall` subcommand; data-export before uninstall; migration of config across versions; install doctor (`app doctor`).",
+          "evidence_pattern": "file:line"
+        },
+        {
+          "id": "L122",
+          "title": "Deploy Observability & Health Endpoints",
+          "name": "Deployed instances are observable — health, readiness, and telemetry.",
+          "acceptance": "A deployed service exposes a health/readiness endpoint (`/health`, `/ready`), emits structured logs to stdout (12-factor XI), and exports basic metrics/traces (OpenTelemetry or equivalent). Deploy surfaces wire these to the platform (Workers analytics, Vercel logs, container healthcheck). Operators can tell if an instance is up and healthy.",
+          "soft_goal": "SLO dashboards; alerting wired; distributed tracing across surfaces; synthetic uptime checks; ties to L41–L50 observability pillars.",
+          "evidence_pattern": "file:line"
+        }
+      ]
+    }
+  ]
+}

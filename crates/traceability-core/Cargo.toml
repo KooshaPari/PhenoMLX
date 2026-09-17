@@ -1,0 +1,19 @@
+[package]
+name = "traceability-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Unified PM/traceability core: superset of tracera-core + agileplus-domain"
+
+[dependencies]
+chrono = { workspace = true }
+indexmap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true, features = ["v4", "v5", "serde"] }
+regex = { workspace = true }
+
+[dev-dependencies]
+proptest = "1"

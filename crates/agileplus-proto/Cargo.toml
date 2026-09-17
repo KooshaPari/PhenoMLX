@@ -1,0 +1,27 @@
+[package]
+name = "agileplus-proto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Compiled protobuf/tonic types for AgilePlus gRPC layer"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+documentation = "https://docs.rs/agileplus-proto"
+keywords = ["phenotype", "agileplus"]
+categories = ["development-tools"]
+authors = ["kooshapari"]
+
+[build-dependencies]
+tonic-build.workspace = true
+prost-build.workspace = true
+
+[dependencies]
+tonic.workspace = true
+prost.workspace = true
+tokio-stream.workspace = true
+
+[features]
+default = []
+
+[package.metadata.cargo-machete]
+ignored = ["prost"]

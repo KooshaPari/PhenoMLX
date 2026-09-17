@@ -1,0 +1,23 @@
+[package]
+name = "pheno-vibecoding-guard"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "AST-based heuristic linter for AI-generated (vibecoded) Rust code. Catches long function bodies, deep nesting, unused parameters, excessive unwrap(), and TODO/FIXME comments. Uses syn for full Rust AST analysis."
+keywords = ["phenotype", "linter", "ast", "vibecoding", "syn", "ai-code"]
+categories = ["development-tools", "rust-patterns"]
+publish = false
+
+[lib]
+name = "pheno_vibecoding_guard"
+path = "src/lib.rs"
+
+[dependencies]
+proc-macro2 = { version = "1.0", features = ["span-locations"] }
+syn = { version = "2.0", features = [
+  "full",
+  "extra-traits",
+  "parsing",
+  "visit",
+] }

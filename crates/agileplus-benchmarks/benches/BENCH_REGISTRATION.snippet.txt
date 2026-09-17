@@ -1,0 +1,14 @@
+# Copy-paste blocks for crates/agileplus-benchmarks/Cargo.toml
+# (additive registration — merge in a follow-up PR that may edit Cargo.toml)
+
+# ── [dependencies] additions ─────────────────────────────────────────────────
+# agileplus-triage = { path = "../agileplus-triage" }
+
+# ── [[bench]] entries ────────────────────────────────────────────────────────
+# [[bench]]
+# name = "claim_engine_perf"
+# harness = false
+#
+# [[bench]]
+# name = "trace_matrix_derivation"
+# harness = false

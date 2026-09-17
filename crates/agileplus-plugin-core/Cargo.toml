@@ -1,0 +1,12 @@
+[package]
+name = "agileplus-plugin-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Plugin system core for AgilePlus (stub)"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]

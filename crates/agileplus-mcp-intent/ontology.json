@@ -1,0 +1,243 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://phenotype.dev/schemas/agileplus-intent-ontology/v1.json",
+  "title": "AgilePlus Intent Graph Ontology",
+  "description": "Graph ontology for traceability of user intent through features, tasks, code, tests, PRs, and artifacts in AgilePlus.",
+  "version": "1.0.0",
+  "schema_uri": "https://phenotype.dev/schemas/agileplus-intent-ontology/v1.json",
+  "type": "object",
+  "required": ["nodes", "edges", "metadata"],
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "description": "All typed nodes in the intent graph.",
+      "items": { "$ref": "#/definitions/node" }
+    },
+    "edges": {
+      "type": "array",
+      "description": "All typed relationships between nodes.",
+      "items": { "$ref": "#/definitions/edge" }
+    },
+    "metadata": { "$ref": "#/definitions/graph_metadata" }
+  },
+  "definitions": {
+    "node_type": {
+      "type": "string",
+      "enum": [
+        "Intent", "Plan", "Feature", "Story", "Task",
+        "Spec", "Commit", "Test", "PR", "Bug", "Artifact"
+      ]
+    },
+    "dag_stage": {
+      "type": "string",
+      "enum": [
+        "intent", "plan", "feature", "story", "task",
+        "spec", "commit", "test", "pr", "bug", "artifact"
+      ]
+    },
+    "relationship_type": {
+      "type": "string",
+      "enum": [
+        "implements", "tests", "covers", "traces-to",
+        "derives-from", "resolves", "blocks", "depends-on"
+      ]
+    },
+    "canonical_link_type": {
+      "type": "string",
+      "enum": [
+        "parent_of", "child_of", "depends_on", "blocks",
+        "implements", "verifies", "references", "duplicates"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Confidence score from 0.0 to 1.0, sourced from tracera_bridge confidence scoring."
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "node_type", "dag_stage", "title", "status", "meta"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][a-z]+#[a-z0-9\\-]+$",
+          "description": "Globally unique node ID. Format: <Type>#<slug>. Example: 'Feature#auth-oauth2'."
+        },
+        "node_type": { "$ref": "#/definitions/node_type" },
+        "dag_stage": { "$ref": "#/definitions/dag_stage" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "active", "completed", "deprecated", "rejected", "open", "in_progress", "blocked", "deferred", "cancelled"]
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "meta": {
+          "type": "object",
+          "required": ["timestamp", "source"],
+          "properties": {
+            "confidence": { "$ref": "#/definitions/confidence" },
+            "source": {
+              "type": "string",
+              "description": "Origin of the data: e.g., 'user-prompt', 'git-log', 'agent-inference', 'jira-api', 'github-webhook'."
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time",
+              "description": "ISO 8601 timestamp when this node or edge was created or last modified."
+            },
+            "agent_id": {
+              "type": "string",
+              "description": "Identifier of the agent or system that created/modified this element."
+            }
+          }
+        },
+        "properties": { "type": "object" },
+        "table_ref": { "type": "string" },
+        "table_id": { "type": "string" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["id", "source", "target", "relationship_type", "meta"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "relationship_type": { "$ref": "#/definitions/relationship_type" },
+        "canonical_map": {
+          "type": "object",
+          "properties": {
+            "link_type": { "$ref": "#/definitions/canonical_link_type" },
+            "direction": { "type": "string", "enum": ["forward", "reverse"] }
+          }
+        },
+        "meta": {
+          "type": "object",
+          "required": ["timestamp", "source"],
+          "properties": {
+            "confidence": { "$ref": "#/definitions/confidence" },
+            "source": { "type": "string" },
+            "timestamp": { "type": "string", "format": "date-time" },
+            "agent_id": { "type": "string" }
+          }
+        },
+        "properties": { "type": "object" }
+      }
+    },
+    "graph_metadata": {
+      "type": "object",
+      "required": ["version", "schema_uri", "created_at"],
+      "properties": {
+        "version": { "type": "string" },
+        "schema_uri": { "type": "string", "format": "uri" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "node_count": { "type": "integer", "minimum": 0 },
+        "edge_count": { "type": "integer", "minimum": 0 },
+        "dag_valid": { "type": "boolean" },
+        "source_system": { "type": "string" }
+      }
+    }
+  },
+  "dagFlow": {
+    "description": "Canonical left-to-right flow: user intent -> plan -> features -> tasks -> code -> tests -> PRs. Cycles are structurally discouraged by edge allowed-tables.",
+    "stages": [
+      { "stage": "intake", "nodeTypes": ["Intent"], "produces": ["Plan"] },
+      { "stage": "planning", "nodeTypes": ["Plan"], "produces": ["Feature", "Story"] },
+      { "stage": "breakdown", "nodeTypes": ["Feature", "Story"], "produces": ["Task"] },
+      { "stage": "specification", "nodeTypes": ["Task"], "produces": ["Spec"] },
+      { "stage": "implementation", "nodeTypes": ["Task"], "produces": ["Commit"] },
+      { "stage": "verification", "nodeTypes": ["Commit", "PR"], "produces": ["Test", "Artifact"] },
+      { "stage": "integration", "nodeTypes": ["PR"], "produces": ["Artifact"] }
+    ],
+    "validationRules": {
+      "noCycles": true,
+      "rootNodesMustBe": ["Intent"],
+      "leafNodesPrefer": ["Test", "Artifact"]
+    }
+  },
+  "edgeConstraints": {
+    "implements": {
+      "description": "Target node implements the source node's requirement.",
+      "allowed": [
+        { "from": "Intent", "to": "Feature" },
+        { "from": "Intent", "to": "Story" },
+        { "from": "Feature", "to": "Task" },
+        { "from": "Story", "to": "Task" },
+        { "from": "Task", "to": "Commit" },
+        { "from": "Spec", "to": "Feature" },
+        { "from": "Spec", "to": "Task" }
+      ]
+    },
+    "tests": {
+      "description": "Target node tests the source node's behavior.",
+      "allowed": [
+        { "from": "Feature", "to": "Test" },
+        { "from": "Task", "to": "Test" },
+        { "from": "Commit", "to": "Test" },
+        { "from": "PR", "to": "Test" },
+        { "from": "Bug", "to": "Test" }
+      ]
+    },
+    "covers": {
+      "description": "Target node provides coverage or evidence for the source node.",
+      "allowed": [
+        { "from": "Feature", "to": "Test" },
+        { "from": "Task", "to": "Test" },
+        { "from": "Feature", "to": "Artifact" },
+        { "from": "Task", "to": "Artifact" },
+        { "from": "Spec", "to": "Feature" }
+      ]
+    },
+    "traces-to": {
+      "description": "Generic traceability link for cross-cutting concerns.",
+      "allowed": [
+        { "from": "*", "to": "*" }
+      ]
+    },
+    "derives-from": {
+      "description": "Target is the parent or origin of the source.",
+      "allowed": [
+        { "from": "Feature", "to": "Intent" },
+        { "from": "Story", "to": "Intent" },
+        { "from": "Story", "to": "Feature" },
+        { "from": "Task", "to": "Feature" },
+        { "from": "Task", "to": "Story" },
+        { "from": "Task", "to": "Bug" }
+      ]
+    },
+    "resolves": {
+      "description": "Target resolves or fixes the source issue.",
+      "allowed": [
+        { "from": "Bug", "to": "Commit" },
+        { "from": "Bug", "to": "PR" },
+        { "from": "Bug", "to": "Task" }
+      ]
+    },
+    "blocks": {
+      "description": "Target is blocked by the source.",
+      "allowed": [
+        { "from": "Task", "to": "Task" },
+        { "from": "Bug", "to": "Task" },
+        { "from": "Bug", "to": "PR" },
+        { "from": "Task", "to": "PR" },
+        { "from": "PR", "to": "Feature" }
+      ]
+    },
+    "depends-on": {
+      "description": "Source depends on target for completion.",
+      "allowed": [
+        { "from": "Task", "to": "Task" },
+        { "from": "Feature", "to": "Feature" },
+        { "from": "Story", "to": "Story" },
+        { "from": "PR", "to": "PR" },
+        { "from": "Task", "to": "Artifact" }
+      ]
+    }
+  }
+}

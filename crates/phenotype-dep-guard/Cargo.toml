@@ -1,0 +1,47 @@
+[package]
+name = "phenotype-dep-guard"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Dependency scanning, OSV vulnerability binding, and SBOM generation for Phenotype"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+documentation = "https://docs.rs/phenotype-dep-guard"
+keywords = ["phenotype", "agileplus"]
+categories = ["development-tools"]
+authors = ["kooshapari"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+reqwest = { version = "0.12", features = ["json"] }
+toml = "0.8"
+dirs = "5"
+tempfile.workspace = true
+# tracera-core = { path = "../../Tracera/crates/tracera-core" }
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio-test = "0.4"
+
+[package.metadata.cargo-machete]
+ignored = [
+  "anyhow",
+  "chrono",
+  "dirs",
+  "reqwest",
+  "serde",
+  "serde_json",
+  "tempfile",
+  "thiserror",
+  "tokio",
+  "toml",
+  "tracing",
+  "uuid",
+]

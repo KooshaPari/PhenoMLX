@@ -1,0 +1,17 @@
+# Cargo build artifacts
+/target/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test output
+Cargo.lock.bak
+*.tmp
+*.swp
+*.swo

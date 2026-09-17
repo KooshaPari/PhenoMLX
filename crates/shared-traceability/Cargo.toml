@@ -1,0 +1,13 @@
+[package]
+name = "shared-traceability"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Canonical traceability models shared by Tracera and AgilePlus"
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

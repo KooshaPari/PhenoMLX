@@ -1,0 +1,17 @@
+[package]
+name = "agileplus-api-types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Shared JSON DTOs and response envelopes for AgilePlus HTTP APIs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+agileplus-error-core = { path = "../agileplus-error-core" }
+
+[dev-dependencies]
+serde_json.workspace = true

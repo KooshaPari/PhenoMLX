@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# ──────────────────────────────────────────────────────────────────────────────
+#  cargo-instruments Configuration
+#
+#  This file defines profiling templates for macOS Instruments.  It is only
+#  used on macOS systems where `cargo-instruments` is installed.
+#
+#  Usage:
+#
+#    # Profile heap allocations during memory tests:
+#    cargo instruments --template "Allocation Profiling" \
+#      --manifest-path crates/agileplus-domain/Cargo.toml --test memory
+#
+#    # Profile a specific integration test:
+#    cargo instruments --template "Allocation Profiling" \
+#      --manifest-path crates/agileplus-domain/Cargo.toml \
+#      --test memory_profile_feature_lifecycle
+#
+#  Cross-platform note:
+#    Instruments is macOS-only.  For Linux / CI heap profiling, use dhat
+#    instead (see `../../.github/workflows/memory.yml` and
+#    `tests/memory.rs`).
+# ──────────────────────────────────────────────────────────────────────────────
+
+templates:
+  - name: "Allocation Profiling"
+    description: >
+      Track heap allocations, retain counts, and allocation callstacks during
+      agileplus-domain memory-profiling tests.
+    instrument: Allocations
+    package: agileplus-domain
+    test: memory
+    # Options recognised by cargo-instruments >= 0.4:
+    #   binary:        path to a specific binary (auto-detected from package)
+    #   test:          run integration tests matching this prefix
+    #   env:           environment variables for the profiled process
+    #   timeout:       maximum run time before the profile is stopped
+    env:
+      RUST_LOG: "error"
+      CARGO_TERM_COLOR: "always"
+    timeout: 300  # seconds
+
+  - name: "Memory Graph"
+    description: >
+      Record a detailed memory graph showing allocation lifetimes and retain
+      cycles across domain operations.
+    instrument: "Allocations with VM Tracker"
+    package: agileplus-domain
+    test: memory
+    timeout: 300

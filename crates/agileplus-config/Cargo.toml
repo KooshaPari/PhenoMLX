@@ -1,0 +1,17 @@
+[package]
+name = "agileplus-config"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Shared config-builder macro for AgilePlus crates"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+documentation = "https://docs.rs/agileplus-config"
+keywords = ["phenotype", "agileplus", "config"]
+categories = ["config"]
+authors = ["kooshapari"]
+
+[dependencies]
+paste = "1"
+
+[dev-dependencies]

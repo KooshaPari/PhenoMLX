@@ -1,0 +1,32 @@
+[package]
+name = "agileplus-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Sync orchestrator for AgilePlus — conflict detection, resolution, and NATS integration"
+
+[features]
+default = []
+nats = ["dep:futures-util"]
+
+[dependencies]
+agileplus-domain = { path = "../agileplus-domain" }
+agileplus-events = { path = "../agileplus-events" }
+agileplus-plane = { path = "../agileplus-plane" }
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+async-trait = "0.1"
+tokio.workspace = true
+tracing.workspace = true
+async-nats = "0.47"
+futures-util = { version = "0.3", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+proptest = "1"
+async-nats = "0.47"
+futures-util = "0.3"

@@ -1,0 +1,74 @@
+[package]
+name = "agileplus-governance"
+version = "0.1.0"
+edition = "2021"
+description = "AgilePlus governance system for release channels, audit logging, and policy enforcement"
+license = "MIT"
+authors = ["Koosha Pari <koosha@phenotype.dev>"]
+repository = "https://github.com/KooshaPari/AgilePlus"
+keywords = ["governance", "release", "policy", "audit"]
+categories = ["development-tools", "governance"]
+
+[[bin]]
+name = "agileplus-governance"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP client
+reqwest = { version = "0.13", features = ["json"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1.1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID generation
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Database (SQLite for local governance) — pinned to the workspace version to
+# avoid a `links = "sqlite3"` native-lib conflict with agileplus-cli/-sqlite (0.32).
+rusqlite = { workspace = true }
+
+# Configuration
+config = "0.15"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Async traits
+async-trait = "0.1"
+
+# Regex for pattern matching
+regex = "1"
+
+# Environment variables
+envsubst = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+tokio-test = "0.4"
+
+[features]
+default = []
+cli = ["clap", "whoami"]
+
+[dependencies.whoami]
+optional = true
+version = "2"
+
+[dependencies.clap]
+optional = true
+version = "4"
+features = ["derive"]

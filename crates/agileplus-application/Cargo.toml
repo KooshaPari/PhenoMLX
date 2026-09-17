@@ -1,0 +1,29 @@
+[package]
+name = "agileplus-application"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Application / use-case layer (hexagonal — no framework deps)"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+documentation = "https://docs.rs/agileplus-application"
+keywords = ["phenotype", "agileplus", "application"]
+categories = ["data-structures"]
+authors = ["kooshapari"]
+
+[dependencies]
+agileplus-domain = { path = "../agileplus-domain" }
+agileplus-triage = { path = "../agileplus-triage" }
+agileplus-graph = { path = "../agileplus-graph" }
+serde = { workspace = true, features = ["derive"] }
+anyhow = "1.0"
+async-trait.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+
+[package.metadata.cargo-machete]
+ignored = ["agileplus-graph", "serde_json", "tracing"]

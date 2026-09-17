@@ -1,0 +1,29 @@
+[package]
+name = "agileplus-convoy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Convoy primitive: two-phase commit bead coordination for MEOW"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+documentation = "https://docs.rs/agileplus-convoy"
+keywords = ["phenotype", "agileplus", "convoy"]
+categories = ["asynchronous"]
+authors = ["kooshapari"]
+
+[dependencies]
+agileplus-triage = { path = "../agileplus-triage" }
+agileplus-graph = { path = "../agileplus-graph" }
+anyhow.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "macros"] }
+
+[package.metadata.cargo-machete]
+ignored = ["agileplus-graph", "thiserror"]

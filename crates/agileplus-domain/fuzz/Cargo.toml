@@ -1,0 +1,52 @@
+[package]
+name = "agileplus-domain-fuzz"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]  # out-of-band cargo-fuzz dir; not a workspace member
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+agileplus-domain = { path = ".." }
+libfuzzer-sys = "0.4"
+serde_json = "1"
+toml = "0.8"
+
+[[bin]]
+name = "parse_backlog"
+path = "fuzz_targets/parse_backlog.rs"
+
+[[bin]]
+name = "parse_cycle"
+path = "fuzz_targets/parse_cycle.rs"
+
+[[bin]]
+name = "parse_user_roles"
+path = "fuzz_targets/parse_user_roles.rs"
+
+[[bin]]
+name = "parse_story_status"
+path = "fuzz_targets/parse_story_status.rs"
+
+[[bin]]
+name = "parse_epic_status"
+path = "fuzz_targets/parse_epic_status.rs"
+
+[[bin]]
+name = "serialize_roundtrip"
+path = "fuzz_targets/serialize_roundtrip.rs"
+
+[[bin]]
+name = "agent_kind_roundtrip"
+path = "fuzz_targets/agent_kind_roundtrip.rs"
+
+[[bin]]
+name = "wp_state_roundtrip"
+path = "fuzz_targets/wp_state_roundtrip.rs"
+
+[[bin]]
+name = "config_toml"
+path = "fuzz_targets/config_toml.rs"

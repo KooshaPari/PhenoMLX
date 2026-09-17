@@ -1,0 +1,36 @@
+[package]
+name = "phenotype-sandbox"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Docker + seccomp + network namespace isolation sandbox"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/KooshaPari/AgilePlus"
+documentation = "https://docs.rs/phenotype-sandbox"
+keywords = ["phenotype", "agileplus", "sandbox"]
+categories = ["virtualization"]
+authors = ["kooshapari"]
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+serde.workspace = true
+tokio-stream = { version = "0.1", features = ["sync"] }
+bollard = { version = "0.18", features = ["ssl"] }
+libc = "0.2"
+nix = { version = "0.29", features = ["process", "sched", "mount"] }
+uuid.workspace = true
+sha2.workspace = true
+hex = "0.4"
+tracing.workspace = true
+serde_json.workspace = true
+futures.workspace = true
+tempfile.workspace = true
+shell-words = "1.1"
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["libc", "nix", "tokio-stream"]

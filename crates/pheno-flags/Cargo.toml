@@ -1,0 +1,20 @@
+[package]
+name = "pheno-flags"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Typed feature-flag resolution. A `Resolver` reads values in this order: explicit envvar → .env-style file → caller-supplied default. Supports `bool`, `i64`, and `String` with explicit type errors on parse failure."
+keywords = ["phenotype", "feature-flag", "config", "envvar", "typed"]
+categories = ["config", "rust-patterns"]
+publish = false
+
+[lib]
+name = "pheno_flags"
+path = "src/lib.rs"
+
+[dependencies]
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
