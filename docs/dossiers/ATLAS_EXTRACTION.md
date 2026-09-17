@@ -496,6 +496,6 @@ From `backends/mlx_backend.py :: quantization_execution_provenance()` (lines 13-
 
 ### 6.4 Next Runs Needed
 
-1. **Upstream comparison** -- same model, same prompts, same hardware, on stock upstream OMLX
+1. **Upstream comparison** -- DONE. PhenoMLX 20.6 t/s vs upstream 23.9 t/s (-13.5%). NON_INFERIOR (within 15% margin). First 3 prompts slower on PhenoMLX (initialization overhead), rest comparable.
 2. **8B model** -- `Qwen3.5-8B Q4_K_M` per pilot config (better quality on complex prompts)
 3. **TurboQuant+ A/B** -- test with and without KV compression to measure memory advantage
