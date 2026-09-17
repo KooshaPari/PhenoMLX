@@ -35,7 +35,7 @@ from ._shared import validate_plan
 # giving up — the absolute path baked into the project tree is the one that
 # matches the test environment.
 _REPO_ROOTS: tuple[str, ...] = (
-    "/Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-registry/registry/absorbed-crates/phenotype-omlx",
+    "/Users/<REDACTED>/CodeProjects/Phenotype/repos/phenotype-registry/registry/absorbed-crates/phenotype-omlx",
     os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..")
     ),

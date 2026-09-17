@@ -59,7 +59,7 @@ def test_niah_benchmark_source_has_no_legacy_python_path():
     script = root / "scripts" / "niah_benchmark.py"
     text = script.read_text(encoding="utf-8")
     assert 'REPO / "phenotype-omlx/python"' not in text
-    assert 'Path("/Users/kooshapari/CodeProjects/Phenotype/repos")' not in text
+    assert 'Path("/Users/<REDACTED>/CodeProjects/Phenotype/repos")' not in text
     assert 'ROOT / "python"' in text
 
 
@@ -70,7 +70,7 @@ def test_niah_benchmark_legacy_path_doctor_fails(monkeypatch, tmp_path):
     bad.write_text(
         'import sys\n'
         'from pathlib import Path\n'
-        'REPO = Path("/Users/kooshapari/CodeProjects/Phenotype/repos")\n'
+        'REPO = Path("/Users/<REDACTED>/CodeProjects/Phenotype/repos")\n'
         'sys.path.insert(0, str(REPO / "phenotype-omlx/python"))\n',
         encoding="utf-8",
     )
@@ -329,7 +329,7 @@ def test_configure_hf_env_keeps_offline_for_local_model_path(monkeypatch):
 
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
     monkeypatch.setenv("TRANSFORMERS_OFFLINE", "1")
-    local = "/Users/kooshapari/.omlx/models/example-local"
+    local = "/Users/<REDACTED>/.omlx/models/example-local"
     mod.configure_hf_env(local)
     assert os.environ["HF_HUB_OFFLINE"] == "1"
     assert os.environ["TRANSFORMERS_OFFLINE"] == "1"

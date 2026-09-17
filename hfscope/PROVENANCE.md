@@ -1,8 +1,8 @@
 # Provenance: hfscope
 
-**Source Repository**: [KooshaPari/zz-merge-unk-hfscope](https://github.com/KooshaPari/zz-merge-unk-hfscope)
+**Source Repository**: [<REDACTED>/zz-merge-unk-hfscope](https://github.com/KooshaPari/zz-merge-unk-hfscope)
 **Absorption Date**: 2026-09-15
-**Absorbed Into**: KooshaPari/PhenoMLX (`hfscope/`)
+**Absorbed Into**: <REDACTED>/PhenoMLX (`hfscope/`)
 
 ## What is hfscope?
 
@@ -17,7 +17,7 @@ A Go-based HuggingFace scope tool (~10MB source). It provides:
 
 ## Source Info
 
-- **Go module**: `github.com/kooshapari/hfscope`
+- **Go module**: `github.com/KooshaPari/hfscope`
 - **Go version**: 1.26.5
 - **License**: See `hfscope/LICENSE`
 - **Last commit at absorption**: See source repo commit history

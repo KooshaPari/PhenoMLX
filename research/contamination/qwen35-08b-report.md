@@ -4,7 +4,7 @@
 
 - cells=500 replies=500 hits=0
 - degenerate_synthetic=True
-- report=`/Users/kooshapari/CodeProjects/Phenotype/pheno-harness/bench/results/stock-vs-ours/run-v5-qwen35-08b.json`
+- report=`/Users/<REDACTED>/CodeProjects/Phenotype/pheno-harness/bench/results/stock-vs-ours/run-v5-qwen35-08b.json`
 
 ## Notes
 - Offline scan only — does not prove training contamination.

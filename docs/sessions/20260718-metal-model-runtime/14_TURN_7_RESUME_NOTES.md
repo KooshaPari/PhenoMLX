@@ -72,7 +72,7 @@ After turn-7 work:
 **This is the headline result of turn 7.** Airlock v2 was missing for turns 4-6 (logged in 3 turn notes). The binary was found at:
 
 ```
-/Users/kooshapari/CodeProjects/Phenotype/repos/PhenoVCS/target/release/airlock-v2
+/Users/<REDACTED>/CodeProjects/Phenotype/repos/PhenoVCS/target/release/airlock-v2
 ```
 
 A Rust port of the original `airlock-v2.py` engine, vendored from `~/.airlock/bin/`. The crate lives at `PhenoVCS/crates/airlock-v2/` (Cargo.toml at line 1 confirms `description = "Conservative auto-save / push daemon for git repositories (vendored from .airlock/bin/airlock-v2.py)"`).
@@ -80,9 +80,9 @@ A Rust port of the original `airlock-v2.py` engine, vendored from `~/.airlock/bi
 **Install process (recorded in `scripts/install_airlock_v2.sh`):**
 
 1. Build: `cd PhenoVCS && cargo build -p airlock-v2 --release` (already built; binary at `target/release/airlock-v2`)
-2. Symlink: `ln -sf /Users/kooshapari/CodeProjects/Phenotype/repos/PhenoVCS/target/release/airlock-v2 /opt/homebrew/bin/airlock-v2`
+2. Symlink: `ln -sf /Users/<REDACTED>/CodeProjects/Phenotype/repos/PhenoVCS/target/release/airlock-v2 /opt/homebrew/bin/airlock-v2`
 3. Verify: `airlock-v2 --version` → `airlock-v2 0.1.0`
-4. Register: `airlock-v2 register /Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-registry/registry/absorbed-crates/phenotype-omlx` → `[OK] Registered`
+4. Register: `airlock-v2 register /Users/<REDACTED>/CodeProjects/Phenotype/repos/phenotype-registry/registry/absorbed-crates/phenotype-omlx` → `[OK] Registered`
 
 **Doctor state transition:**
 
@@ -272,7 +272,7 @@ print('fail:', sum(1 for c in d['checks'] if c['status'] == 'fail'))"
 
 # Airlock v2 (NOW INSTALLED)
 which airlock-v2 && airlock-v2 --version
-airlock-v2 status /Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-registry/registry/absorbed-crates/phenotype-omlx
+airlock-v2 status /Users/<REDACTED>/CodeProjects/Phenotype/repos/phenotype-registry/registry/absorbed-crates/phenotype-omlx
 
 # Eval subcommand
 python3 -m omlx_research.cli eval --help

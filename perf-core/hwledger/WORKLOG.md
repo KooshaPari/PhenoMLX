@@ -2,7 +2,7 @@
 
 **Schema version:** v2.1 (ADR-025)
 **Repo:** hwLedger
-**Maintained by:** @KooshaPari
+**Maintained by:** @<REDACTED>
 
 | Date | Task ID | Layer | Action | Files | Notes | device |
 |---|---|---|---|---|---|---|

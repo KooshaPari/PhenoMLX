@@ -2,9 +2,9 @@
 
 ## Source Repository
 
-- **Repository**: [KooshaPari/zz-merge-unk-hwLedger](https://github.com/KooshaPari/zz-merge-unk-hwLedger)
+- **Repository**: [<REDACTED>/zz-merge-unk-hwLedger](https://github.com/KooshaPari/zz-merge-unk-hwLedger)
 - **Absorbed**: 2026-09-14
-- **Branch**: `absorb-hwledger` in KooshaPari/PhenoMLX
+- **Branch**: `absorb-hwledger` in <REDACTED>/PhenoMLX
 
 ## What Was Migrated
 

@@ -1,6 +1,6 @@
 # Rich Media Convention — Phenotype Org
 
-> **Canonical location:** `KooshaPari/phenotype-registry` → `RICH_MEDIA.md`
+> **Canonical location:** `<REDACTED>/phenotype-registry` → `RICH_MEDIA.md`
 > Copied to each participating repo as a docs-only reference.
 
 ## Stub Marker Format

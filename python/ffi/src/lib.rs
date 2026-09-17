@@ -1,7 +1,7 @@
 // phenotype-omlx FFI — pyo3 bridge exposing the Rust perf-core to Python.
 //
 // Build:
-//   cd /Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-omlx/python/ffi
+//   cd /Users/<REDACTED>/CodeProjects/Phenotype/repos/phenotype-omlx/python/ffi
 //   maturin develop --release --features extension-module
 
 use pyo3::prelude::*;

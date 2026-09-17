@@ -4,7 +4,7 @@
 
 ## What this repo is
 
-`hwLedger` is a repo in the KooshaPari/Phenotype fleet.
+`hwLedger` is a repo in the <REDACTED>/Phenotype fleet.
 
 ## Build & run
 

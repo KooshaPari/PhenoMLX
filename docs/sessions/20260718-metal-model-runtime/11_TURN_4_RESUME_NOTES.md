@@ -2,7 +2,7 @@
 
 **Branch:** `chore/archive-no-simd-lib-rs-2026-07-18`
 **Manager mode:** active; 4 parallel task-tool subagents dispatched for disjoint work lanes
-**Airlock v2 status:** STILL MISSING (recorded below; the gate tool is not installed at `/Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/bin/` — directories are present but empty)
+**Airlock v2 status:** STILL MISSING (recorded below; the gate tool is not installed at `/Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/bin/` — directories are present but empty)
 
 ---
 
@@ -107,9 +107,9 @@ No module exceeds the 500-line hard cap. Three files are above the 350 target; a
 
 Airlock v2 is **not installed** in this environment. Evidence:
 
-- `/Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/bin/` exists but is empty.
-- `/Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/scripts/` exists but is empty.
-- `/Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/launchd/` exists but is empty.
+- `/Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/bin/` exists but is empty.
+- `/Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/scripts/` exists but is empty.
+- `/Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/launchd/` exists but is empty.
 - `which airlock` and `which airlock-v2` return nothing.
 - `brew list | grep -i airlock` returns nothing.
 

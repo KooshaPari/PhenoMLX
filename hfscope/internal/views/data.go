@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kooshapari/hfscope/internal/hfapi"
+	"github.com/KooshaPari/hfscope/internal/hfapi"
 )
 
 // PageData carries everything the server hands to a template render.

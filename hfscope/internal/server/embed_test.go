@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kooshapari/hfscope/internal/config"
-	"github.com/kooshapari/hfscope/internal/hfapi"
+	"github.com/KooshaPari/hfscope/internal/config"
+	"github.com/KooshaPari/hfscope/internal/hfapi"
 )
 
 // newEmbedTestServer builds a Server whose upstream is a stub HuggingFace API

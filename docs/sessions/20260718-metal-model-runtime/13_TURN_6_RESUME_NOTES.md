@@ -68,9 +68,9 @@ No module exceeds the 500-line hard cap. `recurrent_extended.rs` is at 498L — 
 
 Airlock v2 is **not installed** in this environment. All evidence:
 
-- `/Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/bin/` exists but is empty.
-- `/Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/scripts/` exists but is empty.
-- `/Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/launchd/` exists but is empty.
+- `/Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/bin/` exists but is empty.
+- `/Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/scripts/` exists but is empty.
+- `/Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/launchd/` exists but is empty.
 - `which airlock` and `which airlock-v2` return nothing.
 - `brew list | grep -i airlock` returns nothing.
 
@@ -222,7 +222,7 @@ print('warn:', sum(1 for c in d['checks'] if c['status'] == 'warn'))
 print('fail:', sum(1 for c in d['checks'] if c['status'] == 'fail'))"
 
 # Airlock v2 (expected MISSING)
-which airlock ; which airlock-v2 ; ls -la /Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/bin/
+which airlock ; which airlock-v2 ; ls -la /Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/bin/
 
 # New files this turn
 ls -la perf-core/kernel-registry/tests/sota_operators/{zaya_activations,deepseek_mla_mtp,lfm_routing}.rs perf-core/kernel-registry/tests/sota_operators/recurrent/recurrent_extended.rs

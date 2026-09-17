@@ -1,7 +1,7 @@
 # pheno-capacity integration
 
 **Status:** Active (Phase 1 complete 2026-06-18, L5-105).
-**Source crate:** [`KooshaPari/pheno-capacity`](https://github.com/KooshaPari/pheno-capacity) v0.1.0
+**Source crate:** [`<REDACTED>/pheno-capacity`](https://github.com/KooshaPari/pheno-capacity) v0.1.0
 **License:** MIT OR Apache-2.0
 **Governing ADR:** [ADR-035A](../adr/2026-06-18/ADR-035A-hwledger-reclassification.md)
 
@@ -80,11 +80,11 @@ The decision between (A) and (B) is deferred to Phase 2 kickoff. Track in
 ## CI
 
 - 3 CI jobs: `test+fmt+clippy`, `coverage` (>= 80 % lib tier gate), `no_std structural check`
-- See `KooshaPari/pheno-capacity/.github/workflows/ci.yml`
+- See `<REDACTED>/pheno-capacity/.github/workflows/ci.yml`
 
 ## Tracking
 
-- `KooshaPari/pheno-capacity` v0.1.0 tag — 2026-06-18 22:40 PDT
-- `KooshaPari/pheno-worklog-schema` PR `KooshaPari/pheno-worklog-schema#1` — worklog v2.1 schema
+- `<REDACTED>/pheno-capacity` v0.1.0 tag — 2026-06-18 22:40 PDT
+- `<REDACTED>/pheno-worklog-schema` PR `<REDACTED>/pheno-worklog-schema#1` — worklog v2.1 schema
 - ADR-035A reclassification — `docs/adr/2026-06-18/ADR-035A-hwledger-reclassification.md`
 - Findings doc — `findings/2026-06-18-L5-105-hwledger-reclassify.md`

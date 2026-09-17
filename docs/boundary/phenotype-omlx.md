@@ -15,7 +15,7 @@ last_verified: 2026-07-08
   (MLX, Metal, vLLM, TensorRT, SGLang, llama.cpp), concurrent agent runners
   (LatentMAS, TiDAR, JetSpec, SSD), perf-core Rust workspace, CLI/GUI/Web bridge.
 - **Depends on** OMLX `.app` bundle for the base MLX inference server.
-- **Depends on** `KooshaPari/turboquant_plus` for the Python reference impl.
+- **Depends on** `<REDACTED>/turboquant_plus` for the Python reference impl.
 - **Depends on** `hao-ai-lab/JetSpec`, `irfannaqieb/TiDAR`, `Gen-Verse/LatentMAS`,
   `tanishqkumar/ssd` for research reference implementations.
 

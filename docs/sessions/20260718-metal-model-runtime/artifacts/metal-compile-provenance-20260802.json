@@ -8,7 +8,7 @@
   "source_head_compatible": true,
   "command": "OUT_DIR=<temporary> bash scripts/build_metal_runtime_bundle.sh",
   "toolchain": {
-    "developer_directory": "/Users/kooshapari/Downloads/Xcode-beta.app/Contents/Developer",
+    "developer_directory": "/Users/<REDACTED>/Downloads/Xcode-beta.app/Contents/Developer",
     "metal_toolchain": "Xcode-beta Metal.xctoolchain",
     "metal_binary_resolved": true,
     "metallib_binary_resolved": true

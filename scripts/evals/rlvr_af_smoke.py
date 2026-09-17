@@ -14,7 +14,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-PHENO_DEFAULT = Path("/Users/kooshapari/CodeProjects/Phenotype/pheno-harness")
+PHENO_DEFAULT = Path("/Users/<REDACTED>/CodeProjects/Phenotype/pheno-harness")
 
 # Micro verifiable tasks — hard string match (RLVR-AF Layer 2A).
 MICRO_TASKS = [

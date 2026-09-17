@@ -139,7 +139,7 @@ def default_data_path() -> Path:
             break
     candidates.append(
         Path(
-            "/Users/kooshapari/CodeProjects/Phenotype/repos/pheno-harness/bench/results/"
+            "/Users/<REDACTED>/CodeProjects/Phenotype/repos/pheno-harness/bench/results/"
             "stock-vs-ours/run-v5-qwen35-08b.json"
         )
     )

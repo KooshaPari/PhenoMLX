@@ -175,7 +175,7 @@ Plus: cherry-pick `4fb4443` merge resolved (ebfa098), pre-push recursion bug fix
 | 6    | `bash scripts/verify_lockfile.sh` | OK (Cargo.lock SHA-256 unchanged after turn-10's 11 commits) |
 | 7    | `bash scripts/tests/test_push_wip.sh` | 4 / 4 pass |
 
-**Airlock-v2 push:** attempted on `wip/turn-10-final` to `github.com:KooshaPari/phenotype-omlx.git`. The push itself succeeded locally (the airlock-v2 client returned a 200 envelope) but the remote repository rejected the receive with `403 Forbidden: Resource not accessible by integration` — i.e. the integration token bound to this checkout's git-credential store does not have write scope on the `phenotype-omlx.git` remote.
+**Airlock-v2 push:** attempted on `wip/turn-10-final` to `github.com:<REDACTED>/phenotype-omlx.git`. The push itself succeeded locally (the airlock-v2 client returned a 200 envelope) but the remote repository rejected the receive with `403 Forbidden: Resource not accessible by integration` — i.e. the integration token bound to this checkout's git-credential store does not have write scope on the `phenotype-omlx.git` remote.
 
 This is a **tooling / credential limitation, not a code defect**:
 - All 6 code-quality gates above are GREEN.

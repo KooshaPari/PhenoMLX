@@ -4,7 +4,7 @@
   "evidence_label": "live_verified",
   "reported": true,
   "synthetic": false,
-  "model": "/Users/kooshapari/.omlx/models/Rishu11277/Qwopus3.5-4B-Coder-mlx-4Bit",
+  "model": "/Users/<REDACTED>/.omlx/models/Rishu11277/Qwopus3.5-4B-Coder-mlx-4Bit",
   "backend": "mlx_lm_inprocess",
   "architecture_caveat": null,
   "seed": 42,

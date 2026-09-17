@@ -3,7 +3,7 @@ use colored::Colorize;
 use std::process::Command;
 
 fn home_dir() -> String {
-    std::env::var("HOME").unwrap_or_else(|_| "/Users/kooshapari".into())
+    std::env::var("HOME").unwrap_or_else(|_| "/Users/<REDACTED>".into())
 }
 
 pub async fn run() -> Result<()> {

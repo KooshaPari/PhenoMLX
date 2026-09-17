@@ -23,6 +23,6 @@ When a repo is superseded:
 
 | Role | Repo |
 |------|------|
-| Active | `KooshaPari/phenotype-omlx` |
-| Archive | `KooshaPari/zz-archive-phenotype-omlx-tmp` |
-| Archive | `KooshaPari/zz-archive-phenotype-omlx-temp` |
+| Active | `<REDACTED>/phenotype-omlx` |
+| Archive | `<REDACTED>/zz-archive-phenotype-omlx-tmp` |
+| Archive | `<REDACTED>/zz-archive-phenotype-omlx-temp` |

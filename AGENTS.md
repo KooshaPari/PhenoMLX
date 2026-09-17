@@ -9,11 +9,11 @@
 
 ```bash
 # From the canonical clone (or via scripts/worktree_add.sh <branch>):
-git -C /Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-omlx \
+git -C /Users/<REDACTED>/CodeProjects/Phenotype/repos/phenotype-omlx \
   worktree add ../worktrees/phenotype-omlx/<topic> -b <topic>
 ```
 
-- **Canonical GitHub repo:** `KooshaPari/phenotype-omlx` only.
+- **Canonical GitHub repo:** `<REDACTED>/phenotype-omlx` only.
 - **Do not use** archived remotes/clones `zz-archive-phenotype-omlx-tmp` or
   `zz-archive-phenotype-omlx-temp` (legacy names `phenotype-omlx-tmp` /
   `phenotype-omlx-temp`). Cutover: `docs/guides/CANONICAL_REPO_CUTOVER.md`.

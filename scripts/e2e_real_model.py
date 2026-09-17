@@ -18,7 +18,7 @@ from __future__ import annotations
 import os, sys, time, json, gc, subprocess
 from pathlib import Path
 
-VENV = Path("/Users/kooshapari/CodeProjects/Phenotype/repos/turboquant_plus/.venv/bin")
+VENV = Path("/Users/<REDACTED>/CodeProjects/Phenotype/repos/turboquant_plus/.venv/bin")
 if VENV.exists():
     os.environ["PATH"] = str(VENV) + ":" + os.environ.get("PATH", "")
 os.environ["MPLBACKEND"] = "Agg"
@@ -349,7 +349,7 @@ def main():
         "num_layers": n_layers,
         "modes": {name: r for name, r, _ in rows},
     }
-    out = Path("/Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-omlx/research/e2e_results.json")
+    out = Path("/Users/<REDACTED>/CodeProjects/Phenotype/repos/phenotype-omlx/research/e2e_results.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w") as f:
         json.dump(results, f, indent=2, default=str)

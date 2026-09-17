@@ -13,7 +13,7 @@ We provide security updates for the following versions of **phenotype-shared-tem
 
 We take the security of **phenotype-shared-temp** seriously. If you discover a security vulnerability, please do NOT open a public issue. Instead, report it privately.
 
-Please report any security concerns directly to the maintainers at [kooshapari@gmail.com](mailto:kooshapari@gmail.com).
+Please report any security concerns directly to the maintainers at [<REDACTED>@gmail.com](mailto:<REDACTED>@gmail.com).
 
 ### What to include in your report
 - A detailed description of the vulnerability

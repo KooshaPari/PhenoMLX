@@ -1,10 +1,10 @@
 {
   "name": "hwLedger",
   "slug": "hwledger",
-  "domain": "hwledger.kooshapari.com",
+  "domain": "hwledger.<REDACTED>.com",
   "description": "LLM capacity planner + fleet ledger + desktop inference runtime. Tracks hardware fleet audit and provenance for ML workloads with per-layer VRAM estimation.",
   "tier": 2,
-  "repo": "KooshaPari/hwLedger",
+  "repo": "<REDACTED>/hwLedger",
   "language": "Rust / SwiftUI / WinUI / Qt",
   "license": "Apache-2.0",
   "status": "pre-alpha",
@@ -17,7 +17,7 @@
   ],
   "links": {
     "github": "https://github.com/KooshaPari/hwLedger",
-    "docs": "https://hwledger.kooshapari.com/docs",
+    "docs": "https://hwledger.<REDACTED>.com/docs",
     "releases": "https://github.com/KooshaPari/hwLedger/releases"
   }
 }

@@ -1,153 +1,164 @@
 # PhenoMLX
 
-MLX-native inference stack with Rust performance cores and TurboQuant+ KV compression.
+**MLX inference engine: Rust performance cores, multi-backend routing, evaluation tooling**
 
-[![GitHub Downloads](https://img.shields.io/github/downloads/KooshaPari/PhenoMLX/total)](https://github.com/KooshaPari/PhenoMLX/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-
-> **Fork of** [jundot/omlx](https://github.com/jundot/omlx). Upstream OMLX remains its own project; this repository documents only the extensions maintained in this fork.
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Rust](https://img.shields.io/badge/rust-1.82+-orange.svg)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub Downloads](https://img.shields.io/github/downloads/KooshaPari/PhenoMLX/total.svg)](https://github.com/KooshaPari/PhenoMLX/releases)
 
 ---
 
-## What It Is
+## What this repo does
 
-PhenoMLX extends upstream OMLX with a local research stack for multi-backend inference, policy-driven dispatch, model evaluation, and Rust performance experiments across MLX, Metal, vLLM, TensorRT, SGLang, and llama.cpp.
+**PhenoMLX** (phenotype-omlx) is a fork of the upstream [jundot/omlx](https://github.com/jundot/omlx) project, extended with MLX-native performance cores and the Phenotype ecosystem tooling. It provides:
 
-The core differentiator is **TurboQuant+** -- a 4-bit KV cache compression that reduces KV memory by 75% at every model scale, enabling larger context windows and more concurrent requests on memory-constrained hardware.
+- **Rust performance cores** — Speculative decoding, concurrent execution, TurboQuant quantization, tree attention, fleet protocol
+- **Python FFI & research launchers** — `omlx-research` unified CLI bridging MLX framework, omlx CLI, and oMLX GUI/web admin
+- **Multi-backend routing** — Automatic backend selection across MLX, llama.cpp, and other inference engines
+- **Evaluation tooling** — Bench-cockpit (Go/TypeScript) for benchmarking, evals, and calibration
+- **70+ Rust crates** — `crates/` (52 workspace crates: config, telemetry, MCP SDK, spec-driven development, CI templates) + `perf-core/` (18+ performance cores: TurboQuant, spec-decode, tree-attention, fleet-proto, metal-runtime, concurrent-exec, and more)
+- **Metal runtime bundling** — Build scripts for Metal/MPS kernels on Apple Silicon
 
-## Key Features
+---
 
-- **TurboQuant+ 4-bit KV compression** -- 75% KV cache memory reduction with no accuracy loss
-- **Rust FFI performance cores** -- speculative decoding, concurrent execution, tree attention
-- **Multi-backend support** -- MLX, Metal, vLLM, TensorRT, SGLang, llama.cpp
-- **OpenAI-compatible API server** -- drop-in replacement for any OpenAI SDK client
-- **Policy-driven inference dispatch** -- automatic backend selection based on hardware and workload
-- **Model evaluation suite** -- benchmarking, comparison, and quality assessment tools
-
-## Architecture
-
-```text
-phenoMLX
-├── python/omlx_research/     Python research stack
-│   ├── harbor_mlx_server.py  OpenAI-compatible MLX server
-│   ├── backends/             Multi-backend inference adapters
-│   └── evaluation/           Benchmark and comparison tools
-├── perf-core/                Rust performance workspace
-│   ├── turbo-quant           TurboQuant+ SIMD encode/decode
-│   ├── speculative           Speculative decoding engine
-│   └── concurrent            Concurrent execution scheduler
-├── cli/                      Research CLI tools
-├── pilot/                    Benchmark suite and comparison scripts
-└── docs/dossiers/            Product dossiers and atlas extraction
-```
-
-## Hardware Requirements
-
-| Model | Quantization | Min RAM | Notes |
-|-------|-------------|---------|-------|
-| Qwen3.5-0.8B | Q4_K_M | 4 GB | Fast, limited quality |
-| Qwen3.5-8B | Q4_K_M | 8 GB | Recommended for dev |
-| Qwen3.5-32B | Q4_K_M | 20 GB | Production quality |
-| Qwen3.5-72B | Q4_K_M | 40 GB+ | Server-class |
-
-TurboQuant+ reduces KV cache memory by 75% across all scales, enabling larger context windows on the same hardware.
-
-## Quick Start
+## Quick start
 
 ```bash
-# Clone and install
-git clone https://github.com/KooshaPari/PhenoMLX.git
-cd PhenoMLX
-pip install -e .
+# Verify the full stack is wired (12 component checks)
+./scripts/phenotype-omlx-ready
 
-# Start the server
-python -m omlx_research.harbor_mlx_server \
-  --model mlx-community/Qwen3.5-0.8B-OptiQ-4bit \
-  --port 8766
+# Diagnose the research stack (Python env, MLX, omlx CLI, GUI)
+./cli/bin/omlx-research doctor
 
-# Query it
-curl http://localhost:8766/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model": "default", "messages": [{"role": "user", "content": "Hello"}]}'
+# Run inference with automatic backend selection
+./cli/bin/omlx-research inference --prompt "Hello" --policy auto
+
+# Start interactive Python REPL with perf-core modules loaded
+./cli/bin/omlx-research
+
+# Launch oMLX GUI with admin extensions
+./cli/bin/omlx-research gui
+
+# Start local web admin on port 8080
+./cli/bin/omlx-research web 8080
 ```
 
-## TurboQuant+ Memory Savings
+> **Requires:** oMLX.app installed at `/Applications/oMLX.app` (macOS), Python 3.11+, Rust 1.82+
 
-4-bit KV compression reduces cache memory at every scale:
+---
 
-| Model | FP16 KV | 4-bit KV | Saved |
-|-------|---------|----------|-------|
-| 0.8B | 3.76 GB | 0.94 GB | 2.82 GB (75%) |
-| 8B | 4.29 GB | 1.07 GB | 3.22 GB (75%) |
-| 32B | 8.59 GB | 2.15 GB | 6.44 GB (75%) |
-| 72B | 10.74 GB | 2.68 GB | 8.05 GB (75%) |
-| 150B MoE | 12.88 GB | 3.22 GB | 9.66 GB (75%) |
-
-KV bytes/token formula: `2 * full_attention_layers * num_kv_heads * head_dim * bytes_per_element`
-
-## Benchmarks
-
-The `pilot/` directory contains a reproducible benchmark suite:
-
-```bash
-# Run benchmark
-python pilot/run_benchmark.py
-
-# Compare against upstream OMLX
-python pilot/compare_upstream.py --compare
-
-# Evaluate results
-python pilot/evaluate.py pilot/results/<run>.json
-```
-
-**Results (0.8B model, M1 Pro 16GB):**
-- PhenoMLX: 20.6 t/s average, 10/10 prompts OK
-- Upstream OMLX: 23.9 t/s average, 10/10 prompts OK
-- Verdict: NON_INFERIOR (-13.5%, within 15% margin)
-
-## Configuration
-
-Key environment variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PHENOTYPE_OMLX_USE_PYTHON_TQ` | `0` | Set to `1` to use Python TurboQuant instead of Rust SIMD |
-| `DOC_EMBEDS_BROWSER` | - | Browser path for Remotion rendering |
-| `PORT` | `8766` | Server port |
-
-## Project Structure
+## Structure
 
 ```
 phenotype-omlx/
-├── python/omlx_research/     Python research stack
-│   ├── harbor_mlx_server.py  OpenAI-compatible server
-│   ├── backends/             MLX, vLLM, etc.
-│   └── evaluation/           Benchmarks
-├── perf-core/                Rust workspace
-│   ├── turbo-quant/          TurboQuant+ codec
-│   ├── speculative/          Speculative decoding
-│   └── concurrent/           Concurrent scheduling
-├── cli/                      Research CLI
-├── pilot/                    Benchmark suite
-├── scripts/                  Build and setup scripts
-├── docs/                     Documentation and dossiers
-└── tests/                    Test suite
+├── apps/
+│   └── bench-cockpit/       # Go + TypeScript benchmarking dashboard
+│       ├── server/          # Go backend: evals, capacity, RLVR
+│       └── src/             # React/TypeScript frontend components
+├── cli/
+│   └── bin/
+│       ├── omlx-research    # Unified launcher (bash)
+│       └── omlx-cli         # Proxy to system omlx with perf-core env
+├── crates/                  # 52 Rust crates (workspace)
+│   ├── agileplus-*          # Spec-driven dev: config, events, graph, MCP, etc.
+│   ├── pheno-*              # Feature flags, CI templates, SSOT templates
+│   └── phenotype-*          # Config guard, dep guard, MCP SDK, sandbox
+├── scripts/
+│   ├── phenotype-omlx-ready          # Stack readiness check
+│   ├── build_metal_runtime_bundle.sh # Metal kernel bundling
+│   ├── build_moe_metallibs.sh        # MoE Metal libs
+│   ├── cross_repo_smoke.sh           # Cross-repo integration smoke
+│   ├── niah_benchmark.py             # Needle-in-haystack benchmark
+│   ├── perf_turboquant.py            # TurboQuant performance
+│   └── ...                           # Evaluation, profiling, deployment scripts
+└── turboquant_plus/                 # Python venv for research stack
 ```
+
+---
+
+## Crates
+
+| Crate | Purpose |
+|-------|---------|
+| **pheno-flags** | Typed feature-flag resolver (env → .env → default) |
+| **phenotype-mcp-sdk-rs** | Rust MCP SDK: server trait, tools, resources, stdio/SSE transports |
+| **phenotype-config** | Configuration management for Phenotype services |
+| **phenotype-dep-guard** | Dependency guard for build-time validation |
+| **phenotype-sandbox** | Sandbox isolation for untrusted code execution |
+| **shared-traceability** | Shared traceability types across crates |
+| **traceability-core** | Core traceability engine |
+| **clap-ext** | Extended Clap derive macros and helpers |
+| **agileplus-benchmarks** | Criterion benchmarks for all AgilePlus subsystems |
+| **agileplus-cli** | CLI framework for AgilePlus tools |
+| **agileplus-config** | Configuration primitives for AgilePlus |
+| **agileplus-events** | Event sourcing infrastructure |
+| **agileplus-graph** | Graph data structures and algorithms |
+| **agileplus-mcp-intent** | MCP intent classification and routing |
+| **agileplus-telemetry** | OpenTelemetry integration |
+| **agileplus-sqlite** | SQLite persistence layer |
+| **agileplus-api / agileplus-api-types** | API layer and shared types |
+| **agileplus-validate / agileplus-trace-validator** | Validation and trace validation |
+| **agileplus-factory / agileplus-plugin-core** | Factory pattern and plugin core |
+| **agileplus-pipeline / agileplus-proto** | Pipeline orchestration and protobuf |
+| **agileplus-git / agileplus-github** | Git operations and GitHub API |
+| **agileplus-dashboard / agileplus-application** | Dashboard and application scaffolding |
+| **agileplus-grpc / agileplus-nats / agileplus-p2p** | Transport layers |
+| **agileplus-witness / agileplus-triage** | Witness recording and triage |
+| **agileplus-governance / agileplus-spec-harmonizer** | Governance and spec harmonization |
+| **agileplus-cache / agileplus-convoy / agileplus-hook** | Caching, convoy, hooks |
+| **pheno-ci-templates / pheno-ssot-template / pheno-vibecoding-guard** | CI templates, SSOT, vibecoding guard |
+
+*All crates use workspace version, edition, and license.*
+
+---
+
+## Development
+
+```bash
+# Build all crates
+cargo build --workspace
+
+# Run tests
+cargo test --workspace
+
+# Run benchmarks
+cargo bench --workspace -p agileplus-benchmarks
+
+# Lint
+cargo clippy --workspace -- -D warnings
+
+# Format
+cargo fmt --all
+
+# Build Metal runtime bundle
+./scripts/build_metal_runtime_bundle.sh
+
+# Run cross-repo smoke test
+./scripts/cross_repo_smoke.sh
+```
+
+---
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with tests
-4. Run `cargo check --workspace` and `pytest`
-5. Submit a pull request
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+
+- Code style (Rust: `cargo fmt` / `clippy`; TypeScript: ESLint/Prettier)
+- Commit conventions (Conventional Commits + ledger metadata)
+- PR process and review requirements
+- Running the full verification suite
+
+---
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
-## Acknowledgments
+---
 
-- [jundot/omlx](https://github.com/jundot/omlx) -- upstream OMLX
-- [ml-explore/mlx-lm](https://github.com/ml-explore/mlx-lm) -- MLX LM framework
-- [TurboQuant](https://arxiv.org/abs/2501.00021) -- KV cache compression research
+## Links
+
+- **Upstream:** [jundot/omlx](https://github.com/jundot/omlx)
+- **Fork:** [KooshaPari/PhenoMLX](https://github.com/KooshaPari/PhenoMLX)
+- **Phenotype ecosystem:** [phenotype.dev](https://phenotype.dev)

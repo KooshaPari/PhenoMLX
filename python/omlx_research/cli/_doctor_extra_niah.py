@@ -51,7 +51,7 @@ _INSTRUMENTED_NIAH_REL = "research/fr5_niah_qwen35_0_8b_instrumented.json"
 _LEGACY_NIAH_PATH_MARKERS = (
     'REPO / "phenotype-omlx/python"',
     "REPO / 'phenotype-omlx/python'",
-    'Path("/Users/kooshapari/CodeProjects/Phenotype/repos")',
+    'Path("/Users/<REDACTED>/CodeProjects/Phenotype/repos")',
 )
 
 

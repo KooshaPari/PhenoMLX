@@ -43,7 +43,7 @@ from pathlib import Path
 # HF home stays stable; online/offline is decided after --model is known
 # (see configure_hf_env). Do not force HF_HUB_OFFLINE=0 at import time —
 # absolute/local model paths must stay offline-capable.
-os.environ.setdefault("HF_HOME", "/Users/kooshapari/.cache/huggingface")
+os.environ.setdefault("HF_HOME", "/Users/<REDACTED>/.cache/huggingface")
 
 
 def configure_hf_env(model: str) -> None:

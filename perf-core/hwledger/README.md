@@ -3,7 +3,7 @@
 
 # hwLedger
 
-[![AI Slop Inside](https://sladge.net/badge.svg)](https://sladge.net) [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/KooshaPari/hwLedger/total)](https://github.com/KooshaPari/hwLedger/releases)
+[![AI Slop Inside](https://sladge.net/badge.svg)](https://sladge.net) [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/<REDACTED>/hwLedger/total)](https://github.com/KooshaPari/hwLedger/releases)
 
 _LLM capacity planner + fleet ledger + desktop inference runtime._
 
@@ -49,7 +49,7 @@ See the component diagram in [PLAN.md §4.1](./PLAN.md#41-component-map).
 
 ## Substrate (per ADR-023 + ADR-035A)
 
-- **[`KooshaPari/pheno-capacity`](https://github.com/KooshaPari/pheno-capacity)** — VRAM estimation, model-fit scoring, Chinchilla tokens, optimizer state. no_std-compatible Rust crate. **Active since 2026-06-18 (L5-105).** Streamlit Planner/WhatIf pages will consume this in Phase 2 (see [docs/integrations/cost-model-migration.md](./docs/integrations/cost-model-migration.md)).
+- **[`<REDACTED>/pheno-capacity`](https://github.com/KooshaPari/pheno-capacity)** — VRAM estimation, model-fit scoring, Chinchilla tokens, optimizer state. no_std-compatible Rust crate. **Active since 2026-06-18 (L5-105).** Streamlit Planner/WhatIf pages will consume this in Phase 2 (see [docs/integrations/cost-model-migration.md](./docs/integrations/cost-model-migration.md)).
 
 ## Dev setup
 
@@ -106,7 +106,7 @@ Apache-2.0. See [LICENSE](./LICENSE).
 
 > **Journey:** `install-cargo` — Install hwledger from source with cargo, then verify version and help
 
-![CLI install — terminal prompt, about to run cargo install](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/install-cargo/frame-001.annotated.png)
+![CLI install — terminal prompt, about to run cargo install](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/install-cargo/frame-001.annotated.png)
 
 _**Intent:** Terminal prompt, about to run `cargo install`. **Verified:** pass._
 
@@ -118,13 +118,13 @@ Full recorded journey: [apps/cli-journeys/manifests/install-cargo/manifest.verif
 
 > **Journey:** `first-plan` — Run your first plan with colored output showing token distribution for 4 users
 
-![first-plan recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/first-plan.gif)
+![first-plan recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/first-plan.gif)
 
 _**Intent:** Full VRAM breakdown table — weights · KV cache · activations · overhead. **Verified:** overall score 0.92._
 
 Annotated keyframe (VRAM fits indicator):
 
-![first-plan frame-005 annotated](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/first-plan/frame-005.annotated.png)
+![first-plan frame-005 annotated](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/first-plan/frame-005.annotated.png)
 
 Full manifest: [apps/cli-journeys/manifests/first-plan/manifest.verified.json](./apps/cli-journeys/manifests/first-plan/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -134,13 +134,13 @@ Full manifest: [apps/cli-journeys/manifests/first-plan/manifest.verified.json](.
 
 > **Journey:** `fleet-register` — Register a new agent with the fleet, then verify it appears in fleet status
 
-![fleet-register recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/fleet-register.gif)
+![fleet-register recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/fleet-register.gif)
 
 _**Intent:** Device announces GPU inventory, receives mTLS cert, joins gossip network._
 
 Annotated keyframe (registration confirmed):
 
-![fleet-register frame-003 annotated](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/fleet-register/frame-003.annotated.png)
+![fleet-register frame-003 annotated](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/fleet-register/frame-003.annotated.png)
 
 Full manifest: [apps/cli-journeys/manifests/fleet-register/manifest.verified.json](./apps/cli-journeys/manifests/fleet-register/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -150,13 +150,13 @@ Full manifest: [apps/cli-journeys/manifests/fleet-register/manifest.verified.jso
 
 > **Journey:** `traceability-report` — Generate a markdown traceability report with coverage data and inspect the output
 
-![traceability-report recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/traceability-report.gif)
+![traceability-report recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/traceability-report.gif)
 
 > Full MP4 (richer quality): [apps/cli-journeys/recordings/traceability-report/traceability-report.rich.mp4](https://github.com/KooshaPari/hwLedger/blob/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/traceability-report/traceability-report.rich.mp4)
 
 Annotated keyframe (traceability runner start):
 
-![traceability-report frame-001 annotated](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/traceability-report/frame-001.annotated.png)
+![traceability-report frame-001 annotated](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/traceability-report/frame-001.annotated.png)
 
 Full manifest: [apps/cli-journeys/manifests/traceability-report/manifest.verified.json](./apps/cli-journeys/manifests/traceability-report/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -166,13 +166,13 @@ Full manifest: [apps/cli-journeys/manifests/traceability-report/manifest.verifie
 
 > **Nearest recorded journey:** `plan-mla-deepseek` — Show MLA classification and KV sequence invariance across 2K, 32K, 128K sequences (dedicated vram-reconcile journey not yet recorded; this shows the prediction side)
 
-![plan-mla-deepseek recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/plan-mla-deepseek.gif)
+![plan-mla-deepseek recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/plan-mla-deepseek.gif)
 
 > Full MP4: [apps/cli-journeys/recordings/plan-mla-deepseek/plan-mla-deepseek.rich.mp4](https://github.com/KooshaPari/hwLedger/blob/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/plan-mla-deepseek/plan-mla-deepseek.rich.mp4)
 
 Annotated keyframe (MLA classification + KV invariance):
 
-![plan-mla-deepseek frame-002 annotated](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/plan-mla-deepseek/frame-002.annotated.png)
+![plan-mla-deepseek frame-002 annotated](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/plan-mla-deepseek/frame-002.annotated.png)
 
 Full manifest: [apps/cli-journeys/manifests/plan-mla-deepseek/manifest.verified.json](./apps/cli-journeys/manifests/plan-mla-deepseek/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -182,7 +182,7 @@ Full manifest: [apps/cli-journeys/manifests/plan-mla-deepseek/manifest.verified.
 
 > **Nearest recorded journey:** `ingest-local-gguf` — Ingest a local GGUF model file and output JSON metadata (dedicated inference-run journey not yet recorded; this shows the ingest/load side)
 
-![ingest-local-gguf recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/ingest-local-gguf.gif)
+![ingest-local-gguf recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/ingest-local-gguf.gif)
 
 Full manifest: [apps/cli-journeys/manifests/ingest-local-gguf/manifest.verified.json](./apps/cli-journeys/manifests/ingest-local-gguf/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -192,13 +192,13 @@ Full manifest: [apps/cli-journeys/manifests/ingest-local-gguf/manifest.verified.
 
 > **Journey:** `probe-list` — List all available probes in both table and JSON formats
 
-![probe-list recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/probe-list.gif)
+![probe-list recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/probe-list.gif)
 
 > Full MP4: [apps/cli-journeys/recordings/probe-list/probe-list.rich.mp4](https://github.com/KooshaPari/hwLedger/blob/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/probe-list/probe-list.rich.mp4)
 
 Annotated keyframe (probe table output):
 
-![probe-list frame-002 annotated](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/probe-list/frame-002.annotated.png)
+![probe-list frame-002 annotated](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/probe-list/frame-002.annotated.png)
 
 Full manifest: [apps/cli-journeys/manifests/probe-list/manifest.verified.json](./apps/cli-journeys/manifests/probe-list/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -208,11 +208,11 @@ Full manifest: [apps/cli-journeys/manifests/probe-list/manifest.verified.json](.
 
 > **Nearest recorded journey:** `probe-watch` — Watch probe metrics update in real time (dedicated cost-model journey not yet recorded; this shows live fleet telemetry)
 
-![probe-watch recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/probe-watch.gif)
+![probe-watch recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/probe-watch.gif)
 
 Annotated keyframe (probe watch start):
 
-![probe-watch frame-001 annotated](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/probe-watch/frame-001.annotated.png)
+![probe-watch frame-001 annotated](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/probe-watch/frame-001.annotated.png)
 
 Full manifest: [apps/cli-journeys/manifests/probe-watch/manifest.verified.json](./apps/cli-journeys/manifests/probe-watch/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -222,13 +222,13 @@ Full manifest: [apps/cli-journeys/manifests/probe-watch/manifest.verified.json](
 
 > **Journey:** `fleet-audit` — Audit the fleet with a 3-agent limit to see agent metadata and status
 
-![fleet-audit recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/fleet-audit.gif)
+![fleet-audit recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/fleet-audit.gif)
 
 > Full MP4: [apps/cli-journeys/recordings/fleet-audit/fleet-audit.rich.mp4](https://github.com/KooshaPari/hwLedger/blob/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/fleet-audit/fleet-audit.rich.mp4)
 
 Annotated keyframe (fleet audit agent metadata):
 
-![fleet-audit frame-002 annotated](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/fleet-audit/frame-002.annotated.png)
+![fleet-audit frame-002 annotated](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/fleet-audit/frame-002.annotated.png)
 
 Full manifest: [apps/cli-journeys/manifests/fleet-audit/manifest.verified.json](./apps/cli-journeys/manifests/fleet-audit/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -238,7 +238,7 @@ Full manifest: [apps/cli-journeys/manifests/fleet-audit/manifest.verified.json](
 
 > **Nearest recorded journey:** `fleet-register` — Register a new agent with the fleet (dedicated fleet-dispatch journey not yet recorded; registration shows the fleet membership side of dispatch)
 
-![fleet-register recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/fleet-register.gif)
+![fleet-register recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/fleet-register.gif)
 
 Full manifest: [apps/cli-journeys/manifests/fleet-register/manifest.verified.json](./apps/cli-journeys/manifests/fleet-register/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -248,15 +248,15 @@ Full manifest: [apps/cli-journeys/manifests/fleet-register/manifest.verified.jso
 
 > **Journey:** `ingest-local-gguf` — Ingest a local GGUF model file and output JSON metadata
 
-![ingest-local-gguf recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/ingest-local-gguf.gif)
+![ingest-local-gguf recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/ingest-local-gguf.gif)
 
 See also: `ingest-error` journey (error path) —
 
-![ingest-error recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/ingest-error.gif)
+![ingest-error recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/ingest-error.gif)
 
 Annotated keyframe (ingest error path):
 
-![ingest-error frame-001 annotated](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/ingest-error/frame-001.annotated.png)
+![ingest-error frame-001 annotated](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/ingest-error/frame-001.annotated.png)
 
 Full manifests: [ingest-local-gguf](./apps/cli-journeys/manifests/ingest-local-gguf/manifest.verified.json) · [ingest-error](./apps/cli-journeys/manifests/ingest-error/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -266,7 +266,7 @@ Full manifests: [ingest-local-gguf](./apps/cli-journeys/manifests/ingest-local-g
 
 > **Nearest recorded journey:** `probe-watch` — Watch probe metrics update in real time with 1-second refresh intervals (dedicated telemetry-sync journey not yet recorded)
 
-![probe-watch recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/probe-watch.gif)
+![probe-watch recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/probe-watch.gif)
 
 Full manifest: [apps/cli-journeys/manifests/probe-watch/manifest.verified.json](./apps/cli-journeys/manifests/probe-watch/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -276,7 +276,7 @@ Full manifest: [apps/cli-journeys/manifests/probe-watch/manifest.verified.json](
 
 > **Journey:** `plan-mla-deepseek` — Show MLA classification and KV sequence invariance across 2K, 32K, 128K sequences
 
-![plan-mla-deepseek recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/plan-mla-deepseek.gif)
+![plan-mla-deepseek recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/plan-mla-deepseek.gif)
 
 > Full MP4: [apps/cli-journeys/recordings/plan-mla-deepseek/plan-mla-deepseek.rich.mp4](https://github.com/KooshaPari/hwLedger/blob/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/plan-mla-deepseek/plan-mla-deepseek.rich.mp4)
 
@@ -284,7 +284,7 @@ _**Intent:** MLA latent projection compresses KV by 16x vs full-rank GQA — seq
 
 Annotated keyframe:
 
-![plan-mla-deepseek frame-002 annotated](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/plan-mla-deepseek/frame-002.annotated.png)
+![plan-mla-deepseek frame-002 annotated](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/keyframes/plan-mla-deepseek/frame-002.annotated.png)
 
 Full manifest: [apps/cli-journeys/manifests/plan-mla-deepseek/manifest.verified.json](./apps/cli-journeys/manifests/plan-mla-deepseek/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->
@@ -294,7 +294,7 @@ Full manifest: [apps/cli-journeys/manifests/plan-mla-deepseek/manifest.verified.
 
 > **Nearest recorded journey:** `plan-hf-resolve` — Plan via HF resolver: bare repo id, full HF URL, and gold fixture shortcut (dedicated spot-price-scan journey not yet recorded; HF resolve shows the model-to-hardware cost estimation entry point)
 
-![plan-hf-resolve recording](https://raw.githubusercontent.com/KooshaPari/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/plan-hf-resolve.gif)
+![plan-hf-resolve recording](https://raw.githubusercontent.com/<REDACTED>/hwLedger/feat/user-story-batch3-playwright-plugin/apps/cli-journeys/recordings/plan-hf-resolve.gif)
 
 Full manifest: [apps/cli-journeys/manifests/plan-hf-resolve/manifest.verified.json](./apps/cli-journeys/manifests/plan-hf-resolve/manifest.verified.json)
 <!-- END-RICH-MEDIA-STUB -->

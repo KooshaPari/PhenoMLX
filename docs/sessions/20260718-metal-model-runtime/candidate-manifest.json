@@ -55,7 +55,7 @@
     },
     "desktop_qwen35_vllm_readiness": {
       "artifact": "pheno-harness/state/desktop_qwen35_vllm_readiness_20260801T2337Z.json",
-      "host": "kooshapari-desk",
+      "host": "<REDACTED>-desk",
       "device_uuid": "GPU-e1e28703-34bd-e46b-6dc1-d7c39fa5612c",
       "device": "NVIDIA GeForce GTX 1080 Ti",
       "compute_capability": "6.1",
@@ -69,7 +69,7 @@
     },
     "desktop_qwen35_3090_occupancy": {
       "artifact": "pheno-harness/state/desktop_qwen35_3090_occupancy_20260802T0213Z.json",
-      "host": "kooshapari-desk",
+      "host": "<REDACTED>-desk",
       "device_uuid": "GPU-8d337a84-43de-158d-7526-7175288a6064",
       "memory_used_mib": 22609,
       "memory_total_mib": 24564,

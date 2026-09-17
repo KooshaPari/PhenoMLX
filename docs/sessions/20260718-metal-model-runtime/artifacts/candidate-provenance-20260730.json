@@ -21,7 +21,7 @@
       "status": "compile_only",
       "entries": [
         {
-          "path": "/Users/kooshapari/CodeProjects/Phenotype/pheno-harness/kernels/qwen3.5-0.8b/build/kernels.metallib",
+          "path": "/Users/<REDACTED>/CodeProjects/Phenotype/pheno-harness/kernels/qwen3.5-0.8b/build/kernels.metallib",
           "sha256": "d553dba4a622d1d8d9433d8378e552017361c2580573069fb7fe0ac12e70d897",
           "artifact_bound_to_head": false
         },
@@ -37,7 +37,7 @@
     "compile_provenance": {
       "status": "verified_compile_only",
       "script": "scripts/build_metal_runtime_bundle.sh",
-      "developer_dir": "/Users/kooshapari/Downloads/Xcode-beta.app/Contents/Developer",
+      "developer_dir": "/Users/<REDACTED>/Downloads/Xcode-beta.app/Contents/Developer",
       "shader_count": 20,
       "actual_repository_head": "9bab1235b63cf0746acc9bd88bedb782c7449043",
       "output": "/tmp/phenotype-omlx-metal-exact-20260731/metal-runtime.metallib",

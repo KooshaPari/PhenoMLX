@@ -21,7 +21,7 @@ Usage:
 import os
 
 os.environ.setdefault("HF_HUB_OFFLINE", "0")
-os.environ.setdefault("HF_HOME", "/Users/kooshapari/.cache/huggingface")
+os.environ.setdefault("HF_HOME", "/Users/<REDACTED>/.cache/huggingface")
 
 import argparse
 import random
@@ -247,7 +247,7 @@ def main():
         except Exception as e:
             print(f"\n  ⚠ Could not resolve model: {e}")
             print(
-                f"    Run: env -u HF_HUB_OFFLINE HF_HOME=/Users/kooshapari/.cache/huggingface huggingface-cli download {args.model}"
+                f"    Run: env -u HF_HUB_OFFLINE HF_HOME=/Users/<REDACTED>/.cache/huggingface huggingface-cli download {args.model}"
             )
             return 1
 

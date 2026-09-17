@@ -57,7 +57,7 @@ def chk(label: str, fn, timeout: float = PER_CHECK):
 
 
 REPOS = os.environ.get(
-    "PHENOTYPE_REPOS_ROOT", "/Users/kooshapari/CodeProjects/Phenotype/repos"
+    "PHENOTYPE_REPOS_ROOT", "/Users/<REDACTED>/CodeProjects/Phenotype/repos"
 )
 ROOT = f"{REPOS}/phenotype-omlx"
 

@@ -2,7 +2,7 @@
 
 > **Status:** Accepted
 > **Date:** 2026-07-23
-> **Deciders:** hwLedger engineering (KooshaPari)
+> **Deciders:** hwLedger engineering (<REDACTED>)
 > **Supersedes:** none
 > **Superseded by:** none
 

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kooshapari/hfscope/internal/hfapi"
-	"github.com/kooshapari/hfscope/internal/views"
-	"github.com/kooshapari/hfscope/internal/server/templ"
+	"github.com/KooshaPari/hfscope/internal/hfapi"
+	"github.com/KooshaPari/hfscope/internal/views"
+	"github.com/KooshaPari/hfscope/internal/server/templ"
 )
 
 // renderCompare renders /results/compare as full HTML.

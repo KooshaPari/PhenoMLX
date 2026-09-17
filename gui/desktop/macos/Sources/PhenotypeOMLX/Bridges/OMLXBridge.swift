@@ -106,7 +106,7 @@ enum OMLXBinaryLocator {
         if let envHome, !envHome.isEmpty {
             candidates.append("\(envHome)/cli/bin/omlx-research")
         }
-        candidates.append("/Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-omlx/cli/bin/omlx-research")
+        candidates.append("/Users/<REDACTED>/CodeProjects/Phenotype/repos/phenotype-omlx/cli/bin/omlx-research")
         if let home = ProcessInfo.processInfo.environment["HOME"] {
             candidates.append("\(home)/.omlx/bin/omlx-research")
         }
@@ -128,7 +128,7 @@ enum OMLXBinaryLocator {
         if let envHome, !envHome.isEmpty {
             paths.append("\(envHome)/cli/bin/omlx-research")
         }
-        paths.append("/Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-omlx/cli/bin/omlx-research")
+        paths.append("/Users/<REDACTED>/CodeProjects/Phenotype/repos/phenotype-omlx/cli/bin/omlx-research")
         if let home = ProcessInfo.processInfo.environment["HOME"] {
             paths.append("\(home)/.omlx/bin/omlx-research")
         }

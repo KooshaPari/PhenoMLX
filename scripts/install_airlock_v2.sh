@@ -2,7 +2,7 @@
 # install_airlock_v2.sh — install the airlock-v2 binary to a directory on PATH.
 #
 # The Airlock v2 binary lives in the PhenoVCS workspace at
-# `${PHENOTYPE_PHENOVCS_HOME:-/Users/kooshapari/CodeProjects/Phenotype/repos/PhenoVCS}`.
+# `${PHENOTYPE_PHENOVCS_HOME:-/Users/<REDACTED>/CodeProjects/Phenotype/repos/PhenoVCS}`.
 # This script builds (if needed) and symlinks it into a PATH directory so
 # the `airlock-v2` subcommand is invokable from any shell.
 #
@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-PHENOVCS_HOME="${PHENOTYPE_PHENOVCS_HOME:-/Users/kooshapari/CodeProjects/Phenotype/repos/PhenoVCS}"
+PHENOVCS_HOME="${PHENOTYPE_PHENOVCS_HOME:-/Users/<REDACTED>/CodeProjects/Phenotype/repos/PhenoVCS}"
 AIRLOCK_V2_BIN="${PHENOVCS_HOME}/target/release/airlock-v2"
 AIRLOCK_V2_LINK_DIR="${AIRLOCK_V2_LINK_DIR:-/opt/homebrew/bin}"
 AIRLOCK_V2_LINK="${AIRLOCK_V2_LINK_DIR}/airlock-v2"

@@ -2,7 +2,7 @@
   "experiment": "L6-rlvr-af-smoke",
   "ts": "2026-07-24T07:44:09.121569+00:00",
   "model": "fixture-hard-verifier",
-  "pheno_harness": "/Users/kooshapari/CodeProjects/Phenotype/pheno-harness",
+  "pheno_harness": "/Users/<REDACTED>/CodeProjects/Phenotype/pheno-harness",
   "n_tasks": 5,
   "n_passed": 2,
   "mean_reward": 0.5,

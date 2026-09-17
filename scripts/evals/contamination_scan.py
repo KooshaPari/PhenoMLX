@@ -168,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
         "--report",
         type=Path,
         default=Path(
-            "/Users/kooshapari/CodeProjects/Phenotype/pheno-harness/bench/results/"
+            "/Users/<REDACTED>/CodeProjects/Phenotype/pheno-harness/bench/results/"
             "stock-vs-ours/run-v5-qwen35-08b.json"
         ),
         help="EvaluationReport / stock-vs-ours JSON",
@@ -177,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
         "--fixtures",
         type=Path,
         default=Path(
-            "/Users/kooshapari/CodeProjects/Phenotype/pheno-harness/bench/fixtures/"
+            "/Users/<REDACTED>/CodeProjects/Phenotype/pheno-harness/bench/fixtures/"
             "sample_candidates.json"
         ),
     )
@@ -200,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     # Also mirror under pheno-harness when writable
     mirrors = [args.out_dir]
     ph = Path(
-        "/Users/kooshapari/CodeProjects/Phenotype/pheno-harness/bench/results/"
+        "/Users/<REDACTED>/CodeProjects/Phenotype/pheno-harness/bench/results/"
         "contamination/qwen35-08b"
     )
     mirrors.append(ph)

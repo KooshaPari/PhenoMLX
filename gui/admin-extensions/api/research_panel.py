@@ -184,7 +184,7 @@ def _try_import_turboquant() -> dict[str, Any]:
         result["path"] = getattr(turboquant_plus, "__file__", None)
     except ImportError:
         try:
-            candidate = "/Users/kooshapari/CodeProjects/Phenotype/repos/turboquant_plus"
+            candidate = "/Users/<REDACTED>/CodeProjects/Phenotype/repos/turboquant_plus"
             if os.path.isdir(candidate):
                 result["installed"] = False
                 result["path"] = candidate

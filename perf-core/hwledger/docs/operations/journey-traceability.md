@@ -1,6 +1,6 @@
 # Journey Traceability
 
-Implements the [phenotype-infra journey-traceability standard](https://github.com/kooshapari/phenotype-infra/blob/main/docs/governance/journey-traceability-standard.md).
+Implements the [phenotype-infra journey-traceability standard](https://github.com/KooshaPari/phenotype-infra/blob/main/docs/governance/journey-traceability-standard.md).
 
 ## Traceability Model
 

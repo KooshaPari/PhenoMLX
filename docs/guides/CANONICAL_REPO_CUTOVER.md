@@ -1,6 +1,6 @@
 # Canonical repo cutover — phenotype-omlx
 
-**Use [`KooshaPari/phenotype-omlx`](https://github.com/KooshaPari/phenotype-omlx) only.**
+**Use [`<REDACTED>/phenotype-omlx`](https://github.com/KooshaPari/phenotype-omlx) only.**
 
 This repository is the single canonical home for the Phenotype oMLX stack.
 Do not open new work, PRs, or clones against the archived supersets.
@@ -26,7 +26,7 @@ trees as read-only history — never as the active development target.
 Create a worktree from the canonical clone:
 
 ```bash
-git -C /Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-omlx \
+git -C /Users/<REDACTED>/CodeProjects/Phenotype/repos/phenotype-omlx \
   worktree add ../worktrees/phenotype-omlx/<topic> -b <topic>
 ```
 
@@ -43,7 +43,7 @@ Do **not** author feature work in the canonical folder, under
 ## Remotes (local cutover)
 
 If a local clone still points at an archived URL, retarget `origin` to
-`git@github.com:KooshaPari/phenotype-omlx.git` and keep the old URL under a
+`git@github.com:<REDACTED>/phenotype-omlx.git` and keep the old URL under a
 named remote (`tmp` / `temp` → `zz-archive-phenotype-omlx-*`) — do not delete
 remotes without confirmation.
 

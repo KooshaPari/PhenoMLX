@@ -34,7 +34,7 @@ cargo clippy
 
 | Substrate | Purpose | Integration status |
 | :-- | :-- | :-- |
-| [`KooshaPari/pheno-capacity`](https://github.com/KooshaPari/pheno-capacity) | Pure math: VRAM estimation, model-fit scoring, Chinchilla tokens, optimizer state. no_std-compatible. | **Active (Phase 1, this turn).** HwLedger Streamlit Planner/WhatIf pages will consume this crate in Phase 2 (replaces historical `apps/streamlit/lib/cost_model.py`). |
+| [`<REDACTED>/pheno-capacity`](https://github.com/KooshaPari/pheno-capacity) | Pure math: VRAM estimation, model-fit scoring, Chinchilla tokens, optimizer state. no_std-compatible. | **Active (Phase 1, this turn).** HwLedger Streamlit Planner/WhatIf pages will consume this crate in Phase 2 (replaces historical `apps/streamlit/lib/cost_model.py`). |
 | `phenotype-config` (planned) | App config | Not yet wired. |
 | `pheno-tracing` (planned) | OTLP export | Not yet wired. |
 

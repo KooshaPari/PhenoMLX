@@ -52,7 +52,7 @@ cargo fmt
 ## Governance
 
 - Tracked in AgilePlus: feature `hwledger-v1-macos-mvp`
-- Reference: `/Users/kooshapari/CodeProjects/Phenotype/repos/AgilePlus`
+- Reference: `/Users/<REDACTED>/CodeProjects/Phenotype/repos/AgilePlus`
 - Key docs: `PLAN.md`, `ADR.md`, `PRD.md`, `CHARTER.md`, `docs/adr/`, `docs/research/`
 
 ## Branch Discipline

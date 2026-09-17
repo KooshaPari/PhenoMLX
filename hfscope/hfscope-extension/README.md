@@ -42,7 +42,7 @@ comes from the HFScope server. This means:
 
 1. Run your HFScope server:
    ```bash
-   cd /Users/kooshapari/CodeProjects/Phenotype/repos/hfscope
+   cd /Users/<REDACTED>/CodeProjects/Phenotype/repos/hfscope
    HFSCOPE_ADDR=:9190 ./bin/hfscope
    ```
 

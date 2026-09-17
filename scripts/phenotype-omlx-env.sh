@@ -14,8 +14,8 @@
 # framework is *not* injected because its numpy/mlx are compiled for 3.11
 # and would shadow the 3.12 venv's site-packages.
 
-PHENOTYPE_OMLX_HOME="${PHENOTYPE_OMLX_HOME:-/Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-omlx}"
-REPOS_ROOT="${REPOS_ROOT:-/Users/kooshapari/CodeProjects/Phenotype/repos}"
+PHENOTYPE_OMLX_HOME="${PHENOTYPE_OMLX_HOME:-/Users/<REDACTED>/CodeProjects/Phenotype/repos/phenotype-omlx}"
+REPOS_ROOT="${REPOS_ROOT:-/Users/<REDACTED>/CodeProjects/Phenotype/repos}"
 OMLX_APP="${OMLX_APP:-/Applications/oMLX.app}"
 OMLX_FRAMEWORK_DIR="${OMLX_APP}/Contents/Resources/Python/framework-mlx-base/lib/python3.11/site-packages"
 

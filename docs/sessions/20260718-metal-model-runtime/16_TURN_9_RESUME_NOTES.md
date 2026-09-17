@@ -208,7 +208,7 @@ The `__init__.py` deeper split was deferred — the remaining 412L is the `main(
 
 `scripts/snapshot.sh` — discovered that `airlock-v2 snapshot` requires a `<REPO_PATH>` argument and accepts an optional `-m MESSAGE`. Updated line 129 from `airlock-v2 snapshot` to `airlock-v2 snapshot "${REPO_ROOT}" -m "turn-9 green: 806 rust + 216 py + 21 doctor (19 pass / 2 warn / 0 fail)"`. After fix, `bash scripts/snapshot.sh` passes all 6 gates and successfully invokes `airlock-v2 snapshot`, creating a `wip/<date>-<uuid>` branch.
 
-The `airlock-v2 snapshot` push to `git@github.com:KooshaPari/phenotype-omlx.git` timed out (5-minute shell deadline), but the local snapshot is intact (HEAD detached on `wip/20260719T1858-18c3c5ec5ed985e0`). Push retry can be performed later; the local evidence bundle is captured.
+The `airlock-v2 snapshot` push to `git@github.com:<REDACTED>/phenotype-omlx.git` timed out (5-minute shell deadline), but the local snapshot is intact (HEAD detached on `wip/20260719T1858-18c3c5ec5ed985e0`). Push retry can be performed later; the local evidence bundle is captured.
 
 ## 7. Doctor State (post-turn-9)
 

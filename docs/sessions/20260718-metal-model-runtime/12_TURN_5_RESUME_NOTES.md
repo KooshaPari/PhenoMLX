@@ -77,9 +77,9 @@ No module exceeds the 500-line hard cap. Two files (`attention.rs`, `bonsai_qwen
 
 Airlock v2 is **not installed** in this environment. Evidence:
 
-- `/Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/bin/` exists but is empty.
-- `/Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/scripts/` exists but is empty.
-- `/Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/launchd/` exists but is empty.
+- `/Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/bin/` exists but is empty.
+- `/Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/scripts/` exists but is empty.
+- `/Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/launchd/` exists but is empty.
 - `which airlock` and `which airlock-v2` return nothing.
 - `brew list | grep -i airlock` returns nothing.
 
@@ -283,7 +283,7 @@ print('fail:', sum(1 for c in d['checks'] if c['status'] == 'fail'))"
 ls -la research/baselines/niah_baseline.json scripts/dispatch/{metal,sglang,vllm}.sh
 
 # Airlock v2 (expected MISSING)
-which airlock ; which airlock-v2 ; ls -la /Users/kooshapari/CodeProjects/Phenotype/repos/.airlock/bin/
+which airlock ; which airlock-v2 ; ls -la /Users/<REDACTED>/CodeProjects/Phenotype/repos/.airlock/bin/
 ```
 
 Last verified during turn-5 close:

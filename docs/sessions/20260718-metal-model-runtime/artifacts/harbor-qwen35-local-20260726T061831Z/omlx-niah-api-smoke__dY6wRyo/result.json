@@ -4,13 +4,13 @@
     "trial_name": "omlx-niah-api-smoke__dY6wRyo",
     "trial_uri": "file:///private/tmp/harbor-local-qwen35-fr5-8766-20260725T231824/2026-07-25__23-18-30/omlx-niah-api-smoke__dY6wRyo",
     "task_id": {
-        "path": "/Users/kooshapari/CodeProjects/Phenotype/repos/worktrees/phenotype-omlx/harbor-local-provenance/evals/harbor/tasks/omlx-niah-api-smoke"
+        "path": "/Users/<REDACTED>/CodeProjects/Phenotype/repos/worktrees/phenotype-omlx/harbor-local-provenance/evals/harbor/tasks/omlx-niah-api-smoke"
     },
     "source": null,
     "task_checksum": "77fda1187a1c6fb945e0da3e37931ad7816dfeae76664baadcd28c6cf78fadb6",
     "config": {
         "task": {
-            "path": "/Users/kooshapari/CodeProjects/Phenotype/repos/worktrees/phenotype-omlx/harbor-local-provenance/evals/harbor/tasks/omlx-niah-api-smoke",
+            "path": "/Users/<REDACTED>/CodeProjects/Phenotype/repos/worktrees/phenotype-omlx/harbor-local-provenance/evals/harbor/tasks/omlx-niah-api-smoke",
             "git_url": null,
             "git_commit_id": null,
             "name": null,

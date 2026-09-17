@@ -47,7 +47,7 @@ HwLedger is classified as **CONDITIONAL** (per ADR-023 § Active/Paused app-leve
 ## Implementation
 
 ### Phase 1 — Extract pheno-capacity (P1, ~2h)
-1. Create `KooshaPari/pheno-capacity` repo with meta-bundle (AGENTS.md + llms.txt + WORKLOG.md + CHANGELOG.md + LICENSE-MIT)
+1. Create `<REDACTED>/pheno-capacity` repo with meta-bundle (AGENTS.md + llms.txt + WORKLOG.md + CHANGELOG.md + LICENSE-MIT)
 2. Port `apps/streamlit/rules.py` (270 LOC) into `src/pheno_capacity/` with full docstrings + type hints
 3. Write test suite (≥80% coverage per ADR-023 Rule 3.1 quality bar)
 4. Add to `pheno-ci-templates` CI matrix
@@ -66,7 +66,7 @@ HwLedger is classified as **CONDITIONAL** (per ADR-023 § Active/Paused app-leve
 
 ## Reference
 - ADR-023 (L5-101) — Agent-effort governance, app-level triage + substrate placement
-- ADR-029 (L5-104) — Dmouse92 → KooshaPari migration governance
+- ADR-029 (L5-104) — Dmouse92 → <REDACTED> migration governance
 - L5-105 — Worklog entry for this reclassification
 - HwLedger/README.md — Top-level app description
 - HwLedger/PLAN.md — Component map (referenced by ADR-0001 rich-media stub)

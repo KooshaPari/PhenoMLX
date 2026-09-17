@@ -3,7 +3,7 @@ use colored::Colorize;
 use std::path::Path;
 use std::process::Command;
 
-const PROJECT_ROOT: &str = "/Users/kooshapari/CodeProjects/Phenotype/repos/hwLedger";
+const PROJECT_ROOT: &str = "/Users/<REDACTED>/CodeProjects/Phenotype/repos/hwLedger";
 
 struct AppBundle {
     name: &'static str,
@@ -29,7 +29,7 @@ pub async fn run() -> Result<()> {
     println!("{}", "=== hwLedger Install ===".bold().cyan());
     println!();
 
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/kooshapari".into());
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/<REDACTED>".into());
     let apps_dir_path = Path::new(&home).join("Applications");
     std::fs::create_dir_all(&apps_dir_path)?;
 

@@ -3,7 +3,7 @@
 LLM evals dashboard (Quality / Performance / RLVR / throughput) for MLX /
 TurboQuant model runs. Listens on `:8090`.
 
-**Active home:** `KooshaPari/phenotype-omlx` → `apps/bench-cockpit`
+**Active home:** `<REDACTED>/phenotype-omlx` → `apps/bench-cockpit`
 (the working stand-in while the deleted `phenotype-omlx` GitHub name stays
 open for GH Support restore).
 
@@ -41,7 +41,7 @@ and auto-expand the suite.
 ```bash
 # or manual:
 cd server && go run . \
-  -data /Users/kooshapari/CodeProjects/Phenotype/repos/pheno-harness/bench/results/stock-vs-ours/run-v5-qwen35-08b-contract.json \
+  -data /Users/<REDACTED>/CodeProjects/Phenotype/repos/pheno-harness/bench/results/stock-vs-ours/run-v5-qwen35-08b-contract.json \
   -port 8090
 bun install && bun run build && # serve via Go -dist ../dist
 ```

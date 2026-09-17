@@ -3,7 +3,7 @@ use colored::Colorize;
 use std::process::Command;
 use tokio::signal;
 
-const PROJECT_ROOT: &str = "/Users/kooshapari/CodeProjects/Phenotype/repos/hwLedger";
+const PROJECT_ROOT: &str = "/Users/<REDACTED>/CodeProjects/Phenotype/repos/hwLedger";
 
 pub async fn run() -> Result<()> {
     println!("{}", "=== hwLedger Dev Servers ===".bold().yellow());

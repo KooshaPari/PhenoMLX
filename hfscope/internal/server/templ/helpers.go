@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kooshapari/hfscope/internal/hfapi"
-	"github.com/kooshapari/hfscope/internal/views"
+	"github.com/KooshaPari/hfscope/internal/hfapi"
+	"github.com/KooshaPari/hfscope/internal/views"
 )
 // formatNumber returns n with comma separators (1234567 -> "1,234,567").
 // Returns "" for n == 0 so templates can decide how to render the empty case.
