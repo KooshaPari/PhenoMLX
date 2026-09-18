@@ -90,13 +90,15 @@ check(
     "both schemes are within 2x of each other on iid Gaussian data",
     max(sum(errs_u), sum(errs_r)) / min(sum(errs_u), sum(errs_r)) < 2.0,
 )
+bits = m.BITS
+g = m.GROUP_SIZE
 check(
-    "uniform metadata costs 6 bits/coord at group_size=32",
-    abs(m.uniform_rtn_bits_per_coord() - 6.0) < 1e-9,
+    f"uniform metadata costs {bits + 2.0 * 32.0 / g:.3f} bits/coord at group_size={g}",
+    abs(m.uniform_rtn_bits_per_coord() - (bits + 2.0 * 32.0 / g)) < 1e-9,
 )
 check(
-    "rht metadata costs 4.125 bits/coord at d_head=128",
-    abs(m.rht_bits_per_coord(d_head=128) - 4.125) < 1e-9,
+    f"rht metadata costs {bits + 16.0 / 128.0:.3f} bits/coord at d_head=128",
+    abs(m.rht_bits_per_coord(d_head=128) - (bits + 16.0 / 128.0)) < 1e-9,
 )
 
 print("layout")

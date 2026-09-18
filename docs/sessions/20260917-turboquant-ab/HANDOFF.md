@@ -154,6 +154,8 @@ Runs as user `koosh`, same env as SSH. Task timeout 72h.
 5. SSH session dying kills remote python. `bg` tool has a **600s hard cap** regardless of requested timeout.
 6. WSL `vmmemWSL` was holding ~8.9 GB RAM. Reclaimed with `wsl --shutdown` (FedoraLinux-44 + podman-default were running — **this kills them**; confirm nothing needed is running first).
 7. Two concurrent Python GPU processes will silently corrupt each other's timings. Run **one** at a time.
+8. In `cmd`, a chain like `set TQ_BITS=2&& run_a & run_b` shares one environment: `run_b` inherits `TQ_BITS=2` even though it looks like a separate command. A self-test meant as the 4-bit control actually ran at 2 bits this way and reported the 2-bit metadata values under a 4-bit filename. Set the variable in **every** link, or issue separate commands, and check the values the run prints rather than trusting the filename.
+9. Backgrounded runs die silently if the desktop is saturated by other agents' builds (observed: two 2-bit runs produced zero output, never reaching their first print, while cargo/node/pytest processes dominated). Check for a missing log line before concluding a run is merely slow, and record such a point as UNKNOWN rather than inferring it.
 
 ### Scaling the harness to another model
 `tq_ab_bench_v2.py` env vars: `TQ_MODEL_ID`, `TQ_BITS`, `TQ_N_LAYERS`, `TQ_HF_HOME`. Set `TQ_N_LAYERS` correctly (3B=36, 7B=28) — it feeds the hook-count self-check (`expected_min = 2 * N_LAYERS`).
