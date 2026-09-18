@@ -210,6 +210,31 @@ origin/main`). GitHub is the hub; both machines stay in sync through it.
 `git push mac main` is also accepted by the Mac's repo, but prefer origin: one
 writer, one history.
 
+### CI status on main (checked 2026-09-18)
+
+Actions is enabled (`actions/permissions` -> `enabled: true`), all ten workflows
+report `active`, and both `ci.yml` and `perf-core-ci.yml` declare
+`push: branches: [main]` (the latter filtered to `perf-core/**`, which the new
+scripts match). Neither has ever run:
+
+```
+gh api repos/KooshaPari/PhenoMLX/actions/workflows/271684310/runs  -> total_count 0   (CI)
+gh api repos/KooshaPari/PhenoMLX/actions/workflows/319317617/runs  -> total_count 0   (perf-core CI)
+gh api repos/KooshaPari/PhenoMLX/actions/runs                      -> total_count 6   (Dependabot / Dependency Graph only)
+```
+
+So pushes to `main` are **not** gated, including the pushes made today. Do not
+describe a change as CI-verified. Treat these as the gate instead:
+
+```bat
+ruff check perf-core\turbo-quant-cuda\tq_codec_eval*.py
+C:\Users\koosh\AppData\Local\Programs\Python\Python311\python.exe perf-core\turbo-quant-cuda\tq_codec_eval_selftest.py
+rem then the 4-bit run plus its 8-bit control
+```
+
+Cause not investigated -- this may be intentional (the repo's real gates live
+elsewhere) or a billing/approval block. It predates this session.
+
 ### Throughput facts (measured, not guessed)
 
 - Full clone from GitHub averaged **~0.4 MB/s** (240 MB in ~13 min). The
