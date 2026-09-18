@@ -174,3 +174,51 @@ Short version: **the current numbers cannot support or refute the TurboQuant+ cl
 - `gh repo delete` is blocked by pre-tool hook; user runs it manually.
 - Benchmark offline after download (`HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`).
 - Report **UNKNOWN** rather than inventing numbers. Distinguish measured from projected.
+
+---
+
+## 9. Desktop takeover — receipt (2026-09-18 02:00 PDT)
+
+The new session is live on `kooshapari-desk` and owns PhenoMLX from here.
+
+### What is now true
+
+| Item | State |
+|---|---|
+| Repo on desktop | `C:\phenotype-omlx` — 6685 files, `.git` 239 MB, `main` @ `84d43e27` |
+| Desktop to Mac SSH | **verified working** (Remote Login is on). Host alias `kooshas-laptop`, or `ssh -F ~/.ssh/config.pheno kooshas-laptop` |
+| Unpushed commits | **pushed** to `origin` (`9267e3e9..84d43e27`: the 8 commits plus this handoff) |
+| Remotes | `origin` = https://github.com/KooshaPari/PhenoMLX.git (push verified); `mac` = `ssh://kooshas-laptop/Users/kooshapari/CodeProjects/Phenotype/repos/phenotype-omlx` (fetch verified, 13 s) |
+| Python | `C:\Users\koosh\AppData\Local\Programs\Python\Python311\python.exe` — torch 2.9.1+cu128, CUDA True, RTX 3090 Ti |
+| Deliberately not copied | `python/.venv` (1.2 GB) and `perf-core/target` (559 MB) are gitignored build artifacts. Rebuild locally rather than transfer. |
+
+### Sync recipe
+
+```bat
+cd /d C:\phenotype-omlx
+git fetch mac main && git merge --ff-only mac/main   rem pull Mac-side commits
+git fetch origin && git merge --ff-only origin/main  rem pull GitHub-side commits
+git push origin main                                 rem publish
+```
+
+`git fetch mac main` is incremental and fast (13 s) because the desktop already
+holds the bulk of the object store. Do **not** re-clone from the Mac.
+
+### Throughput facts (measured, not guessed)
+
+- Full clone from GitHub averaged **~0.4 MB/s** (240 MB in ~13 min). The
+  desktop's WAN is shared with several other agent sessions doing git work.
+- Streaming the Mac's 1.0 GB `.git` over SSH managed only **~0.3-0.5 MB/s**
+  because the Mac sat at load average **290-405** (concurrent `rustc` builds,
+  a qemu VM, 7 jcode processes). Bulk transfer from the Mac is not viable until
+  that load clears; the incremental fetch is.
+- A short burst from the Mac reached 25-111 MB/s, so the tailscale/LAN path is
+  fine. The Mac's CPU is the bottleneck, not the network.
+
+### Desktop GPU caveat (affects any throughput benchmark)
+
+`nvidia-smi` reports ~17.9 GiB "used" at idle on this box: on WDDM it counts
+shared, system-backed allocations from browsers, Parsec, Sunshine and NVIDIA
+Broadcast. Windows evicts them when a real CUDA process needs room, but timing
+runs under that notional pressure are unreliable. Before publishing any
+throughput number, check `nvidia-smi` shows a clean idle baseline.
