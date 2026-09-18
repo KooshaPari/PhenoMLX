@@ -1,3 +1,30 @@
+# Clean solo A/B completed, 2026-09-17 21:06 UTC (14:06 PDT)
+
+Detached schtasks solo run (turtle worker stopped, no competing processes) completed both
+conditions. Artifact: `pilot/results/turboquant_3b_ab_20260917-2106.json`, commit 3174d0606.
+
+| Observed 2026-09-17 14:06 PDT | A FP16 | B 4-bit QDQ | delta |
+|---|---:|---:|---:|
+| Prompts | 10/10 | 10/10 | -- |
+| Decode tokens/s | 5.09 | 2.44 | -52.06% |
+| Overall tokens/s | 5.06 | 2.37 | -53.16% |
+| Mean TTFT | 260 ms | 6,065 ms | +2,235% |
+| Peak VRAM | 5.79 GiB | 5.79 GiB | 0% |
+| Heuristically corrupted | 0/10 | 0/10 | -- |
+| Hook calls (B) | -- | 162,072 | verified vs 72 expected min |
+
+Interpretation: the QDQ hook sim measures pure Python-hook compute overhead, NOT packed-cache
+residency. Peak VRAM identical (5.79 GiB) because resident KV stays FP16 in both conditions.
+Quality signal only: 0/10 corrupted in both runs; 4-bit quantization noise does not break outputs
+at this scale. No perf claim for TurboQuant+ is supportable from this harness. Real packed-KV
+implementation (cache-layout surgery or Rust FFI) is required before any speed/memory claim.
+
+Context vs earlier 193300 run (contaminated by concurrent v2 PID 725848): this solo run is
+isolated, slower in absolute terms (5.09 vs 13.9 t/s for A) because it ran solo without the
+other process warming the GPU -- the deltas, not absolutes, are the comparable quantity.
+
+---
+
 # Delivered A/B observation, 2026-09-17 12:46 PDT
 
 The later diagnostic completed BOTH ten-prompt conditions at 12:45 PDT. Result: `pilot/results/turboquant_3b_20260917-193300.json`. A/B generation throughput 13.9148 / 3.6775 tokens/s, TTFT 85.145 / 283.760 ms, peak allocated 5.8927 / 5.8927 GiB. Throughput -73.57%, TTFT +233.27%. Hook verification: 72 hooks, 161352 calls, matching all B generated steps. Script SHA256 matches preserved observed source. Logs retained. The remote process continued after SSH ten-minute timeout and finished without a traceback. This disproves an immediate hook crash for the corrected script.
