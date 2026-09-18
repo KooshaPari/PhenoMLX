@@ -320,6 +320,28 @@ while per-channel K stays near-free (+0.6%, +1.45%). Compression is supposed to
 pay off exactly there, so the fix is worth more at long context, not less. PPL is
 not comparable across window sizes -- only deltas within a run are.
 
+### Bit-width ladder (3B, 2048-token windows)
+
+4 bits is free with per-channel K; 3 bits is not:
+
+| Scheme | bits/coord | PPL | delta |
+|---|---|---|---|
+| FP16 KV | 16.0 | 5.820 | - |
+| uniform RTN g32 (repo codec) | 5.00 | 323.741 | +5,463% |
+| K only, token axis | 5.00 | 253.883 | +4,263% |
+| K only, **per-channel** | 5.00 | 6.072 | **+4.33%** |
+| **per-channel K** + token V | 5.00 | 6.236 | +7.16% |
+
+So 3 bits buys an 81% KV reduction for roughly +4% PPL at 3B, where 4 bits is
+free. **2-bit is UNKNOWN**: two attempts produced no output at all (the process
+never reached its first print) while the desktop was saturated by other agents'
+builds and test runs. Nothing is claimed for 2-bit; the 87% reduction figure is
+arithmetic, not a measured result.
+
+Reproducibility: an independent 7B rerun in a separate process
+(`codec_eval_7b_postrope_b4_rerun.json`) reproduces every PPL and distortion
+value exactly, baseline included (17.678863413317).
+
 ### What this changes
 
 1. **The K grouping axis is the defect, not the bit width.** K grouped

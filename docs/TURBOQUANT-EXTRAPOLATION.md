@@ -269,6 +269,38 @@ compression exists to serve, so the fix is worth more here, not less. PPL levels
 are not comparable across window sizes (5.820 at 2048 tokens versus 20.146 at 512
 is a different question, not an improvement); only deltas within a run are.
 
+**(e) What the next bit down costs, and reproducibility.** At 3 bits
+(`pilot/results/codec_eval_3b_long_b3.json`, same 2048-token setup, FP16 PPL
+5.820) per-channel K is no longer free:
+
+| Scheme | Bits/coord | PPL | delta PPL |
+|---|---|---|---|
+| FP16 KV (baseline) | 16.0 | 5.820 | - |
+| uniform RTN g32 (repo codec) | 5.00 | 323.741 | +5,463% |
+| K only, token axis | 5.00 | 253.883 | +4,263% |
+| K only, **per-channel** | 5.00 | 6.072 | **+4.33%** |
+| V only, token axis | 5.00 | 5.952 | +2.27% |
+| **per-channel K** + token V | 5.00 | 6.236 | +7.16% |
+| rotate + repo RTN | 5.00 | 417.073 | +7,067% |
+| rotate + Lloyd-Max 3-bit | 3.125 | 497.204 | +8,444% |
+| rotate + fixed uniform 3-bit | 3.125 | 2777.281 | +47,623% |
+
+So 3 bits buys an 81% KV reduction for roughly +4% PPL at 3B, against 4 bits
+being free. The practical floor for K is therefore 3 bits, and it needs its own
+per-scale quality gate before any config default changes.
+
+Reproducibility: an independent rerun of the 7B block in a separate process
+(`pilot/results/codec_eval_7b_postrope_b4_rerun.json`) reproduces every PPL and
+distortion value exactly, FP16 baseline included (17.678863413317), so the 7B
+result is not a one-off.
+
+**Not measured: the 2-bit point.** Two attempts at 3B and 2048-token windows
+produced no output at all (the process never reached its first print) while the
+desktop was saturated by other agents' builds and test runs. 2-bit quality is
+therefore **UNKNOWN**. The 87% reduction figure in the table near the top of this
+document is arithmetic, not a measured quality result, and must not be quoted as
+though it were one.
+
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
 2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B
