@@ -123,7 +123,13 @@ When KV dominates memory (long context, high concurrency), savings exceed weight
 
 **3B A/B interpretation (2026-09-17 run):** Quality signal: 4-bit quantization noise did not break generation (0/10 corrupted, hook verification 162,072 calls across 36 layers x 2 projections). Performance signal: not yet valid for claims; Python-hook QDQ is not the shipping path.
 
-**7B A/B (2026-09-18 run, `pilot/results/turboquant_7b_ab_20260918-0720.json`):** A (FP16): 13.41 t/s decode, TTFT 102ms, 14.24 GiB, 0/10 corrupted. B (4-bit QDQ): 3.6 t/s, 5/10 heuristic-corrupted — but manual review shows 10/10 degraded (repetition loops, language mixing, token stutter). Same 4-bit group_size=32 scheme was clean at 3B. **This is a quality-scaling cliff: 4-bit uniform KV noise tolerable at 3B, visibly damaging at 7B.** Shipping configs need per-scale quality eval and likely group_size/bits tuning or outlier-aware quantization for 7B+.
+**7B A/B (2026-09-18 run, `pilot/results/turboquant_7b_ab_20260918-0720.json`):** A (FP16): 13.41 t/s decode, TTFT 102ms, 14.24 GiB, 0/10 corrupted. B (4-bit QDQ): 3.6 t/s, 5/10 heuristic-corrupted, and manual review shows 10/10 degraded (repetition loops, language mixing, token stutter).
+
+The "quality-scaling cliff" reading of that run (tolerable at 3B, damaging at
+7B) does not survive a real quality metric. Perplexity shows the same defect at
+3B (+54.5%), just less visibly, and at 7B the repo codec is not degraded but
+destroyed (PPL 17.7 -> 15,484). The cause is the codec's K grouping axis, and
+per-channel K removes it at both scales; see 'Codec fidelity' below.
 
 ### Codec fidelity and a real quality metric (2026-09-18, desktop)
 
@@ -214,6 +220,28 @@ throughout, so the per-channel result covers K only. Per-channel grouping is
 degenerate for single-token decode steps (a group of one reproduces the value
 exactly), and the full-sequence PPL windows used here do not exercise that case.
 
+**(c) At 7B the same defect is total, and the same fix removes it.** Same
+harness, Qwen2.5-7B-Instruct (28 layers, 4 KV heads), FP16 PPL = 17.679 over the
+same 1023-token window (`pilot/results/codec_eval_7b_postrope_b4.json`):
+
+| Scheme | Bits/coord | Rel. recon. error | PPL | delta PPL |
+|---|---|---|---|---|
+| FP16 KV (baseline) | 16.0 | 0 | 17.679 | - |
+| uniform RTN g32 (repo codec) | 6.00 | 0.1141 | 15484.4 | +87,487% |
+| K only, token axis | 6.00 | 0.1147 | 15662.4 | +88,494% |
+| K only, **per-channel** | 6.00 | 0.0076 | 17.768 | +0.5% |
+| V only, token axis | 6.00 | 0.0806 | 17.610 | -0.4% |
+| **per-channel K** + token V | 6.00 | 0.0132 | 17.687 | **+0.04%** |
+| rotate + repo RTN | 6.00 | 0.0641 | 8090.3 | +45,663% |
+| rotate + Lloyd-Max 4-bit | 4.125 | 0.0854 | 12412.8 | +70,113% |
+
+At 4 bits the repo codec does not degrade 7B, it destroys it: PPL 17.7 ->
+15,484, which is precisely the repetition and language mixing seen in manual
+review of the 7B A/B. Changing only the K grouping axis gives 17.687 (+0.04%) at
+the same bits and the same metadata cost, and V per-token costs nothing (-0.4%).
+No rotation, no codebook and no QJL stage is needed to reach that. Per-channel K
+is therefore the shipping configuration to implement first, at both 3B and 7B.
+
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
 2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B
@@ -221,12 +249,12 @@ exactly), and the full-sequence PPL windows used here do not exercise that case.
 4. Measure actual quality preservation with MMLU/GPQA subsets
 5. Concurrency test: 4/8/16 parallel requests, measure VRAM scaling
 6. PPL gate: adopt perplexity, with a high-bit control run, as the quality gate before any further quantization claim
-7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline
+7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c)
 8. TurboQuant parity: implement the rotation + optimal scalar quantizer + 1-bit QJL pipeline from arXiv:2504.19874, then compare against the current codec before making any paper-vs-implementation claim
 
 ## Risk Notes
 
-- Quality impact of 4-bit KV: the lab 0.8B test showed 100% prompt completeness and no corrupted outputs, and the corruption heuristic flagged 0/10 at 3B. Neither is quality evidence: on the same QDQ path a validated perplexity measurement shows +54.5% at nominal 4-bit (3B, post-RoPE K). The Google TurboQuant paper's "no accuracy loss" result is about *their* rotation + optimal-codebook + QJL scheme at 3.5 bits per channel, not about this uniform codec; do not cite it as support for this codec. Per-channel K grouping is the only configuration measured so far that stays near baseline (+0.6%).
+- Quality impact of 4-bit KV: the lab 0.8B test showed 100% prompt completeness and no corrupted outputs, and the corruption heuristic flagged 0/10 at 3B. Neither is quality evidence. On the same QDQ path a validated perplexity measurement shows +54.5% at nominal 4-bit on 3B and +87,487% on 7B (PPL 17.7 -> 15,484) as the codec stands today, because K is grouped per-token. With K grouped per-channel instead, the same 4 bits cost +0.6% (3B) and +0.04% (7B). The Google TurboQuant paper's "no accuracy loss" result is about *their* rotation + optimal-codebook + QJL scheme at 3.5 bits per channel, not about this uniform codec; do not cite it as support for this codec.
 - Re-compaction cost: Compact_after_prefill adds ~100-300ms per request. For long sequences with infrequent compaction, this is negligible.
 - Key vs Value bits: Code supports separate K/V compression. For safety, keep K at FP16 (turbo_key_bits=0) for now.
 

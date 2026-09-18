@@ -204,6 +204,12 @@ git push origin main                                 rem publish
 `git fetch mac main` is incremental and fast (13 s) because the desktop already
 holds the bulk of the object store. Do **not** re-clone from the Mac.
 
+Verified on 2026-09-18: after the desktop pushed `07534368`, the Mac ran
+`git fetch origin main` and picked it up (`84d43e27c..075343687 main ->
+origin/main`). GitHub is the hub; both machines stay in sync through it.
+`git push mac main` is also accepted by the Mac's repo, but prefer origin: one
+writer, one history.
+
 ### Throughput facts (measured, not guessed)
 
 - Full clone from GitHub averaged **~0.4 MB/s** (240 MB in ~13 min). The
@@ -254,16 +260,34 @@ broken measurement. Offline checks live in `tq_codec_eval_selftest.py`
 | rotate + Lloyd-Max 4-bit (no QJL) | 4.125 | 0.0939 | 126.994 | +530% |
 | rotate + fixed uniform 4-bit | 4.125 | 0.1155 | 213.607 | +960% |
 
+### Result (Qwen2.5-7B-Instruct, same harness, FP16 PPL = 17.679)
+
+| Scheme | bits/coord | rel. recon. err | PPL | delta |
+|---|---|---|---|---|
+| FP16 KV | 16.0 | 0 | 17.679 | - |
+| uniform RTN g32 (repo codec) | 6.00 | 0.1141 | 15484.4 | **+87,487%** |
+| K only, token axis | 6.00 | 0.1147 | 15662.4 | +88,494% |
+| K only, **per-channel** | 6.00 | 0.0076 | 17.768 | +0.5% |
+| V only, token axis | 6.00 | 0.0806 | 17.610 | -0.4% |
+| per-channel K + token V | 6.00 | 0.0132 | 17.687 | **+0.04%** |
+| rotate + repo RTN | 6.00 | 0.0641 | 8090.3 | +45,663% |
+| rotate + Lloyd-Max 4-bit | 4.125 | 0.0854 | 12412.8 | +70,113% |
+
 ### What this changes
 
 1. **The K grouping axis is the defect, not the bit width.** K grouped
-   per-token accounts for +52.7% of the +54.5%; V grouped per-token at the same
-   bits costs +0.4%. Grouping K per channel instead is **-0.1%** PPL (K alone)
-   and **+0.6%** (K and V both 4-bit). KIVI (arXiv:2402.02750) reached the same
-   conclusion: keys per-channel, values per-token.
-2. **The earlier "quality-scaling cliff" framing was wrong.** Perplexity shows
-   3B was never clean at 4-bit; the corruption flag simply could not see it. The
-   3B-vs-7B difference was visibility, not a scale threshold.
+   per-token accounts for +52.7% of the +54.5% at 3B, and for essentially all of
+   the 7B collapse (PPL 17.7 -> 15,484). V grouped per-token at the same bits
+   costs +0.4% (3B) and -0.4% (7B). Grouping K per channel instead gives
+   **-0.1%** (3B, K alone), **+0.6%** (3B, K and V), **+0.5%** (7B, K alone) and
+   **+0.04%** (7B, K and V). KIVI (arXiv:2402.02750) reached the same conclusion:
+   keys per-channel, values per-token.
+2. **The "quality-scaling cliff" framing was wrong, and the real defect scales
+   monotonically.** Perplexity shows 3B was never clean at 4-bit (+54.5%), and at
+   7B the codec does not degrade the model, it destroys it (+87,487%; that is the
+   repetition and language mixing manual review saw). The 3B-vs-7B difference was
+   visibility to a text heuristic, not a scale threshold. With per-channel K the
+   defect is gone at both scales.
 3. **The handoff's item 5 hypothesis is refuted as stated.** "We forgot the
    rotation" is not the explanation: adding the rotation *worsens* quality at
    equal bits (+81.9% vs +54.5%) while improving MSE. Per-vector rotation plus a
@@ -281,11 +305,11 @@ broken measurement. Offline checks live in `tq_codec_eval_selftest.py`
 
 | # | Task | Why |
 |---|---|---|
-| 1 | Implement per-channel K in the codec (V stays per-token); re-run 3B then 7B | Only measured configuration near baseline; cheap and decisive |
-| 2 | Re-run the 7B A/B with per-channel K | Confirms at scale; the 7B "cliff" is currently unexplained by anything else |
-| 3 | Real packed-KV residency (item 1 of section 5, still open) | Only path to a legitimate memory/throughput claim |
-| 4 | Add the 1-bit QJL stage, then compare against the repo codec | Required before any paper-parity claim in either direction |
-| 5 | Long-context / batched sweep at 4/8/16/32K | Where bandwidth-bound compression can actually pay off |
+| 1 | Implement per-channel K in the codec (V stays per-token); re-run 3B and 7B | Confirmed at both scales (+0.6% / +0.04%); it is the shipping change |
+| 2 | Real packed-KV residency (item 1 of section 5, still open) | Only path to a legitimate memory/throughput claim |
+| 3 | Add the 1-bit QJL stage, then compare against the repo codec | Required before any paper-parity claim in either direction |
+| 4 | Long-context / batched sweep at 4/8/16/32K | Where bandwidth-bound compression can actually pay off |
+| 5 | Re-run the TQ PPL harness on 15B+ once per-channel K lands | Same defect should be tested where KV dominates memory |
 
 ### Reproduce
 
@@ -294,4 +318,8 @@ cd /d C:\phenotype-omlx
 C:\Users\koosh\AppData\Local\Programs\Python\Python311\python.exe perf-core\turbo-quant-cuda\tq_codec_eval_selftest.py
 set TQ_BITS=4&& C:\Users\koosh\AppData\Local\Programs\Python\Python311\python.exe perf-core\turbo-quant-cuda\tq_codec_eval.py --corpus C:\Users\koosh\PHENOTYPE_MASTER_ROADMAP.md --k-mode post-rope --out out.json
 set TQ_BITS=8&& (repeat as the control -- it must land within ~0.5% of the FP16 baseline)
+
+rem 7B: same command plus TQ_MODEL_ID and TQ_HF_HOME (7B weights live on E:)
+set TQ_MODEL_ID=Qwen/Qwen2.5-7B-Instruct&& set TQ_HF_HOME=E:\hf_cache&& (run as above)
 ```
+7B load from the E: HDD takes ~10 minutes for 4 shards; the run itself is ~2 minutes.
