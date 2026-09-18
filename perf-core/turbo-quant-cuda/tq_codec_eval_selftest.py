@@ -136,6 +136,23 @@ check(
     all(torch.equal(m.apply_scheme(t, n, ctx, levels, is_k=True), t) for n in v_only),
 )
 
+# The measured per-channel win has to be reachable in a streaming cache. Grouping
+# channel-wise must not mix values across group_size-token blocks, so a filled
+# block never depends on later tokens and the unfilled tail can stay fp16. If this
+# check ever fails, the win would require the whole sequence up front and could
+# not be implemented incrementally.
+G = m.GROUP_SIZE
+big = torch.randn(4 * G, 32)  # [tokens, channels]
+whole = m.apply_uniform_axis(big, ctx, "channel")
+blocks = torch.cat(
+    [m.apply_uniform_axis(big[i * G : (i + 1) * G], ctx, "channel") for i in range(4)],
+    dim=0,
+)
+check(
+    f"channel grouping is block-local (G={G}, streaming-safe)",
+    torch.equal(whole, blocks),
+)
+
 print()
 if failures:
     print(f"SELFTEST FAILED ({len(failures)}): {failures}")
