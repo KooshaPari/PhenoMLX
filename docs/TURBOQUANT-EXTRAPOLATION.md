@@ -123,6 +123,8 @@ When KV dominates memory (long context, high concurrency), savings exceed weight
 
 **3B A/B interpretation (2026-09-17 run):** Quality signal: 4-bit quantization noise did not break generation (0/10 corrupted, hook verification 162,072 calls across 36 layers x 2 projections). Performance signal: not yet valid for claims; Python-hook QDQ is not the shipping path.
 
+**7B A/B (2026-09-18 run, `pilot/results/turboquant_7b_ab_20260918-0720.json`):** A (FP16): 13.41 t/s decode, TTFT 102ms, 14.24 GiB, 0/10 corrupted. B (4-bit QDQ): 3.6 t/s, 5/10 heuristic-corrupted — but manual review shows 10/10 degraded (repetition loops, language mixing, token stutter). Same 4-bit group_size=32 scheme was clean at 3B. **This is a quality-scaling cliff: 4-bit uniform KV noise tolerable at 3B, visibly damaging at 7B.** Shipping configs need per-scale quality eval and likely group_size/bits tuning or outlier-aware quantization for 7B+.
+
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
 2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B
