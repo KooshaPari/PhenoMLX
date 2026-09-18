@@ -163,7 +163,7 @@ K quantized **post-RoPE** (the tensor that actually enters the cache):
 |---|---|---|---|---|
 | FP16 KV (baseline) | 16.0 | 0 | 20.146 | - |
 | uniform RTN g32 (repo codec) | 6.00 | 0.1069 | 31.131 | +54.5% |
-| uniform RTN, **per-channel K** (KIVI-style) | 6.00 | 0.0337 | 20.272 | **+0.6%** |
+| uniform RTN, **per-channel K** (KIVI-style) | 6.00 | 0.0337 | 20.271 | **+0.6%** |
 | rotate + repo RTN | 6.00 | 0.0748 | 36.641 | +81.9% |
 | rotate + Lloyd-Max 4-bit | 4.125 | 0.0939 | 126.994 | +530% |
 | rotate + fixed uniform 4-bit | 4.125 | 0.1155 | 213.607 | +960% |
@@ -213,12 +213,12 @@ Caveats: this is still fake-quant (QDQ), not a resident packed cache, so it
 measures quality only and no throughput claim is made. PPL windows are chunked
 at 512 tokens, so no window sees longer context, and the corpus is a local
 Phenotype document rather than WikiText/C4, so the absolute PPL is not
-comparable to published numbers (only deltas within this harness are). Every
-number above is Qwen2.5-3B-Instruct; the 7B re-run that would confirm the
-per-channel fix at scale has not been done. V stays per-token grouped
-throughout, so the per-channel result covers K only. Per-channel grouping is
-degenerate for single-token decode steps (a group of one reproduces the value
-exactly), and the full-sequence PPL windows used here do not exercise that case.
+comparable to published numbers (only deltas within this harness are). The
+numbers in this block are Qwen2.5-3B-Instruct; item (c) below repeats the
+headline comparison at 7B. V stays per-token grouped throughout, so the
+per-channel result covers K only. Per-channel grouping is degenerate for
+single-token decode steps (a group of one reproduces the value exactly), and the
+full-sequence PPL windows used here do not exercise that case.
 
 **(c) At 7B the same defect is total, and the same fix removes it.** Same
 harness, Qwen2.5-7B-Instruct (28 layers, 4 KV heads), FP16 PPL = 17.679 over the
@@ -249,7 +249,7 @@ is therefore the shipping configuration to implement first, at both 3B and 7B.
 4. Measure actual quality preservation with MMLU/GPQA subsets
 5. Concurrency test: 4/8/16 parallel requests, measure VRAM scaling
 6. PPL gate: adopt perplexity, with a high-bit control run, as the quality gate before any further quantization claim
-7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c)
+7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both.
 8. TurboQuant parity: implement the rotation + optimal scalar quantizer + 1-bit QJL pipeline from arXiv:2504.19874, then compare against the current codec before making any paper-vs-implementation claim
 
 ## Risk Notes
