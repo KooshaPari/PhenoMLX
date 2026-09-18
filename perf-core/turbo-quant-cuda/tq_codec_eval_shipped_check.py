@@ -17,12 +17,16 @@ only, exactly as the harness does.
 WATCH OUT -- tensor labels differ between the harness and ad-hoc scripts:
 `capture_kv` labels tensors "k"/"v", while a hand-rolled hook usually labels them
 "k_proj"/"v_proj". Code that writes `if kind == "v"` silently takes the wrong
-branch against "v_proj", which quantizes V with the channel axis and produces a
-plausible-looking but wrong number (0.0326 instead of 0.0337). Use
-`kind.startswith("v")`.
+branch against "v_proj" and quantizes V with the channel axis, giving a
+plausible-looking but wrong number (0.0326 instead of 0.0337). Worse,
+`distortion_report` decides `is_k=(kind == "k")`, so feeding it "k_proj" labels
+makes the channel axis never apply and silently returns the token figure for
+both. This script therefore uses the harness's own `capture_kv` for the
+cross-check instead of a local hook.
 
 Run: python tq_codec_eval_shipped_check.py [--corpus PATH]
 """
+
 import argparse
 import importlib.util
 import math
@@ -61,7 +65,9 @@ shipped = load("tqc", os.path.join(HERE, "turbo_quant_cuda.py"))
 def shipped_qdq(flat):
     """Round-trip a flat CUDA float32 tensor through the shipped port."""
     assert flat.numel() % GROUP == 0, f"{flat.numel()} not a multiple of {GROUP}"
-    packed, scales, zeros = shipped.encode_uniform_cuda(flat, bits=BITS, group_size=GROUP)
+    packed, scales, zeros = shipped.encode_uniform_cuda(
+        flat, bits=BITS, group_size=GROUP
+    )
     return shipped.decode_uniform_cuda(packed, scales, zeros, flat.numel(), BITS, GROUP)
 
 
@@ -82,10 +88,11 @@ def restore_channel(flat, t):
 
 
 def capture(model, ids):
+    """Local capture, labelled "k"/"v" to match the harness's `capture_kv`."""
     store, handles = [], []
     for layer in model.model.layers:
-        for name in ("k_proj", "v_proj"):
-            proj = getattr(layer.self_attn, name)
+        for name in ("k", "v"):
+            proj = getattr(layer.self_attn, name + "_proj")
 
             def hook(mod, inp, out, _n=name):
                 x = out[0] if isinstance(out, tuple) else out
@@ -117,9 +124,16 @@ def main():
         getattr(model.config, "num_key_value_heads", model.config.num_attention_heads),
     )
     text = open(args.corpus, encoding="utf-8", errors="replace").read()
-    ids = tok(text, return_tensors="pt").input_ids[:, : args.capture_tokens].to(model.device)
+    ids = (
+        tok(text, return_tensors="pt")
+        .input_ids[:, : args.capture_tokens]
+        .to(model.device)
+    )
     store = capture(model, ids)
-    print(f"captured {len(store)} projection outputs from {ids.shape[1]} tokens", flush=True)
+    print(
+        f"captured {len(store)} projection outputs from {ids.shape[1]} tokens",
+        flush=True,
+    )
 
     results = {}
     for scheme in ("token", "chanK"):
@@ -134,32 +148,58 @@ def main():
             sq_err += float((err**2).sum())
             sq_ref += float(t.double().pow(2).sum())
         results[scheme] = math.sqrt(sq_err / sq_ref)
-        print(f"  shipped codec {scheme:5s}: rel_err = {results[scheme]:.16f}", flush=True)
+        print(
+            f"  shipped codec {scheme:5s}: rel_err = {results[scheme]:.16f}", flush=True
+        )
 
-    # Cross-check the harness's own code path on the same activations.
+    # Cross-check the harness's own capture and code path on the same activations.
+    # Using its capture keeps the label convention identical (`is_k=(kind == "k")`).
+    theirs = harness.capture_kv(model, ids, ctx)
+    assert len(theirs) == len(store), (len(theirs), len(store))
+    maxdiff = max(float((a - b).abs().max()) for (_, a), (_, b) in zip(store, theirs))
+    print(
+        f"  captured data identical to harness: {maxdiff == 0.0} (max diff {maxdiff:.1e})",
+        flush=True,
+    )
+
     levels = harness.lloyd_max_gaussian(BITS)
-    dist = harness.distortion_report(store, ctx, levels)
+    dist = harness.distortion_report(theirs, ctx, levels)
     key_token = f"uniform_rtn_g{GROUP}_b{BITS}"
     key_chank = f"uniform_rtn_chanK_g{GROUP}_b{BITS}"
-    print(f"  harness code path token: rel_err = {dist[key_token]['relative_error']:.16f}",
-          flush=True)
-    print(f"  harness code path chanK: rel_err = {dist[key_chank]['relative_error']:.16f}",
-          flush=True)
+    print(
+        f"  harness code path token: rel_err = {dist[key_token]['relative_error']:.16f}",
+        flush=True,
+    )
+    print(
+        f"  harness code path chanK: rel_err = {dist[key_chank]['relative_error']:.16f}",
+        flush=True,
+    )
 
     print(f"\nrecorded reference: token {REF_TOKEN}  chanK {REF_CHANK}")
     checks = [
-        ("reproduces the recorded token figure", abs(results["token"] - REF_TOKEN) < 1e-6),
-        ("reproduces the recorded chanK figure", abs(results["chanK"] - REF_CHANK) < 1e-6),
+        (
+            "reproduces the recorded token figure",
+            abs(results["token"] - REF_TOKEN) < 1e-6,
+        ),
+        (
+            "reproduces the recorded chanK figure",
+            abs(results["chanK"] - REF_CHANK) < 1e-6,
+        ),
         ("per-channel K beats per-token K", results["chanK"] < results["token"]),
-        ("shipped codec matches the harness path",
-         abs(results["chanK"] - dist[key_chank]["relative_error"]) < 1e-6),
+        (
+            "shipped codec matches the harness path",
+            abs(results["chanK"] - dist[key_chank]["relative_error"]) < 1e-6,
+        ),
     ]
     ok = True
     for name, passed in checks:
         print(f"  {'PASS' if passed else 'FAIL'}  {name}")
         ok &= passed
-    print("\nVERIFIED: per-channel K is a call-site layout change, not a codec change"
-          if ok else "\nVERIFY FAILED")
+    print(
+        "\nVERIFIED: per-channel K is a call-site layout change, not a codec change"
+        if ok
+        else "\nVERIFY FAILED"
+    )
     return 0 if ok else 1
 
 
