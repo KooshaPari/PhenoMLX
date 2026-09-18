@@ -1,0 +1,333 @@
+{
+  "timestamp_utc": "2026-09-18T07:18:42.535991+00:00",
+  "benchmark": "turboquant_3b_ab",
+  "pilot": "PILOT-PRD-PHENOMLX",
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 3090 Ti",
+    "vram_gb": 24,
+    "host": "desktop RTX 3090 Ti (100.96.135.160)"
+  },
+  "software": {
+    "torch": "2.9.1+cu128",
+    "transformers": "4.57.1",
+    "python": "3.11.9"
+  },
+  "config": {
+    "bits": 4,
+    "group_size": 32,
+    "max_new_tokens": {
+      "short": 160,
+      "medium": 300,
+      "long": 420
+    },
+    "greedy": true,
+    "kv_mode": "fake-quant QDQ on k_proj/v_proj outputs (resident KV stays FP16)"
+  },
+  "hook_verification": {
+    "hook_calls_run_b": 135856,
+    "expected_min": 56,
+    "note": "2 projections x 28 layers x (prefill+decode steps)"
+  },
+  "run_a_fp16_kv": {
+    "aggregate": {
+      "avg_ttft_s": 0.1025,
+      "avg_tokens_per_s_decode": 13.41,
+      "avg_tokens_per_s_overall": 13.36,
+      "total_wall_s": 179.72,
+      "corrupted_count": 0,
+      "total_new_tokens": 2342
+    },
+    "peak_vram_alloc_gib": 14.245,
+    "peak_vram_reserved_gib": 14.264,
+    "prompts": [
+      {
+        "prompt_id": 1,
+        "category": "short",
+        "prompt": "Explain quantum computing in simple terms.",
+        "new_tokens": 160,
+        "ttft_s": 0.1058,
+        "decode_s": 10.818,
+        "total_s": 10.924,
+        "tokens_per_s_decode": 14.7,
+        "tokens_per_s_overall": 14.65,
+        "corrupted": false,
+        "preview": "Quantum computing is a type of computing that uses the principles of quantum mechanics to process information. Here\u2019s a simple way to understand it:\n\n1. **Class"
+      },
+      {
+        "prompt_id": 2,
+        "category": "short",
+        "prompt": "Write a Python function to reverse a linked list.",
+        "new_tokens": 160,
+        "ttft_s": 0.0944,
+        "decode_s": 10.937,
+        "total_s": 11.032,
+        "tokens_per_s_decode": 14.54,
+        "tokens_per_s_overall": 14.5,
+        "corrupted": false,
+        "preview": "Certainly! Below is a Python function that reverses a singly linked list. The function will take the head of the linked list as input and return the new head of"
+      },
+      {
+        "prompt_id": 3,
+        "category": "short",
+        "prompt": "What are the main differences between Python and Rust?",
+        "new_tokens": 160,
+        "ttft_s": 0.11,
+        "decode_s": 10.982,
+        "total_s": 11.092,
+        "tokens_per_s_decode": 14.48,
+        "tokens_per_s_overall": 14.43,
+        "corrupted": false,
+        "preview": "Python and Rust are both popular programming languages, but they have distinct characteristics that make them suitable for different types of applications. Here"
+      },
+      {
+        "prompt_id": 4,
+        "category": "short",
+        "prompt": "Summarize the plot of Romeo and Juliet.",
+        "new_tokens": 160,
+        "ttft_s": 0.0913,
+        "decode_s": 11.25,
+        "total_s": 11.342,
+        "tokens_per_s_decode": 14.13,
+        "tokens_per_s_overall": 14.11,
+        "corrupted": false,
+        "preview": "Romeo and Juliet is a tragic play written by William Shakespeare. The story takes place in Verona, Italy, and revolves around two young star-crossed lovers whos"
+      },
+      {
+        "prompt_id": 5,
+        "category": "short",
+        "prompt": "Write a haiku about autumn.",
+        "new_tokens": 22,
+        "ttft_s": 0.1116,
+        "decode_s": 1.554,
+        "total_s": 1.665,
+        "tokens_per_s_decode": 13.52,
+        "tokens_per_s_overall": 13.21,
+        "corrupted": false,
+        "preview": "Leaves whisper to ground,\nCrisp air dances with sunlight,\nAutumn's breath grows cold."
+      },
+      {
+        "prompt_id": 6,
+        "category": "medium",
+        "prompt": "Explain how a transformer neural network processes attention. Keep it under 200 words.",
+        "new_tokens": 208,
+        "ttft_s": 0.116,
+        "decode_s": 16.584,
+        "total_s": 16.7,
+        "tokens_per_s_decode": 12.48,
+        "tokens_per_s_overall": 12.45,
+        "corrupted": false,
+        "preview": "A transformer neural network processes attention through mechanisms that allow the model to focus on different parts of the input sequence when generating each "
+      },
+      {
+        "prompt_id": 7,
+        "category": "medium",
+        "prompt": "Write a Python script that reads a CSV, filters rows, and writes summary stats. Include error handling.",
+        "new_tokens": 300,
+        "ttft_s": 0.1216,
+        "decode_s": 24.051,
+        "total_s": 24.173,
+        "tokens_per_s_decode": 12.43,
+        "tokens_per_s_overall": 12.41,
+        "corrupted": false,
+        "preview": "Certainly! Below is a Python script that reads a CSV file, filters rows based on certain criteria, and then writes summary statistics to another file. The scrip"
+      },
+      {
+        "prompt_id": 8,
+        "category": "long",
+        "prompt": "Compare and contrast REST, GraphQL, and gRPC for API design. Provide code examples.",
+        "new_tokens": 420,
+        "ttft_s": 0.1,
+        "decode_s": 34.003,
+        "total_s": 34.103,
+        "tokens_per_s_decode": 12.32,
+        "tokens_per_s_overall": 12.32,
+        "corrupted": false,
+        "preview": "Certainly! Let's compare and contrast REST, GraphQL, and gRPC in terms of their design philosophies, use cases, and provide some code examples.\n\n### 1. REST (Re"
+      },
+      {
+        "prompt_id": 9,
+        "category": "long",
+        "prompt": "Write a short essay (300 words) on the economic trade-offs of vertical integration.",
+        "new_tokens": 332,
+        "ttft_s": 0.0859,
+        "decode_s": 27.645,
+        "total_s": 27.731,
+        "tokens_per_s_decode": 11.97,
+        "tokens_per_s_overall": 11.97,
+        "corrupted": false,
+        "preview": "Vertical integration, a business strategy where a company controls multiple stages of production and distribution, can offer significant advantages but also com"
+      },
+      {
+        "prompt_id": 10,
+        "category": "long",
+        "prompt": "Explain the cause of the 2008 financial crisis in detail.",
+        "new_tokens": 420,
+        "ttft_s": 0.0882,
+        "decode_s": 30.868,
+        "total_s": 30.956,
+        "tokens_per_s_decode": 13.57,
+        "tokens_per_s_overall": 13.57,
+        "corrupted": false,
+        "preview": "The 2008 financial crisis, also known as the Global Financial Crisis (GFC), was one of the most severe economic downturns since the Great Depression of the 1930"
+      }
+    ]
+  },
+  "run_b_turboquant_4bit_kv_sim": {
+    "aggregate": {
+      "avg_ttft_s": 0.2763,
+      "avg_tokens_per_s_decode": 3.6,
+      "avg_tokens_per_s_overall": 3.63,
+      "total_wall_s": 741.91,
+      "corrupted_count": 5,
+      "total_new_tokens": 2416
+    },
+    "peak_vram_alloc_gib": 14.245,
+    "peak_vram_reserved_gib": 14.264,
+    "prompts": [
+      {
+        "prompt_id": 1,
+        "category": "short",
+        "prompt": "Explain quantum computing in simple terms.",
+        "new_tokens": 160,
+        "ttft_s": 0.2874,
+        "decode_s": 41.026,
+        "total_s": 41.313,
+        "tokens_per_s_decode": 3.88,
+        "tokens_per_s_overall": 3.87,
+        "corrupted": true,
+        "preview": "Certainly,!!, Quantum quantum kuk Quantum computing is a type of computinginging that that uses the principles of of quantum physics to to perform perform compl"
+      },
+      {
+        "prompt_id": 2,
+        "category": "short",
+        "prompt": "Write a Python function to reverse a linked list.",
+        "new_tokens": 71,
+        "ttft_s": 0.2604,
+        "decode_s": 18.173,
+        "total_s": 18.433,
+        "tokens_per_s_decode": 3.85,
+        "tokens_per_s_overall": 3.85,
+        "corrupted": false,
+        "preview": "```python\ndef Reverse a singly linked linked list\n\nA\ndefdefdef\ndefclass Node:\n    def __init__(self value data):\n        self data data data:\n        self\n\ndef "
+      },
+      {
+        "prompt_id": 3,
+        "category": "short",
+        "prompt": "What are the main differences between Python and Rust?",
+        "new_tokens": 160,
+        "ttft_s": 0.2779,
+        "decode_s": 43.343,
+        "total_s": 43.621,
+        "tokens_per_s_decode": 3.67,
+        "tokens_per_s_overall": 3.67,
+        "corrupted": false,
+        "preview": " to Python and Ruby are two different programming languages,, each with its its its its own unique p\u00e9rdida\n verschiedene features:\n\n1python*>:: 1. Syntax\n\n1 Pyt"
+      },
+      {
+        "prompt_id": 4,
+        "category": "short",
+        "prompt": "Summarize the plot of Romeo and Juliet.",
+        "new_tokens": 160,
+        "ttft_s": 0.3204,
+        "decode_s": 42.544,
+        "total_s": 42.865,
+        "tokens_per_s_decode": 3.74,
+        "tokens_per_s_overall": 3.73,
+        "corrupted": false,
+        "preview": " course English summary \"R Romeo and Juliet\" is\n\n\"R Romeo and Juliet\" (often misselyely\u0268an Romeo and Juliet) is is a tragic of 1 course p\u00e9rdida Shakespeare's um"
+      },
+      {
+        "prompt_id": 5,
+        "category": "short",
+        "prompt": "Write a haiku about autumn.",
+        "new_tokens": 5,
+        "ttft_s": 0.25,
+        "decode_s": 1.252,
+        "total_s": 1.502,
+        "tokens_per_s_decode": 3.2,
+        "tokens_per_s_overall": 3.33,
+        "corrupted": false,
+        "preview": "AUTumn pestic\n"
+      },
+      {
+        "prompt_id": 6,
+        "category": "medium",
+        "prompt": "Explain how a transformer neural network processes attention. Keep it under 200 words.",
+        "new_tokens": 300,
+        "ttft_s": 0.2969,
+        "decode_s": 75.455,
+        "total_s": 75.752,
+        "tokens_per_s_decode": 3.96,
+        "tokens_per_s_overall": 3.96,
+        "corrupted": true,
+        "preview": "Surevertisement a Transformer neural network demonstrates attention it under 5\n\nA\n A A 1 1\n\n \n\nA  T  1\n\n \n\n -  1  1\n\n \n\n  1  1\n\n \n\n  1  1\n\n \n\n  1  1\n\n \n\n  2  1\n"
+      },
+      {
+        "prompt_id": 7,
+        "category": "medium",
+        "prompt": "Write a Python script that reads a CSV, filters rows, and writes summary stats. Include error handling.",
+        "new_tokens": 300,
+        "ttft_s": 0.2493,
+        "decode_s": 121.518,
+        "total_s": 121.767,
+        "tokens_per_s_decode": 2.46,
+        "tokens_per_s_overall": 2.46,
+        "corrupted": true,
+        "preview": "Certainly! Below is is a simple Python script that readss a CSV file, containing rows, and performs a basic summary of the the data:\n\n``````python\n\nimport panda"
+      },
+      {
+        "prompt_id": 8,
+        "category": "long",
+        "prompt": "Compare and contrast REST, GraphQL, and gRPC for API design. Provide code examples.",
+        "new_tokens": 420,
+        "ttft_s": 0.5991,
+        "decode_s": 154.582,
+        "total_s": 155.181,
+        "tokens_per_s_decode": 2.71,
+        "tokens_per_s_overall": 2.71,
+        "corrupted": true,
+        "preview": " CertainlyREST`, `GraphQL`, and `JSON for API design` are three different approaches styles used to describe APIs (Application Representations).\u5728\u7f51\u7edc\u4e0a\u670d\u52a1\u63a5\u53e3) intera"
+      },
+      {
+        "prompt_id": 9,
+        "category": "long",
+        "prompt": "Write a short essay (300 words) on the economic trade-offs of vertical integration.",
+        "new_tokens": 420,
+        "ttft_s": 0.3168,
+        "decode_s": 123.18,
+        "total_s": 123.497,
+        "tokens_per_s_decode": 3.4,
+        "tokens_per_s_overall": 3.4,
+        "corrupted": true,
+        "preview": " course(Chinesea\u00f1zaal)\n\nLaen economictrade-offs de la vertical integraci\u00f3n:\n\nLaLa vertical integraci\u00f3n,Es significa un un \u300e\t\t\r\n\r\n\u300f\n\nUna proceso\u5782\u76f4\n\n\u5f53\u4e00\u4e2a\u516c\u53f8\u51b3\u5b9a\u8fdb\u884c\u5782\u76f4\u5782\u76f4"
+      },
+      {
+        "prompt_id": 10,
+        "category": "long",
+        "prompt": "Explain the cause of the 2008 financial crisis in detail.",
+        "new_tokens": 420,
+        "ttft_s": 0.2728,
+        "decode_s": 117.71,
+        "total_s": 117.983,
+        "tokens_per_s_decode": 3.56,
+        "tokens_per_s_overall": 3.56,
+        "corrupted": false,
+        "preview": " Financial crises can be caused causeded by a complex interplay of various factors,,, including:\n\n1 1 cause cause cause of 1 financial crisis in include:\n\n1\n\n1 "
+      }
+    ]
+  },
+  "deltas_pct_b_vs_a": {
+    "avg_ttft_s": 169.56,
+    "avg_tokens_per_s_decode": -73.15,
+    "avg_tokens_per_s_overall": -72.83
+  },
+  "limitations": [
+    "Run B hooks apply encode->decode (QDQ) to k_proj/v_proj outputs each forward pass; this injects 4-bit uniform-quantization noise into the values that populate the KV cache but does NOT reduce resident KV memory (cache stays FP16).",
+    "Peak VRAM delta therefore measures compute overhead of the QDQ path, not cache savings.",
+    "True packed-cache residency would require cache-layout surgery inside transformers; out of scope for this hook-based pilot.",
+    "Corruption detection is heuristic (token spam, CJK ratio, printability); previews retained for manual review.",
+    "TTFT measured as wall time of a 1-token generate call (includes one full forward pass); a second full generate call follows for the decode-rate window."
+  ],
+  "wall_clock_total_s": 1097.2
+}

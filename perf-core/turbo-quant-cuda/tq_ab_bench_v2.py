@@ -20,7 +20,12 @@ from datetime import datetime, timezone
 
 os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
-os.environ["HF_HOME"] = r"C:\Users\koosh\.cache\huggingface"
+# HF cache root: E:\hf_cache holds the complete 7B weights (15.2 GB blobs).
+# C:\Users\koosh\.cache\huggingface has the full 3B snapshot but only 7B metadata.
+# Must be set BEFORE importing transformers (it snapshots HF_HOME at import time).
+os.environ["HF_HOME"] = os.environ.get(
+    "TQ_HF_HOME", r"C:\Users\koosh\.cache\huggingface"
+)
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -30,9 +35,6 @@ from turbo_quant_cuda import encode_uniform_cuda, decode_uniform_cuda
 
 MODEL_ID = os.environ.get("TQ_MODEL_ID", "Qwen/Qwen2.5-3B-Instruct")
 BITS = int(os.environ.get("TQ_BITS", "4"))
-# HF cache root: E:\hf_cache holds the complete 7B weights (15.2 GB blobs).
-# C:\Users\koosh\.cache\huggingface has the full 3B snapshot but only 7B metadata.
-os.environ["HF_HOME"] = os.environ.get("TQ_HF_HOME", r"C:\Users\koosh\.cache\huggingface")
 N_LAYERS = int(os.environ.get("TQ_N_LAYERS", "36"))
 GROUP_SIZE = 32
 MAX_NEW_TOKENS = {"short": 160, "medium": 300, "long": 420}
