@@ -107,19 +107,21 @@ When KV dominates memory (long context, high concurrency), savings exceed weight
 
 ## Roadmap to Desktop Validation
 
-### Status (2026-09-17)
+### Status (2026-09-18)
 
 **DONE:**
-- torch 2.9.1+cu128 installed on desktop (Python 3.11)
-- transformers 4.57.1, accelerate 1.15.0, bitsandbytes 0.50.2, safetensors 0.6.2
+- torch 2.9.1+cu128 installed on desktop (Python 3.11.9, verified 2026-09-18)
+- transformers 4.57.1, accelerate 1.15.0, bitsandbytes 0.50.2, safetensors 0.6.2 (verified 2026-09-18)
 - Qwen2.5-7B-Instruct downloaded (~14GB FP16) to E:\hf_cache
-- Baseline benchmark run with stock transformers FP16 KV cache
+- Baseline benchmark run with stock transformers FP16 KV cache: 16.28 t/s warm avg (prompts 2-10), 14.91 GiB peak VRAM (`pilot/results/desktop_7b_baseline_20260917.json`)
+- TurboQuant ported to PyTorch CUDA (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`): 4/3/2-bit roundtrip tests pass on RTX 3090 Ti
+- 3B A/B benchmark (`pilot/results/turboquant_3b_ab_20260917-2106.json`): FP16 KV 5.09 t/s vs 4-bit QDQ-hook sim 2.44 t/s, 0/10 corrupted in both
 
-**NOT DONE (would require PhenoMLX harbor_mlx_server on Windows):**
-- TurboQuant+ 4-bit KV run (MLX-specific, needs Apple Silicon or Rust FFI port)
-- Side-by-side A/B with TurboQuant+ path active
+**NOT DONE:**
+- Real packed-KV residency measurement. The 3B A/B used Python QDQ hooks (quantize→dequantize on k_proj/v_proj outputs); resident KV stayed FP16, so the -52% throughput delta measures simulation overhead, not TurboQuant+ cost. A real packed-cache implementation (cache-layout surgery or Rust FFI) is required before any perf claim.
+- Quality eval beyond corruption flags (MMLU/GPQA subsets still open).
 
-**Issue:** TurboQuant+ is implemented in MLX (Apple Silicon), not CUDA. Running it on the RTX 3090 Ti would require porting the Rust SIMD codec to a CUDA backend. The formula-derived savings still hold; what's missing is the actual on-GPU measurement.
+**3B A/B interpretation (2026-09-17 run):** Quality signal: 4-bit quantization noise did not break generation (0/10 corrupted, hook verification 162,072 calls across 36 layers x 2 projections). Performance signal: not yet valid for claims; Python-hook QDQ is not the shipping path.
 
 ### Future Work
 1. Port turbo_quant codec to CUDA via libtorch (estimated 2-3 weeks)
