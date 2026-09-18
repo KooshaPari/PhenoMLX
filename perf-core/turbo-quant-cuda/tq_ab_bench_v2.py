@@ -28,8 +28,12 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from turbo_quant_cuda import encode_uniform_cuda, decode_uniform_cuda
 
-MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
-BITS = 4
+MODEL_ID = os.environ.get("TQ_MODEL_ID", "Qwen/Qwen2.5-3B-Instruct")
+BITS = int(os.environ.get("TQ_BITS", "4"))
+# HF cache root: E:\hf_cache holds the complete 7B weights (15.2 GB blobs).
+# C:\Users\koosh\.cache\huggingface has the full 3B snapshot but only 7B metadata.
+os.environ["HF_HOME"] = os.environ.get("TQ_HF_HOME", r"C:\Users\koosh\.cache\huggingface")
+N_LAYERS = int(os.environ.get("TQ_N_LAYERS", "36"))
 GROUP_SIZE = 32
 MAX_NEW_TOKENS = {"short": 160, "medium": 300, "long": 420}
 
@@ -237,8 +241,8 @@ def main():
                    "max_new_tokens": MAX_NEW_TOKENS, "greedy": True,
                    "kv_mode": "fake-quant QDQ on k_proj/v_proj outputs (resident KV stays FP16)"},
         "hook_verification": {"hook_calls_run_b": hook_calls_b,
-                              "expected_min": 2 * 36 * 1,
-                              "note": "2 projections x 36 layers x (prefill+decode steps)"},
+                              "expected_min": 2 * N_LAYERS * 1,
+                              "note": f"2 projections x {N_LAYERS} layers x (prefill+decode steps)"},
         "run_a_fp16_kv": {"aggregate": A, "peak_vram_alloc_gib": round(a_alloc, 3),
                           "peak_vram_reserved_gib": round(a_res, 3), "prompts": a_results},
         "run_b_turboquant_4bit_kv_sim": {"aggregate": B, "peak_vram_alloc_gib": round(b_alloc, 3),
