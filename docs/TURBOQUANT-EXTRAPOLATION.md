@@ -115,7 +115,7 @@ When KV dominates memory (long context, high concurrency), savings exceed weight
 - Qwen2.5-7B-Instruct downloaded (~14GB FP16) to E:\hf_cache
 - Baseline benchmark run with stock transformers FP16 KV cache: 16.28 t/s warm avg (prompts 2-10), 14.91 GiB peak VRAM (`pilot/results/desktop_7b_baseline_20260917.json`)
 - TurboQuant ported to PyTorch CUDA (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`): 4/3/2-bit roundtrip tests pass on RTX 3090 Ti
-- 3B A/B benchmark (`pilot/results/turboquant_3b_ab_20260917-2106.json`): FP16 KV 5.09 t/s vs 4-bit QDQ-hook sim 2.44 t/s, 0/10 corrupted in both
+- 3B A/B benchmark (`pilot/results/turboquant_3b_ab_20260917-2106.json`): FP16 KV 5.09 t/s vs 4-bit QDQ-hook sim 2.44 t/s, 0/10 corrupted in both. **Superseded for quality:** the corruption check does not detect the +54.5% perplexity regression the same QDQ path produces at 4-bit (see 'Codec fidelity' below).
 
 **NOT DONE:**
 - Real packed-KV residency measurement. The 3B A/B used Python QDQ hooks (quantize→dequantize on k_proj/v_proj outputs); resident KV stayed FP16, so the -52% throughput delta measures simulation overhead, not TurboQuant+ cost. A real packed-cache implementation (cache-layout surgery or Rust FFI) is required before any perf claim.
@@ -125,16 +125,108 @@ When KV dominates memory (long context, high concurrency), savings exceed weight
 
 **7B A/B (2026-09-18 run, `pilot/results/turboquant_7b_ab_20260918-0720.json`):** A (FP16): 13.41 t/s decode, TTFT 102ms, 14.24 GiB, 0/10 corrupted. B (4-bit QDQ): 3.6 t/s, 5/10 heuristic-corrupted — but manual review shows 10/10 degraded (repetition loops, language mixing, token stutter). Same 4-bit group_size=32 scheme was clean at 3B. **This is a quality-scaling cliff: 4-bit uniform KV noise tolerable at 3B, visibly damaging at 7B.** Shipping configs need per-scale quality eval and likely group_size/bits tuning or outlier-aware quantization for 7B+.
 
+### Codec fidelity and a real quality metric (2026-09-18, desktop)
+
+Two findings change how the entries above should be read. Both come from
+`perf-core/turbo-quant-cuda/tq_codec_eval.py`; raw output is in
+`pilot/results/codec_eval_3b_postrope_b4.json` (scheme matrix),
+`pilot/results/codec_eval_3b_postrope_b8.json` (bit-width control),
+`pilot/results/codec_eval_3b_postrope_b4_decomp.json` (K/V attribution) and
+`pilot/results/codec_eval_3b_prerope_b4.json` (pre-RoPE K variant).
+`tq_codec_eval_selftest.py` checks both codecs and the tensor layouts offline;
+run it before trusting any new run.
+
+**(a) This codec is not TurboQuant.** `perf-core/turbo-quant/src/encode.rs`
+implements plain uniform asymmetric round-to-nearest group quantization
+(`scale=(max-min)/qmax`, `zero=min`) with no rotation and no codebook.
+Published TurboQuant (arXiv:2504.19874) is a randomized rotation, then a
+per-coordinate optimal scalar quantizer, then a 1-bit QJL residual stage for
+unbiased inner products. Until the schemes match, that paper's results
+("quality neutrality at 3.5 bits per channel") do not transfer to this codec
+and must not be quoted as supporting it.
+
+**(b) The corruption heuristic is not a quality gate.** With perplexity on a
+fixed 1023-token window (512-token chunks), the "clean at 3B" reading does not
+survive. The harness is validated first: an 8-bit control returns to
++0.24% / +0.53% PPL, so the 4-bit deltas below are real for this path.
+
+Qwen2.5-3B-Instruct, RTX 3090 Ti, FP16 PPL = 20.146 over 1023 tokens,
+K quantized **post-RoPE** (the tensor that actually enters the cache):
+
+| Scheme | Bits/coord (incl. metadata) | Rel. recon. error | PPL | delta PPL |
+|---|---|---|---|---|
+| FP16 KV (baseline) | 16.0 | 0 | 20.146 | - |
+| uniform RTN g32 (repo codec) | 6.00 | 0.1069 | 31.131 | +54.5% |
+| uniform RTN, **per-channel K** (KIVI-style) | 6.00 | 0.0337 | 20.272 | **+0.6%** |
+| rotate + repo RTN | 6.00 | 0.0748 | 36.641 | +81.9% |
+| rotate + Lloyd-Max 4-bit | 4.125 | 0.0939 | 126.994 | +530% |
+| rotate + fixed uniform 4-bit | 4.125 | 0.1155 | 213.607 | +960% |
+| 8-bit control (uniform / rotate+Lloyd) | 10.0 / 8.125 | 0.0059 / 0.0101 | 20.194 / 20.253 | +0.24% / +0.53% |
+
+1. **Grouping axis dominates, and it is a K problem.** The 4-bit regression is
+almost entirely K grouped per-token. Isolating each tensor at the same bits (K
+quantized post-RoPE, V at `v_proj`; `codec_eval_3b_postrope_b4_decomp.json`):
+
+   | Scheme | K axis | V axis | Rel. recon. error | PPL | delta PPL |
+   |---|---|---|---|---|---|
+   | FP16 KV (baseline) | - | - | 0 | 20.146 | - |
+   | uniform RTN g32 (repo codec) | token | token | 0.1069 | 31.131 | +54.5% |
+   | K only | token | FP16 | 0.1093 | 30.761 | +52.7% |
+   | K only, **per-channel** | channel | FP16 | 0.0218 | 20.125 | **-0.1%** |
+   | V only | FP16 | token | 0.0827 | 20.233 | +0.4% |
+   | **per-channel K** + token V | channel | token | 0.0337 | 20.271 | **+0.6%** |
+
+   K-per-token alone accounts for +52.7% of the +54.5% regression, while
+   V-per-token at the same bits costs +0.4%. Per-channel min/max keeps 5x more of
+   K's signal (0.0218 vs 0.1093) because one outlier channel no longer sets the
+   scale for its neighbours. This matches KIVI (arXiv:2402.02750), which
+   quantizes keys per-channel and values per-token for the same reason. It is the
+   cheapest available fix and should be evaluated before any bit-width or
+   rotation work.
+
+   The fix does not depend on where K is quantized: with K quantized pre-RoPE
+   (the old `tq_ab_bench_v2.py` placement, `codec_eval_3b_prerope_b4.json`) the
+   same swap moves +45.1% to +0.23% (both tensors) and +46.5% to +1.0% (K
+   alone). Relative reconstruction error is measured on the projection outputs,
+   so it is identical in both `k_mode` settings by construction.
+2. **Rotation improves distortion and worsens quality.** At equal bits, adding
+   the rotation lowers relative reconstruction error (0.0748 vs 0.1069) while
+   raising PPL (+81.9% vs +54.5%). Attention reads inner products, not
+   distances, so lower MSE is not evidence of a better KV codec.
+3. **The 3B "clean" result was a metric artifact**, not evidence of scale
+   headroom. Future quality claims need PPL or better, not corruption flags.
+4. **TurboQuant parity is untested, not refuted.** A rotation + scalar codec
+   without the QJL stage does worse than the current codec here, which is
+   consistent with the paper's own stated motivation for QJL. Implementing QJL
+   and re-running is a prerequisite for a parity claim in either direction.
+5. **Metadata is a real cost.** "4-bit" uniform RTN with fp32 scale + zero per
+   group of 32 costs 6 bits/coordinate on the wire. TurboQuant's single fp16
+   norm per 128-dim vector costs 0.125 bits/coordinate.
+
+Caveats: this is still fake-quant (QDQ), not a resident packed cache, so it
+measures quality only and no throughput claim is made. PPL windows are chunked
+at 512 tokens, so no window sees longer context, and the corpus is a local
+Phenotype document rather than WikiText/C4, so the absolute PPL is not
+comparable to published numbers (only deltas within this harness are). Every
+number above is Qwen2.5-3B-Instruct; the 7B re-run that would confirm the
+per-channel fix at scale has not been done. V stays per-token grouped
+throughout, so the per-channel result covers K only. Per-channel grouping is
+degenerate for single-token decode steps (a group of one reproduces the value
+exactly), and the full-sequence PPL windows used here do not exercise that case.
+
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
 2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B
 3. Re-run 7B/15B benchmarks on desktop with TurboQuant+ packed-KV active
 4. Measure actual quality preservation with MMLU/GPQA subsets
 5. Concurrency test: 4/8/16 parallel requests, measure VRAM scaling
+6. PPL gate: adopt perplexity, with a high-bit control run, as the quality gate before any further quantization claim
+7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline
+8. TurboQuant parity: implement the rotation + optimal scalar quantizer + 1-bit QJL pipeline from arXiv:2504.19874, then compare against the current codec before making any paper-vs-implementation claim
 
 ## Risk Notes
 
-- Quality impact of 4-bit KV: The lab 0.8B test showed 100% prompt completeness and no corrupted outputs. Google TurboQuant paper claims "no accuracy loss" at 3-4 bits.
+- Quality impact of 4-bit KV: the lab 0.8B test showed 100% prompt completeness and no corrupted outputs, and the corruption heuristic flagged 0/10 at 3B. Neither is quality evidence: on the same QDQ path a validated perplexity measurement shows +54.5% at nominal 4-bit (3B, post-RoPE K). The Google TurboQuant paper's "no accuracy loss" result is about *their* rotation + optimal-codebook + QJL scheme at 3.5 bits per channel, not about this uniform codec; do not cite it as support for this codec. Per-channel K grouping is the only configuration measured so far that stays near baseline (+0.6%).
 - Re-compaction cost: Compact_after_prefill adds ~100-300ms per request. For long sequences with infrequent compaction, this is negligible.
 - Key vs Value bits: Code supports separate K/V compression. For safety, keep K at FP16 (turbo_key_bits=0) for now.
 

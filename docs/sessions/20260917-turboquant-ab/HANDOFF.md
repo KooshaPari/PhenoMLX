@@ -222,3 +222,76 @@ shared, system-backed allocations from browsers, Parsec, Sunshine and NVIDIA
 Broadcast. Windows evicts them when a real CUDA process needs room, but timing
 runs under that notional pressure are unreliable. Before publishing any
 throughput number, check `nvidia-smi` shows a clean idle baseline.
+
+---
+
+## 10. Desktop session findings — 2026-09-18 (kooshapari-desk)
+
+### What was run
+
+`perf-core/turbo-quant-cuda/tq_codec_eval.py` (new) replaces the corruption
+heuristic with perplexity on a fixed 1023-token window, and compares codecs on
+one identical measurement path: fake-quant (QDQ) on K and V. K is quantized
+**after RoPE** in `post-rope` mode, i.e. the tensor that actually enters the
+cache; `pre-rope` mode reproduces the old `tq_ab_bench_v2.py` behaviour.
+
+Harness validation first: an 8-bit control returns to the FP16 baseline for
+every scheme (+0.24% worst case), so the 4-bit deltas below are signal, not a
+broken measurement. Offline checks live in `tq_codec_eval_selftest.py`
+(codec math + tensor layouts); it passes.
+
+### Result (Qwen2.5-3B-Instruct, RTX 3090 Ti, FP16 PPL = 20.146)
+
+| Scheme | bits/coord | rel. recon. err | PPL | delta |
+|---|---|---|---|---|
+| FP16 KV | 16.0 | 0 | 20.146 | - |
+| uniform RTN g32 (repo codec) | 6.00 | 0.1069 | 31.131 | +54.5% |
+| K only, token axis | 6.00 | 0.1093 | 30.761 | +52.7% |
+| K only, **per-channel** | 6.00 | 0.0218 | 20.125 | **-0.1%** |
+| V only, token axis | 6.00 | 0.0827 | 20.233 | +0.4% |
+| per-channel K + token V | 6.00 | 0.0337 | 20.271 | **+0.6%** |
+| rotate + repo RTN | 6.00 | 0.0748 | 36.641 | +81.9% |
+| rotate + Lloyd-Max 4-bit (no QJL) | 4.125 | 0.0939 | 126.994 | +530% |
+| rotate + fixed uniform 4-bit | 4.125 | 0.1155 | 213.607 | +960% |
+
+### What this changes
+
+1. **The K grouping axis is the defect, not the bit width.** K grouped
+   per-token accounts for +52.7% of the +54.5%; V grouped per-token at the same
+   bits costs +0.4%. Grouping K per channel instead is **-0.1%** PPL (K alone)
+   and **+0.6%** (K and V both 4-bit). KIVI (arXiv:2402.02750) reached the same
+   conclusion: keys per-channel, values per-token.
+2. **The earlier "quality-scaling cliff" framing was wrong.** Perplexity shows
+   3B was never clean at 4-bit; the corruption flag simply could not see it. The
+   3B-vs-7B difference was visibility, not a scale threshold.
+3. **The handoff's item 5 hypothesis is refuted as stated.** "We forgot the
+   rotation" is not the explanation: adding the rotation *worsens* quality at
+   equal bits (+81.9% vs +54.5%) while improving MSE. Per-vector rotation plus a
+   per-vector scale is effectively a larger, still outlier-dominated group.
+4. **TurboQuant parity remains untested.** An MSE-optimal codebook without the
+   1-bit QJL residual stage is far worse here (+530%), consistent with the
+   paper's own motivation for QJL. Do not adopt rotation+codebook on MSE
+   evidence, and do not cite the paper's "quality neutrality at 3.5 bits" for
+   this codec.
+5. **Metadata is a real cost.** "4-bit" uniform RTN with fp32 scale+zero per
+   group of 32 is 6 bits/coordinate on the wire. TurboQuant's single fp16 norm
+   per 128-vector is 0.125 bits/coordinate.
+
+### Next steps, ranked
+
+| # | Task | Why |
+|---|---|---|
+| 1 | Implement per-channel K in the codec (V stays per-token); re-run 3B then 7B | Only measured configuration near baseline; cheap and decisive |
+| 2 | Re-run the 7B A/B with per-channel K | Confirms at scale; the 7B "cliff" is currently unexplained by anything else |
+| 3 | Real packed-KV residency (item 1 of section 5, still open) | Only path to a legitimate memory/throughput claim |
+| 4 | Add the 1-bit QJL stage, then compare against the repo codec | Required before any paper-parity claim in either direction |
+| 5 | Long-context / batched sweep at 4/8/16/32K | Where bandwidth-bound compression can actually pay off |
+
+### Reproduce
+
+```bat
+cd /d C:\phenotype-omlx
+C:\Users\koosh\AppData\Local\Programs\Python\Python311\python.exe perf-core\turbo-quant-cuda\tq_codec_eval_selftest.py
+set TQ_BITS=4&& C:\Users\koosh\AppData\Local\Programs\Python\Python311\python.exe perf-core\turbo-quant-cuda\tq_codec_eval.py --corpus C:\Users\koosh\PHENOTYPE_MASTER_ROADMAP.md --k-mode post-rope --out out.json
+set TQ_BITS=8&& (repeat as the control -- it must land within ~0.5% of the FP16 baseline)
+```
