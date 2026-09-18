@@ -210,15 +210,17 @@ quantized post-RoPE, V at `v_proj`; `codec_eval_3b_postrope_b4_decomp.json`):
    norm per 128-dim vector costs 0.125 bits/coordinate.
 
 Caveats: this is still fake-quant (QDQ), not a resident packed cache, so it
-measures quality only and no throughput claim is made. PPL windows are chunked
-at 512 tokens, so no window sees longer context, and the corpus is a local
-Phenotype document rather than WikiText/C4, so the absolute PPL is not
-comparable to published numbers (only deltas within this harness are). The
-numbers in this block are Qwen2.5-3B-Instruct; item (c) below repeats the
-headline comparison at 7B. V stays per-token grouped throughout, so the
-per-channel result covers K only. Per-channel grouping is degenerate for
-single-token decode steps (a group of one reproduces the value exactly), and the
-full-sequence PPL windows used here do not exercise that case.
+measures quality only and no throughput claim is made. PPL windows are chunked,
+so no window sees context beyond the chunk: blocks (b) and (c) use 512-token
+windows over a local Phenotype document (5.7 KB) and block (d) uses 2048-token
+windows over the repo's own docs (77 KB, `tq_codec_eval_corpus.py`). Neither is
+WikiText/C4, so absolute PPL is not comparable to published numbers, nor is it
+comparable across blocks -- only deltas within a single run are. The numbers in
+blocks (b) and (c) are Qwen2.5-3B-Instruct; block (c) is 7B. V stays per-token
+grouped throughout, so the per-channel result covers K only. Per-channel grouping
+is degenerate for single-token decode steps (a group of one reproduces the value
+exactly); the residual window that fixes this is specified in Future Work item 7,
+and the full-sequence PPL windows used here do not exercise that case.
 
 **(c) At 7B the same defect is total, and the same fix removes it.** Same
 harness, Qwen2.5-7B-Instruct (28 layers, 4 KV heads), FP16 PPL = 17.679 over the
@@ -242,12 +244,37 @@ the same bits and the same metadata cost, and V per-token costs nothing (-0.4%).
 No rotation, no codebook and no QJL stage is needed to reach that. Per-channel K
 is therefore the shipping configuration to implement first, at both 3B and 7B.
 
+**(d) The fix holds, and the codec's deficit grows, at longer context.** Same
+harness, repo-docs corpus (77 KB from 14 root `.md` files, reproducible with
+`perf-core/turbo-quant-cuda/tq_codec_eval_corpus.py`), Qwen2.5-3B-Instruct,
+2048-token windows, FP16 PPL = 5.820
+(`pilot/results/codec_eval_3b_long_b4.json`; the 8-bit control in
+`codec_eval_3b_long_b8.json` returns every scheme to within 0.08% of baseline):
+
+| Scheme | Bits/coord | Rel. recon. error | PPL | delta PPL |
+|---|---|---|---|---|
+| FP16 KV (baseline) | 16.0 | 0 | 5.820 | - |
+| uniform RTN g32 (repo codec) | 6.00 | 0.1074 | 9.418 | +61.8% |
+| K only, token axis | 6.00 | 0.1099 | 9.337 | +60.4% |
+| K only, **per-channel** | 6.00 | 0.0218 | 5.875 | +0.95% |
+| V only, token axis | 6.00 | 0.0824 | 5.843 | +0.40% |
+| **per-channel K** + token V | 6.00 | 0.0336 | 5.904 | **+1.45%** |
+| rotate + repo RTN | 6.00 | 0.0752 | 10.200 | +75.3% |
+| rotate + Lloyd-Max 4-bit | 4.125 | 0.0938 | 63.600 | +993% |
+| rotate + fixed uniform 4-bit | 4.125 | 0.1152 | 67.554 | +1061% |
+
+The codec's deficit widens with context (+54.5% at 512 tokens to +61.8% at 2048)
+while per-channel K stays near-free (+0.6% to +1.45%). That is the regime the
+compression exists to serve, so the fix is worth more here, not less. PPL levels
+are not comparable across window sizes (5.820 at 2048 tokens versus 20.146 at 512
+is a different question, not an improvement); only deltas within a run are.
+
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
 2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B
 3. Re-run 7B/15B benchmarks on desktop with TurboQuant+ packed-KV active
 4. Measure actual quality preservation with MMLU/GPQA subsets
-5. Concurrency test: 4/8/16 parallel requests, measure VRAM scaling
+5. Concurrency and long-context sweep: 2048-token windows at 3B are done (item (d), where the codec's deficit grows to +61.8% while per-channel K holds at +1.45%). 8K/16K/32K and batch > 1 are still open
 6. PPL gate: adopt perplexity, with a high-bit control run, as the quality gate before any further quantization claim
 7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both.
 

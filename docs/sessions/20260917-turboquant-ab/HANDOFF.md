@@ -298,6 +298,28 @@ broken measurement. Offline checks live in `tq_codec_eval_selftest.py`
 | rotate + repo RTN | 6.00 | 0.0641 | 8090.3 | +45,663% |
 | rotate + Lloyd-Max 4-bit | 4.125 | 0.0854 | 12412.8 | +70,113% |
 
+### Result (Qwen2.5-3B-Instruct, 2048-token windows, repo-docs corpus)
+
+Corpus is 77 KB built from 14 root `.md` files by `tq_codec_eval_corpus.py`, so it
+is reproducible from the checkout. FP16 PPL = 5.820; the 8-bit control returns
+every scheme to within 0.08% of baseline, so the harness is valid here too.
+
+| Scheme | bits/coord | rel. recon. err | PPL | delta |
+|---|---|---|---|---|
+| FP16 KV | 16.0 | 0 | 5.820 | - |
+| uniform RTN g32 (repo codec) | 6.00 | 0.1074 | 9.418 | **+61.8%** |
+| K only, token axis | 6.00 | 0.1099 | 9.337 | +60.4% |
+| K only, **per-channel** | 6.00 | 0.0218 | 5.875 | +0.95% |
+| V only, token axis | 6.00 | 0.0824 | 5.843 | +0.40% |
+| **per-channel K** + token V | 6.00 | 0.0336 | 5.904 | **+1.45%** |
+| rotate + repo RTN | 6.00 | 0.0752 | 10.200 | +75.3% |
+| rotate + Lloyd-Max 4-bit | 4.125 | 0.0938 | 63.600 | +993% |
+
+The codec's deficit grows with context (+54.5% at 512 tokens, +61.8% at 2048)
+while per-channel K stays near-free (+0.6%, +1.45%). Compression is supposed to
+pay off exactly there, so the fix is worth more at long context, not less. PPL is
+not comparable across window sizes -- only deltas within a run are.
+
 ### What this changes
 
 1. **The K grouping axis is the defect, not the bit width.** K grouped
@@ -333,7 +355,7 @@ broken measurement. Offline checks live in `tq_codec_eval_selftest.py`
 | 1 | Implement per-channel K in the codec (V stays per-token); re-run 3B and 7B | Confirmed at both scales (+0.6% / +0.04%); it is the shipping change |
 | 2 | Real packed-KV residency (item 1 of section 5, still open) | Only path to a legitimate memory/throughput claim |
 | 3 | Add the 1-bit QJL stage, then compare against the repo codec | Required before any paper-parity claim in either direction |
-| 4 | Long-context / batched sweep at 4/8/16/32K | Where bandwidth-bound compression can actually pay off |
+| 4 | Long-context / batched sweep | Where bandwidth-bound compression can actually pay off. 2048-token windows done at 3B: codec +61.8% vs fix +1.45%. 8K+ and batch > 1 still open |
 | 5 | Re-run the TQ PPL harness on 15B+ once per-channel K lands | Same defect should be tested where KV dominates memory |
 
 ### Reproduce
