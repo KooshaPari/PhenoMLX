@@ -455,6 +455,41 @@ requires the dequantize fused into attention. But the host-side design is no lon
 structurally blocked, and measuring quality with it is practical -- which is what
 the measurement below does.
 
+**Profile of where the 20 ms-per-layer actually goes** (`decode_profile.py` at
+`C:\Users\koosh\agents\sandbox\tq-eval`, Qwen2.5-3B-Instruct, 4096-token prefill,
+16 decode steps, model loaded once, GPU-synced timings):
+
+| step | `_k_tensor` (ms) | `_v_tensor` (ms) | both (ms) | full forward (ms) |
+|---:|---:|---:|---:|---:|
+|   0 |   1.30 |   1.91 |   3.22 | 782.88 |
+|   1 |   1.70 |   1.47 |   3.16 | 301.86 |
+|   5 |  26.60 |  19.55 |  46.15 | 526.45 |
+|  15 |   3.80 |   2.59 |   6.39 | 367.58 |
+| **mean** | **4.36** | **4.11** | **8.47** | **443.25** |
+
+The same workload with `DynamicCache` (fp16 KV) takes **83.23 ms** per decode step
+forward, so the cache adds **443.25 - 83.23 = 360 ms** of overhead per step
+(8.47 ms × 36 layers of `_k_tensor` + `_v_tensor` + permute + cat + cast). The
+forward time itself is dominated by attention (sdpa at 4K context on the 3090 Ti)
+plus the model weights' MLP/QKV projections, neither of which the cache touches.
+
+So the actual cache overhead per layer is ~10 ms, not ~20 ms (the 20 ms figure
+in the table above is for the K decode only on an older measurement), and the
+fused decode has a concrete target: **kill the 8.47 ms-per-layer cost of
+`_k_tensor`/`_v_tensor`** so the decode step drops from 443 ms back to the
+~83 ms FP16 baseline. Three pieces of that 8.47 ms are visible in the code: the
+single CUDA `decode_uniform_cuda` call (~1 ms measured for the actual GPU
+work), the `reshape(blocks, b, h, d, s).permute(...)` that lays the decoded
+floats out for attention (~3 ms), and the `.to(k_res.dtype)` cast from fp32 to
+fp16 (~3 ms). The reshape/permute and the fp16 cast both vanish if the fused
+attention reads packed K/V directly; the `decode_uniform_cuda` call moves
+inside the matmul and the dequantize amortizes across the Q rows that read it.
+
+Two spikes (step 5 at 46 ms, the variance across the run) are likely allocator
+fragmentation between the `gc.collect()` + `empty_cache()` reset and the next
+`_k_tensor`; the median step is 3-6 ms, which is what the fused decode has to
+hold across all steps, not just the warmed-up ones.
+
 **(g) First resident quantize-once cache measurement, and two bugs it had to
 fix.** The codec above is fake-quant (QDQ), so it cannot measure resident
 behavior at all. `BlockQuantCache` is the actual quantize-once implementation,
