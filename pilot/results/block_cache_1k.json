@@ -1,0 +1,61 @@
+{
+  "timestamp_utc": "2026-09-19T02:30:00.364341+00:00",
+  "model": "Qwen/Qwen2.5-3B-Instruct",
+  "gpu": "NVIDIA GeForce RTX 3090 Ti",
+  "question": "does quantize-once grouping recover the 8K quality that transformers' re-quantizing cache loses?",
+  "config": {
+    "max_tokens": 1024,
+    "step": 256,
+    "block": 32,
+    "bits": 4,
+    "hqq_bits": 4,
+    "hqq_residual_length": 128
+  },
+  "results": {
+    "fp16": {
+      "perplexity": 9.86633,
+      "tokens": 1023,
+      "step_losses": [
+        2.06656,
+        2.95155,
+        1.79126,
+        2.34737
+      ],
+      "peak_alloc_gib": 6.154,
+      "peak_reserved_gib": 6.242,
+      "ppl_delta_pct": 0.0
+    },
+    "hqq4x0": {
+      "perplexity": 10.21186,
+      "tokens": 1023,
+      "step_losses": [
+        2.06656,
+        3.00265,
+        1.82477,
+        2.40051
+      ],
+      "peak_alloc_gib": 6.136,
+      "peak_reserved_gib": 6.215,
+      "ppl_delta_pct": 3.502
+    },
+    "block4": {
+      "perplexity": 56657.2582,
+      "tokens": 1023,
+      "step_losses": [
+        2.0963,
+        13.3931,
+        13.90022,
+        14.40299
+      ],
+      "peak_alloc_gib": 6.14,
+      "peak_reserved_gib": 6.221,
+      "ppl_delta_pct": 574148.563
+    }
+  },
+  "caveats": [
+    "BlockQuantCache encodes each block once; QuantizedCache re-encodes its whole prefix per residual fill.",
+    "K is grouped per-channel and V per-token in BlockQuantCache, matching the hook finding.",
+    "Peak VRAM is dominated by the 3B weights at this context."
+  ],
+  "wall_clock_s": 32.4
+}
