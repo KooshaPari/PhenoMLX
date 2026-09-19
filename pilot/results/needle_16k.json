@@ -1,0 +1,123 @@
+{
+  "probe": "needle_in_haystack",
+  "model": "Qwen/Qwen2.5-3B-Instruct",
+  "context_tokens": 16384,
+  "step": 256,
+  "cases": 5,
+  "block": 32,
+  "bits": 4,
+  "v_group": 32,
+  "meta_dtype": "fp32",
+  "depths": [
+    0.1,
+    0.3,
+    0.5,
+    0.7,
+    0.9
+  ],
+  "fp16": {
+    "first_digit_acc": 1.0,
+    "full_code_acc": 1.0,
+    "mean_digit_margin": 7.6375,
+    "rows": [
+      {
+        "depth": 0.1,
+        "code": "1031",
+        "digit_hit": true,
+        "pred_digit": "1",
+        "margin": 9.5938,
+        "code_hit": true,
+        "text": "1031.\nAnswer: The access code for the TURBINE"
+      },
+      {
+        "depth": 0.3,
+        "code": "2238",
+        "digit_hit": true,
+        "pred_digit": "2",
+        "margin": 7.4844,
+        "code_hit": true,
+        "text": "2238.\nAnswer: The access code for the ORCHID facility"
+      },
+      {
+        "depth": 0.5,
+        "code": "3445",
+        "digit_hit": true,
+        "pred_digit": "3",
+        "margin": 7.4062,
+        "code_hit": true,
+        "text": "3445.\nAccording to the information provided in the document, what is"
+      },
+      {
+        "depth": 0.7,
+        "code": "4652",
+        "digit_hit": true,
+        "pred_digit": "4",
+        "margin": 6.75,
+        "code_hit": true,
+        "text": "4652.\n\nAnswer: The access code for the VESPER facility"
+      },
+      {
+        "depth": 0.9,
+        "code": "5859",
+        "digit_hit": true,
+        "pred_digit": "5",
+        "margin": 6.9531,
+        "code_hit": true,
+        "text": "5859.\n\nAnswer: The access code for the CINDER facility is"
+      }
+    ]
+  },
+  "block4": {
+    "first_digit_acc": 1.0,
+    "full_code_acc": 1.0,
+    "mean_digit_margin": 7.575,
+    "rows": [
+      {
+        "depth": 0.1,
+        "code": "1031",
+        "digit_hit": true,
+        "pred_digit": "1",
+        "margin": 10.0938,
+        "code_hit": true,
+        "text": "1031.\nAnswer: The access code for the TURBINE"
+      },
+      {
+        "depth": 0.3,
+        "code": "2238",
+        "digit_hit": true,
+        "pred_digit": "2",
+        "margin": 6.6719,
+        "code_hit": true,
+        "text": "2238.\n\nAnswer: The access code for the ORCHID facility"
+      },
+      {
+        "depth": 0.5,
+        "code": "3445",
+        "digit_hit": true,
+        "pred_digit": "3",
+        "margin": 7.125,
+        "code_hit": true,
+        "text": "3445.\n\nAnswer: The access code for the QUARTZ facility"
+      },
+      {
+        "depth": 0.7,
+        "code": "4652",
+        "digit_hit": true,
+        "pred_digit": "4",
+        "margin": 7.3594,
+        "code_hit": true,
+        "text": "4652.\n\nAnswer: The access code for the VESPER facility"
+      },
+      {
+        "depth": 0.9,
+        "code": "5859",
+        "digit_hit": true,
+        "pred_digit": "5",
+        "margin": 6.625,
+        "code_hit": true,
+        "text": "5859.\n\nAnswer: The access code for the CINDER facility is"
+      }
+    ]
+  },
+  "margin_delta": -0.0625
+}

@@ -1,0 +1,218 @@
+{
+  "probe": "needle_in_haystack",
+  "model": "Qwen/Qwen2.5-3B-Instruct",
+  "context_tokens": 4096,
+  "step": 256,
+  "cases": 10,
+  "block": 32,
+  "bits": 4,
+  "v_group": 32,
+  "meta_dtype": "fp32",
+  "depths": [
+    0.1,
+    0.3,
+    0.5,
+    0.7,
+    0.9,
+    0.1,
+    0.3,
+    0.5,
+    0.7,
+    0.9
+  ],
+  "fp16": {
+    "first_digit_acc": 1.0,
+    "full_code_acc": 1.0,
+    "mean_digit_margin": 14.3234,
+    "rows": [
+      {
+        "depth": 0.1,
+        "code": "1031",
+        "digit_hit": true,
+        "pred_digit": "1",
+        "margin": 15.6406,
+        "code_hit": true,
+        "text": "1031.\n\nNow, consider the following JSON data representing a configuration for"
+      },
+      {
+        "depth": 0.3,
+        "code": "2238",
+        "digit_hit": true,
+        "pred_digit": "2",
+        "margin": 14.7188,
+        "code_hit": true,
+        "text": "2238.\n\nNow, consider the following JSON data representing a configuration for"
+      },
+      {
+        "depth": 0.5,
+        "code": "3445",
+        "digit_hit": true,
+        "pred_digit": "3",
+        "margin": 13.6875,
+        "code_hit": true,
+        "text": "3445.\n\nQuestion: Can you provide a brief overview of the architecture"
+      },
+      {
+        "depth": 0.7,
+        "code": "4652",
+        "digit_hit": true,
+        "pred_digit": "4",
+        "margin": 14.7969,
+        "code_hit": true,
+        "text": "4652.\n\nQuestion: How many tiers are mentioned in the architecture diagram"
+      },
+      {
+        "depth": 0.9,
+        "code": "5859",
+        "digit_hit": true,
+        "pred_digit": "5",
+        "margin": 13.0156,
+        "code_hit": true,
+        "text": "5859.\n\nQuestion: Where is the TurboQuant+ module injected into"
+      },
+      {
+        "depth": 0.1,
+        "code": "7066",
+        "digit_hit": true,
+        "pred_digit": "7",
+        "margin": 14.5469,
+        "code_hit": true,
+        "text": "7066.\n\nNow, consider the following JSON data representing a configuration for"
+      },
+      {
+        "depth": 0.3,
+        "code": "8273",
+        "digit_hit": true,
+        "pred_digit": "8",
+        "margin": 13.7812,
+        "code_hit": true,
+        "text": "8273.\n\nNow, consider the following JSON data representing a configuration for"
+      },
+      {
+        "depth": 0.5,
+        "code": "9480",
+        "digit_hit": true,
+        "pred_digit": "9",
+        "margin": 14.8281,
+        "code_hit": true,
+        "text": "9480.\n\nQuestion: Where can I find the guidelines for contributing to"
+      },
+      {
+        "depth": 0.7,
+        "code": "1687",
+        "digit_hit": true,
+        "pred_digit": "1",
+        "margin": 15.5938,
+        "code_hit": true,
+        "text": "1687.\n\nQuestion: Which crates are part of the Rust perf-core"
+      },
+      {
+        "depth": 0.9,
+        "code": "2894",
+        "digit_hit": true,
+        "pred_digit": "2",
+        "margin": 12.625,
+        "code_hit": true,
+        "text": "2894.\n\nQuestion: Where is the `omlx-research.ps"
+      }
+    ]
+  },
+  "block4": {
+    "first_digit_acc": 1.0,
+    "full_code_acc": 1.0,
+    "mean_digit_margin": 13.5406,
+    "rows": [
+      {
+        "depth": 0.1,
+        "code": "1031",
+        "digit_hit": true,
+        "pred_digit": "1",
+        "margin": 14.875,
+        "code_hit": true,
+        "text": "1031.\n\nNow, consider the following JSON data representing a configuration for"
+      },
+      {
+        "depth": 0.3,
+        "code": "2238",
+        "digit_hit": true,
+        "pred_digit": "2",
+        "margin": 13.8281,
+        "code_hit": true,
+        "text": "2238.\n\nQuestion: Where can I find the guidelines for contributing to"
+      },
+      {
+        "depth": 0.5,
+        "code": "3445",
+        "digit_hit": true,
+        "pred_digit": "3",
+        "margin": 13.3438,
+        "code_hit": true,
+        "text": "3445.\n\nQuestion: Can you provide a brief overview of the architecture"
+      },
+      {
+        "depth": 0.7,
+        "code": "4652",
+        "digit_hit": true,
+        "pred_digit": "4",
+        "margin": 13.8281,
+        "code_hit": true,
+        "text": "4652.\n\nQuestion: How many tiers are there in the architecture described"
+      },
+      {
+        "depth": 0.9,
+        "code": "5859",
+        "digit_hit": true,
+        "pred_digit": "5",
+        "margin": 13.2188,
+        "code_hit": true,
+        "text": "5859.\n\nQuestion: Where is the TurboQuant+ module injected in"
+      },
+      {
+        "depth": 0.1,
+        "code": "7066",
+        "digit_hit": true,
+        "pred_digit": "7",
+        "margin": 14.4844,
+        "code_hit": true,
+        "text": "7066.\n\nQuestion: Where can I find the scripts for building the"
+      },
+      {
+        "depth": 0.3,
+        "code": "8273",
+        "digit_hit": true,
+        "pred_digit": "8",
+        "margin": 13.2812,
+        "code_hit": true,
+        "text": "8273.\n\nNow, consider the following JSON data representing a configuration for"
+      },
+      {
+        "depth": 0.5,
+        "code": "9480",
+        "digit_hit": true,
+        "pred_digit": "9",
+        "margin": 14.625,
+        "code_hit": true,
+        "text": "9480.\n\nQuestion: Where can I find guidelines on contributing to the"
+      },
+      {
+        "depth": 0.7,
+        "code": "1687",
+        "digit_hit": true,
+        "pred_digit": "1",
+        "margin": 13.2188,
+        "code_hit": true,
+        "text": "1687.\n\nQuestion: Which client surface is marked as production-ready?\n"
+      },
+      {
+        "depth": 0.9,
+        "code": "2894",
+        "digit_hit": true,
+        "pred_digit": "2",
+        "margin": 10.7031,
+        "code_hit": true,
+        "text": "2894.\n\nCan you provide more details on the `spec-decode"
+      }
+    ]
+  },
+  "margin_delta": -0.7828
+}
