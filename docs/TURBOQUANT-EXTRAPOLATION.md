@@ -455,12 +455,65 @@ requires the dequantize fused into attention. But the host-side design is no lon
 structurally blocked, and measuring quality with it is practical -- which is what
 the measurement below does.
 
+**(g) First resident quantize-once cache measurement, and two bugs it had to
+fix.** The codec above is fake-quant (QDQ), so it cannot measure resident
+behavior at all. `BlockQuantCache` is the actual quantize-once implementation,
+defined in `perf-core/turbo-quant-cuda/tq_block_cache.py` and driven end-to-end
+by `tq_block_cache_eval.py`. The first 8K measurement on it returned PPL
+**811,272** -- five orders of magnitude worse than fp16 -- which is not a codec
+result, it is a cache bug, and finding it cost two commits.
+
+The prefill-only and one-shot decode reproducers
+(`tq_block_cache_model_check.py`, `tq_block_cache_decode_check.py`) **both
+passed**, because they feed the cache in a single `update()` call: the bug only
+appears the moment a second chunk reuses a stored prefix, which is what
+`ppl_streaming` and `generate()` do. Two separate overrides are required, and
+neither is obvious from the parent class:
+
+- `get_seq_length()` had to be overridden because the parent's version defaults
+  `layer_idx` to `None` and the cache's internal lookup missed, returning `0`.
+  The model uses this to size the causal mask, so the mask assumed an empty
+  prefix while attention received the full cached K/V. Without the override
+  the values the cache hands to attention are correct, but the mask around
+  them is wrong at every context length.
+- `get_mask_sizes()` had to be overridden because the parent's version asks
+  `self.self_attention_cache` for the length, but `BlockQuantCache.update()`
+  never appends to that field -- the cache returns its own K/V directly, so
+  `cumulative_length` stays `0`. Without this override the mask is sized for
+  `query_length` instead of `cache+query`, and the second chunk silently
+  corrupts attention: step-1 loss jumps from fp16's 2.95 to 13.39 with sdpa,
+  and eager attention crashes outright with a shape mismatch
+  (`attn_weights (1, 2, 256, 512) + causal_mask (256, 256)`).
+
+Both are two-line overrides plus a docstring, and either one alone would have
+sent the cache back into a 811k-PPL state. With both in place, the 8K
+streamed PPL eval (`pilot/results/block_cache_8k_fixed.json`, Qwen2.5-3B,
+8192 tokens, 256-token steps, `block=32 bits=4`):
+
+| Config | PPL | delta PPL | Peak VRAM |
+|---|---|---|---|
+| FP16 (`DynamicCache`) | 6.0228 | - | 6.40 GiB |
+| hqq 4-bit, `axis_key=0` | 16.0268 | +166% | 6.21 GiB |
+| **BlockQuantCache, block=32 bits=4** | **6.0815** | **+0.97%** | **6.23 GiB** |
+
+Per-step losses for block4 match fp16 within ~1.5% on all 32 chunks and there
+is no drift across the window -- that is what "quantize-once behaves like fp16"
+looks like in a streamed perplexity measurement. The cache now uses *less* peak
+VRAM than fp16 (6.23 against 6.40 GiB), even though it lives in fp16 metadata +
+quantized payload, because the activation buffer for the partial trailing block
+fits in the slack the 3B weights leave behind.
+
+The shipped regression `tq_block_cache_shipped_check.py` runs the same 4-step
+chunked prefill in ~70s and asserts step losses stay within 5% of fp16, which
+catches both overrides -- if either is removed, step 1 diverges by 4-5x and the
+check fails loud.
+
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
-2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B
+2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B. **Largely done** via `BlockQuantCache` (`perf-core/turbo-quant-cuda/tq_block_cache.py`); the 3B 8K streamed PPL is +0.97% vs fp16 with peak VRAM slightly lower than fp16 itself (item (g)). The remaining work is the throughput claim (item (a)'s fused decode) and the 7B / 15B re-runs.
 3. Re-run 7B/15B benchmarks on desktop with TurboQuant+ packed-KV active
 4. Measure actual quality preservation with MMLU/GPQA subsets
-5. Concurrency and long-context sweep: 2048-token windows at 3B are done (item (d), where the codec's deficit grows to +61.8% while per-channel K holds at +1.45%). 8K/16K/32K and batch > 1 are still open
+5. Concurrency and long-context sweep: 2048-token windows at 3B are done (item (d), where the codec's deficit grows to +61.8% while per-channel K holds at +1.45%). **8192-token at 3B is done** via `BlockQuantCache` (item (g), +0.97% vs fp16). 16K/32K and batch > 1 are still open. The cache's host-side decode grows linearly with stored blocks (~20 ms per layer per step at 4K tokens, item below the table). The 24 GiB 3090 Ti ceiling for autoregressive decode past an 8K prefill is comfortably above 8K: `tq_block_cache_decode_oom_probe.py` cleared all five test points (1K/2K/4K/6K/8K prefill × 4 decode steps), with peak reserved VRAM at step-0 rising from 5.88 GiB (1024 tokens, 32 blocks) to 6.50 GiB (8192 tokens, 256 blocks) -- the growth is linear in stored blocks, and on a 24 GiB card the curve does not hit OOM anywhere in the 8K window.
 6. PPL gate: adopt perplexity, with a high-bit control run, as the quality gate before any further quantization claim
 7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both. **The decode must be fused:** a host-side packed cache is measured non-viable (3.3 s per update at 4K tokens for one layer, against 0.18 ms for FP16), so the block layout has to be paired with an in-attention dequantize.
 
