@@ -121,7 +121,7 @@ from transformers.cache_utils import QuantizedCache
 
 | # | Task | Why | Effort |
 |---|---|---|---|
-| 1 | **Re-benchmark with `QuantizedCache` (hqq) — done at 3B/2048, still needs 8K+ context and batch ≥ 4** | Only way to test the real claim. Must be driven as a stream, not prefill-only (see §10 item (f)). Measured: +8.65% at 4 bits with `axis_key=0`, +29.5% with `axis_key=1`, and no visible residency win at 2048 tokens | Medium |
+| 1 | ~~Re-benchmark with `QuantizedCache` (hqq)~~ **DONE at 3B/2K and 3B/8K** | Answer is memory yes, quality no. Residency saving measured 0.19 GiB at 8K against 0.211 predicted (0.04 vs 0.053 at 2K), so the memory case is now measured rather than projected. Quality: +8.65% at 2K but **+166% at 8K** (3-bit +5,824%), because the cache re-quantizes the whole prefix each time its 128-token FP16 window fills. Must be driven as a stream -- prefill-only evaluation is blind. Next: fix the re-quantization policy; batch >= 4 still open | Medium |
 | 2 | **Verify the 7B quality cliff is real, not an artifact** — re-run with disjoint K/V settings (`turbo_key_bits=0`, i.e. FP16 K / 4-bit V per the doc's own "Risk Notes") | Existing 7B degradation may come from quantizing K, which is known-fragile. Current run quantizes both | Small |
 | 3 | Proper quality metric (perplexity or MMLU subset) instead of the heuristic corruption flag | Current flag missed 5/10 degraded 7B outputs (5 flagged, 10 actually bad) | Medium |
 | 4 | Long-context VRAM scaling sweep (4/8/16/32K × batch 1/4/8) | Directly measures the 75% KV-reduction claim | Medium |

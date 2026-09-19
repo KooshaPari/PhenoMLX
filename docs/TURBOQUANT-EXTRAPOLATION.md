@@ -374,6 +374,36 @@ arithmetic gives 288 MiB FP16 against 72 MiB quantized, a ~0.21 GiB saving -- fi
 times the signal at four times the context. That is the run to do next, and it now
 has a number to check against.
 
+**At 8192 tokens the residency prediction is confirmed and the quality case
+fails.** Same streamed harness, 8192 tokens, 256-token steps
+(`pilot/results/packed_cache_stream_3b_8k.json`):
+
+| Config | PPL | delta PPL | Peak VRAM |
+|---|---|---|---|
+| FP16 (`DynamicCache`) | 6.0228 | - | 6.40 GiB |
+| hqq 4-bit, `axis_key=0` | 16.0268 | +166% | 6.21 GiB |
+| hqq 4-bit, `axis_key=1` | 29.4235 | +389% | 6.21 GiB |
+| hqq 3-bit, `axis_key=0` | 356.8145 | +5,824% | 6.21 GiB |
+
+Two conclusions, pointing opposite ways:
+
+- **Memory: confirmed, measured rather than projected.** Predicted KV saving at
+  8192 tokens is 0.211 GiB (288 MiB FP16 against 72 MiB at 4 bits); measured is
+  0.19 GiB. At 2048 tokens the same comparison is 0.053 GiB predicted against
+  0.04 GiB measured. The harness can see residency and the arithmetic tracks.
+- **Quality: not viable at this context.** The configuration that cost +8.65% at
+  2048 tokens costs **+166%** at 8192, a 19x worsening, and 3-bit reaches +5,824%.
+  Quantized context is read by every later attention step, and this cache
+  re-quantizes the entire accumulated prefix whenever its 128-token FP16 window
+  fills -- 64 times across an 8K window -- so the design compounds its own error.
+
+So the memory case is narrower than this document originally promised, and now
+measurable in both directions: 4-bit KV does deliver the modelled memory reduction
+(0.19 GiB at 8K, within 10% of prediction), but not with this cache's
+re-quantization policy, and no throughput claim follows until both are fixed. The
+next implementation question is therefore the re-quantization policy, not the bit
+width.
+
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
 2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B
