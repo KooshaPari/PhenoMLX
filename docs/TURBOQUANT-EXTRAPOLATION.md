@@ -319,6 +319,47 @@ the safe default, 3 bits is an 81% KV reduction for about +4% PPL, and 2 bits is
 not usable. The 87% reduction figure near the top of this document is arithmetic;
 its quality cost is the +30.9% measured here.
 
+**(f) First resident packed-cache measurement, and why prefill-only is blind.**
+transformers 4.57 ships a KIVI-shaped `QuantizedCache` -- an FP16
+`residual_length` window plus a quantized prefix, with `axis_key`/`axis_value`
+knobs. With the `hqq` backend installed this is the first measurement here of a
+genuinely resident packed cache rather than QDQ hooks
+(`perf-core/turbo-quant-cuda/tq_packed_cache_eval.py`, raw output
+`pilot/results/packed_cache_stream_3b.json`).
+
+**The trap first.** A prefill-only evaluation cannot observe a quantized cache at
+all. `QuantizedLayer.update` quantizes into storage on its first call but returns
+the *raw* key/value states, so attention never reads quantized data. A first
+attempt that fed each window as a single prefill returned byte-identical PPL for
+FP16, 4-bit and 3-bit -- 5.8196 for all five configs. The cache has to be driven
+as a stream (persistent cache, fed in steps) for the second and later updates to
+take the dequantize path. Any packed-cache quality number produced prefill-only is
+meaningless.
+
+Streamed results: 3B, 2048 tokens, 256-token steps, `q_group_size` 32,
+`residual_length` 128.
+
+| Config | PPL | delta PPL | Peak VRAM |
+|---|---|---|---|
+| FP16 (`DynamicCache`) | 6.0580 | - | 6.19 GiB |
+| hqq 4-bit, `axis_key=0` | 6.5819 | +8.65% | 6.15 GiB |
+| hqq 4-bit, `axis_key=1` | 7.8463 | +29.52% | 6.15 GiB |
+| hqq 3-bit, `axis_key=0` | 10.5117 | +73.52% | 6.15 GiB |
+| hqq 3-bit, `axis_key=1` | failed in HQQ | - | - |
+
+Three things follow. (i) **`axis_key=0` is the axis that keeps K's outlier
+channels apart** (+8.65% against +29.52% at identical bits), which is the fix the
+hook measurements identified and which four synthetic probes failed to pin down;
+this settles it by outcome on the real model. (ii) hqq's packed cache beats the
+repo codec's per-token K (+8.65% against +61.8% at 4 bits) but loses to per-channel
+K with the repo codec (+0.95% to +1.45%), so adopting a third-party backend is not
+obviously the right move. (iii) **No residency win is visible at 2048 tokens**
+(6.15 against 6.19 GiB): KV is small next to the weights at this context. That is
+precisely why the memory case must be made at long context, and it still has not
+been. The 3-bit `axis_key=1` cell raises inside HQQ (`size of tensor a (0) must
+match the size of tensor b (2048)` during dequantize) and is recorded as a failed
+cell rather than dropped.
+
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
 2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B

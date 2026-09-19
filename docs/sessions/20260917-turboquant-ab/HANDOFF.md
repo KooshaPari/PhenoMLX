@@ -112,7 +112,7 @@ All local commits — **`main` has not been pushed to `origin` recently.** Verif
 from transformers.cache_utils import QuantizedCache
 # backend must be "hqq" or "quanto" -- neither is installed yet
 ```
-`hqq` and `quanto` are **not installed**; `bitsandbytes` is. Install one (`pip install hqq`), then re-run with a genuine packed cache and compare.
+`hqq` is now **installed** on the desktop (0.2.8.post1); `quanto` is not. See §10 item (f) for the first resident packed-cache measurement and, before running one, the trap that makes a naive re-run meaningless: **a prefill-only evaluation cannot observe a `QuantizedCache` at all**, because the first `update` quantizes into storage but returns the raw key/value states. It must be driven as a stream.
 **Also required:** measure at **long context** (≥8K tokens) and **batch > 1**, where bandwidth matters. Short-context single-stream numbers cannot show the benefit.
 
 ---
@@ -121,7 +121,7 @@ from transformers.cache_utils import QuantizedCache
 
 | # | Task | Why | Effort |
 |---|---|---|---|
-| 1 | **Re-benchmark with `QuantizedCache` (hqq/quanto) at 8K+ context, batch ≥ 4** | Only way to test the real claim. Fixes all three defects in §4 | Medium |
+| 1 | **Re-benchmark with `QuantizedCache` (hqq) — done at 3B/2048, still needs 8K+ context and batch ≥ 4** | Only way to test the real claim. Must be driven as a stream, not prefill-only (see §10 item (f)). Measured: +8.65% at 4 bits with `axis_key=0`, +29.5% with `axis_key=1`, and no visible residency win at 2048 tokens | Medium |
 | 2 | **Verify the 7B quality cliff is real, not an artifact** — re-run with disjoint K/V settings (`turbo_key_bits=0`, i.e. FP16 K / 4-bit V per the doc's own "Risk Notes") | Existing 7B degradation may come from quantizing K, which is known-fragile. Current run quantizes both | Small |
 | 3 | Proper quality metric (perplexity or MMLU subset) instead of the heuristic corruption flag | Current flag missed 5/10 degraded 7B outputs (5 flagged, 10 actually bad) | Medium |
 | 4 | Long-context VRAM scaling sweep (4/8/16/32K × batch 1/4/8) | Directly measures the 75% KV-reduction claim | Medium |
