@@ -516,6 +516,46 @@ bit-identical to the scatter-add (verified by the codec shipped check, max abs
 diff 0.0e+00; the long-context eval at 8K reproduces `block4 PPL=6.0971`,
 `+1.04%`, well within the prior `+0.97%` noise band).
 
+**Second pass: cast before the permute.** Moving the `.half()` from `update()`
+into `_k_tensor` and `_v_tensor` (right after the decode, before the
+`.reshape().permute().reshape()` chain) makes the post-permute contiguous copy
+happen in fp16 instead of fp32. The chain is now:
+
+```
+groups.half().reshape(blocks,b,h,d,s).permute(1,2,0,4,3).reshape(B,H,stored,D)
+```
+
+instead of the prior fp32 chain followed by an out-of-place `.to(fp16)` cast.
+The fp32 contig copy was the largest single transfer per call (`N*4` bytes);
+moving it to fp16 halves the bandwidth. The `update()` path drops its
+`k_stored.to(k_res.dtype)` since `_k_tensor` already returns fp16.
+
+Measured per-layer throughput (4096-token prefill, 16 decode steps, GPU-synced):
+
+| metric                       | original | after nibble-unpack | after half-in-`update`->_k |
+|------------------------------|---------:|--------------------:|---------------------------:|
+| `_k_tensor` mean (ms/layer)  |    4.36  |               0.89  |                       0.67 |
+| `_v_tensor` mean (ms/layer)  |    4.11  |               0.87  |                       0.53 |
+| both (ms/layer)              |    8.47  |               1.76  |                       1.21 |
+
+So the cache overhead per layer per decode step went from **8.47 ms → 1.21 ms**
+(7x), and the cache-forward / FP16-forward ratio sits near **1.5x** once the
+allocator settles (was 5.3x before either pass). Forward-only numbers are
+variance-bound between runs (allocator fragmentation between the pre-profile
+`gc.collect()`/`empty_cache()` reset and the next call can push a single step's
+forward time from ~80 ms to ~25 s), so the table reports per-layer decode work
+which is stable across runs. Bit-identical quality (the long-context eval at
+8K reproduces `block4 PPL=6.0971` / `+1.04%` across both passes; both shipped
+checks still pass).
+
+The remaining ~1 ms per layer is the `.reshape + .permute + .reshape` chain
+itself, which is genuinely useful work (reordering `(blocks, b, h, d, s)` to
+`(b, h, blocks*s, d)` so attention sees the expected layout). The fused-decode
+work would let attention read packed K directly and skip this reorder entirely,
+but the win is now ~1 ms per layer per step rather than the 8 ms it was before
+the nibble unpack -- a much smaller target. The priority for fused decode drops
+below the priority of shipping real benchmark numbers (MMLU/GPQA).
+
 **(g) First resident quantize-once cache measurement, and two bugs it had to
 fix.** The codec above is fake-quant (QDQ), so it cannot measure resident
 behavior at all. `BlockQuantCache` is the actual quantize-once implementation,
