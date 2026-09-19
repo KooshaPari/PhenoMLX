@@ -192,6 +192,21 @@ class BlockQuantCache(cu.DynamicCache):
             total += res[0].shape[-2]
         return total
 
+    def get_mask_sizes(self, cache_position, layer_idx=None):
+        """Override so the model builds the causal mask for the right KV length.
+
+        The parent's version asks `self.self_attention_cache` for the length,
+        but `update` here never appends to that field (we return our own K/V
+        directly). Without this override the mask is sized for an empty prefix
+        even when the cache holds thousands of tokens, which is the second half
+        of the "garbage at every context length" failure -- the first half is
+        `get_seq_length` returning 0.
+        """
+        if layer_idx is None:
+            layer_idx = 0
+        query_length = cache_position.shape[0]
+        return self.get_seq_length(layer_idx) + query_length, 0
+
     # -- accounting -------------------------------------------------------
     def byte_breakdown(self):
         """Resident bytes, split so the metadata cost is visible.
