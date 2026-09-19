@@ -137,8 +137,28 @@ def decode_uniform_cuda(packed: torch.Tensor, scales: torch.Tensor, zeros: torch
     """
     assert bits in (2, 3, 4)
     n_groups = n // group_size
-    mask = (1 << bits) - 1
+    # Fast path: bits == 4 packs 2 nibbles per byte in low/high order -- the
+    # encoder writes quant[2i] into the low nibble and quant[2i+1] into the high
+    # nibble, so a single packed-byte read splits directly into two values.
+    # Replaces the 4-bit scatter-add loop below (~10x faster on the 3090 Ti,
+    # see C:\Users\koosh\agents\sandbox\tq-eval\unpack_bench.py).
+    if bits == 4:
+        assert n % group_size == 0, f"n must be multiple of group_size, got {n} vs {group_size}"
+        assert packed.numel() == (n * bits + 7) // 8, (
+            f"packed numel ({packed.numel()}) != ceil(n*bits/8) ({(n*bits+7)//8})"
+        )
+        low = packed & 0x0F
+        high = (packed >> 4) & 0x0F
+        # low[i] -> quant[2i], high[i] -> quant[2i+1], interleave back to [N].
+        quant = torch.stack([low, high], dim=-1).reshape(-1)
+        out_grouped = quant.to(torch.float32).view(n_groups, group_size)
+        return (
+            out_grouped * scales.unsqueeze(1) + zeros.unsqueeze(1)
+        ).view(-1)
 
+    # Slow path: bits in {2, 3}. 3-bit straddle byte boundaries so the nibble
+    # trick does not apply; 2-bit is vectorizable but only used for the
+    # exploratory quality-measurement rows, not the default cache.
     # Unpack bits LSB-first within each byte
     # For each element i: read bits 0..bits-1 from packed[i*bits/8 ..]
     out = torch.zeros(n, dtype=torch.float32, device=packed.device)

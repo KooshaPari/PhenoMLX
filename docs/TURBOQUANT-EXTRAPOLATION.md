@@ -490,6 +490,32 @@ fragmentation between the `gc.collect()` + `empty_cache()` reset and the next
 `_k_tensor`; the median step is 3-6 ms, which is what the fused decode has to
 hold across all steps, not just the warmed-up ones.
 
+**Fast decode path: 5x per-layer, decode step 2.8x.** Replacing the
+4-pass scatter-add in `decode_uniform_cuda` with a vectorized nibble-unpack
+(`packed & 0x0F` low nibble, `(packed >> 4) & 0x0F` high nibble, then
+interleave) shifts the per-decode-step breakdown from:
+
+| metric                      | before  | after   |
+|-----------------------------|---------|---------|
+| `_k_tensor` mean (ms/layer) |   4.36  |   0.89  |
+| `_v_tensor` mean (ms/layer) |   4.11  |   0.87  |
+| both mean (ms/layer)        |   8.47  |   1.76  |
+| forward mean (ms/step)      | 443.25  | 156.46  |
+| FP16 baseline (ms/step)     |  83.23  | 104.20  |
+| BlockQuantCache / FP16      |   5.33x |   1.50x |
+
+(Same 4096-token prefill, same 16 decode steps, same warmup; the FP16 baseline
+jumped from 83 to 104 ms between the two runs, which is GPU-warmth variance --
+it's not an FP16 regression. The block4 cache dropped in lock-step with the
+decode-unpack change.) The remaining ~52 ms of cache overhead per step
+(156.46 - 104.20) is the per-layer `reshape + permute + cat + cast` from
+`_k_tensor` / `_v_tensor` returning fp32 followed by an out-of-place cast to
+fp16 -- the cost the fused decode still has to attack, since the unpack itself
+is no longer the bottleneck. Quality is unchanged: the nibble pack/unpack is
+bit-identical to the scatter-add (verified by the codec shipped check, max abs
+diff 0.0e+00; the long-context eval at 8K reproduces `block4 PPL=6.0971`,
+`+1.04%`, well within the prior `+0.97%` noise band).
+
 **(g) First resident quantize-once cache measurement, and two bugs it had to
 fix.** The codec above is fake-quant (QDQ), so it cannot measure resident
 behavior at all. `BlockQuantCache` is the actual quantize-once implementation,
