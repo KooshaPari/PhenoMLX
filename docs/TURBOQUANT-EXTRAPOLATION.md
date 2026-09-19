@@ -542,9 +542,9 @@ Three observations the table supports.
 - **Cache VRAM savings grow with context.** 0.167 GiB at 8K is small, but
   0.538 GiB at 32K -- 7% of the 7.244 GiB fp16 footprint -- is the start of a
   real win and the trajectory is linear in stored blocks. The cache holds
-  less VRAM than fp16 *because* its compressed payload is smaller than the
-  fp16 KV tensor it replaces; the residual growth comes from the partial
-  trailing block and the fp32 metadata, which are constant per layer.
+  less VRAM than fp16 because its resident total is a flat 0.375x fp16 KV:
+  payload 0.250 (4 of 16 bits) plus a 0.125 fp32 scale/zero term, both
+  measured below rather than assumed.
 - **Decode-step memory has no ceiling inside the tested window.**
   `tq_block_cache_decode_oom_probe.py` isolates the decode cost: prefill N
   tokens, run 4 decode steps, report peak allocated and reserved VRAM per
@@ -572,10 +572,9 @@ Three observations the table supports.
   Both slopes are endpoint estimates from two rungs, not fits; the per-rung
   deltas in the logs are noisy (0.3-2.9 MiB/block for step 1+) but never
   negative, so the growth is real and linear-ish rather than a phase change.
-  The honest reading is that the *transient* re-decode workspace dominates
-  the growth, not the resident packed cache -- `BlockQuantCache.byte_breakdown()`
-  separates payload, fp32 metadata and fp16 residual and is the way to
-  attribute the rest, which is the next measurement rather than a claim.
+  The growth is *transient* workspace, not the resident packed cache; the
+  paragraph after next measures the resident term separately and uses the two
+  together to bound it.
 
   The ladder stops at 16384 here only because the probe's corpus has to be
   longer than `max(prefill) + 5`: the 19,522-token `corpus_repodocs.txt` ran
@@ -589,6 +588,49 @@ Three observations the table supports.
   where this design hits a wall is the 32K row above:
   `tq_block_cache_eval_long.py` prefills 32768 tokens and then decodes 128
   steps at 7.59 GiB reserved (fp16) / 6.94 GiB (block4).
+
+- **What the resident cache is actually made of, and what that implies.**
+  `tq_block_cache_breakdown_probe.py` feeds the same chunked path and reads
+  `byte_breakdown()` at each length, against `fp16_kv_bytes()` for the same
+  shape (`pilot/results/block_cache_breakdown.json`):
+
+  | Context | payload (MiB) | fp32 metadata (MiB) | residual (MiB) | total (MiB) | fp16 KV (MiB) | total / fp16 |
+  |---:|---:|---:|---:|---:|---:|---:|
+  |  2K | 18 | 9 | 0 | 27 | 72 | 0.375 |
+  |  8K | 72 | 36 | 0 | 108 | 288 | 0.375 |
+  | 16K | 144 | 72 | 0 | 216 | 576 | 0.375 |
+  | 32K | 288 | 144 | 0 | 432 | 1152 | 0.375 |
+
+  The ratio is exactly flat, and it is exactly what the bit budget says: the
+  payload is 0.250 of fp16 KV (4 of 16 bits) and the fp32 scale/zero pair is
+  another 0.125, so *3 of the nominal 4x are real and half of the nominal
+  saving is spent on metadata*. `tq_block_cache_selftest.py` asserts both
+  terms exactly rather than observing them, so this is a checkable claim. The
+  residual is 0 at every rung because the ladder steps in multiples of the
+  32-token block; it is the term that grows when it does not.
+
+  That resident number then explains the peak-VRAM saving measured by the
+  eval, and the part it does not explain is the interesting part:
+
+  | Context | resident saving (GiB) | measured peak saving (GiB) | shortfall (GiB) |
+  |---:|---:|---:|---:|
+  |  8K | 0.176 | 0.167 | 0.009 |
+  | 16K | 0.352 | 0.343 | 0.009 |
+  | 24K | 0.527 | 0.492 | 0.035 |
+  | 32K | 0.703 | 0.538 | 0.165 |
+
+  Through 16K the measured peak win *is* the resident win, to within 9 MiB,
+  which is allocator noise. The shortfall appears only at 24K and 32K and
+  grows there, and that is the re-decode transient showing up: the cache pays
+  a workspace that `DynamicCache` never does, and above ~16K it becomes
+  visible in the peak. It does not yet reverse the result. Over 8K to 32K the
+  resident advantage accrues 0.527 GiB while the shortfall takes back 0.156
+  GiB, roughly 30%, so the measured saving still grows (0.167 to 0.538 GiB).
+  A two-point extrapolation of the shortfall says it keeps losing ground
+  slower than it gains, so no crossover is predicted inside this context
+  range -- but that is a 4-point reading of a noisy term on one card, not a
+  law, and the honest summary is that the transient is the term to watch if
+  this ever needs to be pushed past 32K.
 
 **The 24K and 32K measurements use a *repeated* corpus because the original
 text is only 19,522 tokens. The saturation-aware metric (`mean unsat rel diff`)

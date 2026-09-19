@@ -34,6 +34,17 @@ PPL_TOL = 0.0001
 GIB_TOL = 0.0006
 DELTA_TOL = 0.006
 
+# The resident-attribution table in the same docs section, from
+# pilot/results/block_cache_breakdown.json:
+# context -> (payload MiB, metadata MiB, residual MiB, total MiB, fp16 KV MiB)
+DOC_BREAKDOWN = {
+    2048: (18, 9, 0, 27, 72),
+    8192: (72, 36, 0, 108, 288),
+    16384: (144, 72, 0, 216, 576),
+    32768: (288, 144, 0, 432, 1152),
+}
+MIB_TOL = 0.006
+
 # Runs captured *before* the get_seq_length/get_mask_sizes overrides landed.
 # They are kept on purpose: block4 PPL of 811k (8K) and 57k (1K) is the
 # fingerprint of the second-chunk mask bug, and `block_cache_8k_fixed.json`
@@ -54,6 +65,8 @@ def load_rows():
     for path in glob.glob(os.path.join(RESULTS, "block_cache_*.json")):
         with open(path, encoding="utf-8") as fh:
             doc = json.load(fh)
+        if "rows" in doc:
+            continue
         cfg = doc.get("config", {})
         res = doc.get("results", {})
         ctx = cfg.get("max_tokens")
@@ -73,6 +86,15 @@ def load_rows():
     fixed = sorted(by_ctx.values())
     broken.sort()
     return broken, fixed
+
+
+def load_breakdown():
+    path = os.path.join(RESULTS, "block_cache_breakdown.json")
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    return {int(k): v for k, v in doc.get("rows", {}).items()}
 
 
 def main():
@@ -126,13 +148,59 @@ def main():
                 f"  block4 PPL {b4['perplexity']:.4f}  ({ratio:,.0f}x)"
             )
 
+    breakdown = load_breakdown()
+    if breakdown:
+        print("\nresident attribution (MiB)")
+        print(
+            "  context     payload  metadata  residual     total      fp16  reduction"
+        )
+        for ctx, row in sorted(breakdown.items()):
+            print(
+                f"  {ctx:>7}  {row['payload_mib']:10.2f} {row['metadata_mib']:9.2f} "
+                f"{row['residual_mib']:9.2f} {row['total_mib']:9.2f} "
+                f"{row['fp16_kv_mib']:9.2f} {row['reduction_vs_fp16']:11.3f}"
+            )
+            want = DOC_BREAKDOWN.get(ctx)
+            if want is None:
+                continue
+            got = (
+                row["payload_mib"],
+                row["metadata_mib"],
+                row["residual_mib"],
+                row["total_mib"],
+                row["fp16_kv_mib"],
+            )
+            for label, g, e in zip(
+                ("payload", "metadata", "residual", "total", "fp16"), got, want
+            ):
+                if abs(g - e) > MIB_TOL:
+                    failures.append(
+                        f"  ctx {ctx} [breakdown] {label}: doc={e} results={g}"
+                    )
+        print("\nresident saving vs measured peak saving (GiB)")
+        # DOC_TABLE is (fp16 ppl, block4 ppl, delta, fp16 alloc, block4 alloc, saved)
+        fp16_peak = {ctx: v[3] for ctx, v in DOC_TABLE.items()}
+        bk_peak = {ctx: v[4] for ctx, v in DOC_TABLE.items()}
+        for ctx in sorted(set(breakdown) & set(fp16_peak)):
+            resident = (
+                breakdown[ctx]["fp16_kv_mib"] - breakdown[ctx]["total_mib"]
+            ) / 1024
+            measured = fp16_peak[ctx] - bk_peak[ctx]
+            print(
+                f"  {ctx:>7}   resident {resident:.3f}   measured {measured:.3f}   "
+                f"shortfall {resident - measured:.3f}"
+            )
+
     if args.check:
         if failures:
             print(f"\nFAIL: {len(failures)} doc/result mismatch(es)")
             for line in failures:
                 print(line)
             raise SystemExit(1)
-        print(f"\nOK: every documented row matches the committed results ({len(rows)})")
+        print(
+            f"\nOK: every documented row matches the committed results "
+            f"({len(rows)} eval rows, {len(breakdown)} breakdown rows)"
+        )
 
 
 if __name__ == "__main__":
