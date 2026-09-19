@@ -347,18 +347,22 @@ Streamed results: 3B, 2048 tokens, 256-token steps, `q_group_size` 32,
 | hqq 3-bit, `axis_key=0` | 10.5117 | +73.52% | 6.15 GiB |
 | hqq 3-bit, `axis_key=1` | failed in HQQ | - | - |
 
-Three things follow. (i) **`axis_key=0` is the axis that keeps K's outlier
-channels apart** (+8.65% against +29.52% at identical bits), which is the fix the
-hook measurements identified and which four synthetic probes failed to pin down;
-this settles it by outcome on the real model. (ii) hqq's packed cache beats the
-repo codec's per-token K (+8.65% against +61.8% at 4 bits) but loses to per-channel
-K with the repo codec (+0.95% to +1.45%), so adopting a third-party backend is not
-obviously the right move. (iii) **No residency win is visible at 2048 tokens**
-(6.15 against 6.19 GiB): KV is small next to the weights at this context. That is
-precisely why the memory case must be made at long context, and it still has not
-been. The 3-bit `axis_key=1` cell raises inside HQQ (`size of tensor a (0) must
-match the size of tensor b (2048)` during dequantize) and is recorded as a failed
-cell rather than dropped.
+Three things follow. (i) **`axis_key=0` behaves as the outlier-separating axis**:
+it costs +8.65% against +29.52% at identical bits, the same direction as the hook
+finding that grouping K across channels within a token is the expensive one. Read
+this as identification by outcome, not as having read HQQ's convention -- four
+synthetic probes failed to establish the literal mapping (metadata shapes were
+ambiguous, 96 groups under both hypotheses, and the error ordering contradicted
+the naive reading). A future measurement should confirm the mapping directly
+rather than assume that axis 0 means per-channel. (ii) hqq's packed cache beats
+the repo codec's per-token K (+8.65% against +61.8% at 4 bits) but loses to
+per-channel K with the repo codec (+0.95% to +1.45%), so adopting a third-party
+backend is not obviously the right move. (iii) **No residency win is visible at
+2048 tokens** (6.15 against 6.19 GiB): KV is small next to the weights at this
+context. That is precisely why the memory case must be made at long context, and
+it still has not been. The 3-bit `axis_key=1` cell raises inside HQQ (`size of
+tensor a (0) must match the size of tensor b (2048)` during dequantize) and is
+recorded as a failed cell rather than dropped.
 
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
