@@ -61,6 +61,16 @@ def main():
     ap.add_argument("--block", type=int, default=32, help="BlockQuantCache block size.")
     ap.add_argument("--bits", type=int, default=4, help="BlockQuantCache bit width.")
     ap.add_argument(
+        "--meta-dtype",
+        default="fp32",
+        choices=("fp32", "fp16"),
+        help=(
+            "Precision of the scale/zero metadata. fp32 is the default and is the "
+            "measured ceiling on the resident reduction (item (g)); fp16 halves "
+            "that term. Whether fp16 scales cost quality is the open question."
+        ),
+    )
+    ap.add_argument(
         "--out",
         default="block_cache_long.json",
         help="Output report path (single file per context length).",
@@ -87,7 +97,13 @@ def main():
         ("fp16", lambda: cu.DynamicCache()),
         (
             f"block{args.bits}",
-            lambda: BlockQuantCache(block=args.block, bits=args.bits),
+            lambda: BlockQuantCache(
+                block=args.block,
+                bits=args.bits,
+                meta_dtype=torch.float16
+                if args.meta_dtype == "fp16"
+                else torch.float32,
+            ),
         ),
     ]
 
@@ -154,6 +170,7 @@ def main():
             "step": args.step,
             "block": args.block,
             "bits": args.bits,
+            "meta_dtype": args.meta_dtype,
         },
         "results": results,
         "caveats": [

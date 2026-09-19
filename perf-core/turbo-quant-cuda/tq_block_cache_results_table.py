@@ -46,6 +46,7 @@ DOC_MODEL = "Qwen/Qwen2.5-3B-Instruct"
 # the last file read win.
 DOC_BITS = 4
 DOC_STEP = 256
+DOC_META = "fp32"
 
 # The resident-attribution table in the same docs section, from
 # pilot/results/block_cache_breakdown.json:
@@ -58,13 +59,15 @@ DOC_BREAKDOWN = {
 }
 MIB_TOL = 0.006
 
-# The same 8K prefill at other bit widths, to pin the part of the resident
-# footprint that does *not* move: file -> (payload, metadata, residual, total,
-# fp16 KV) in MiB. The payload should scale with the bit width and the fp32
-# metadata should not, which is what makes the metadata a floor.
-DOC_BREAKDOWN_BITS = {
-    "block_cache_breakdown_b3_8k.json": (54, 36, 0, 90, 288),
-    "block_cache_breakdown_b2_8k.json": (36, 36, 0, 72, 288),
+# The same 8K prefill under other configurations, to pin the part of the
+# resident footprint that does *not* move: file -> (label, expected tuple of
+# payload/metadata/residual/total/fp16-KV MiB). The payload should scale with
+# the bit width; the fp32 scale/zero term should not, which is what makes it a
+# floor, and halving it should be the cheapest way to raise the floor.
+DOC_BREAKDOWN_VARIANTS = {
+    "block_cache_breakdown_b3_8k.json": ("bits=3", (54, 36, 0, 90, 288)),
+    "block_cache_breakdown_b2_8k.json": ("bits=2", (36, 36, 0, 72, 288)),
+    "block_cache_breakdown_meta16_8k.json": ("bits=4 meta=fp16", (72, 18, 0, 90, 288)),
 }
 
 # The bit-width and chunking rows documented alongside the main table, keyed by
@@ -117,6 +120,7 @@ def load_rows():
             model == DOC_MODEL
             and cfg.get("bits") == DOC_BITS
             and cfg.get("step") == DOC_STEP
+            and cfg.get("meta_dtype", "fp32") == DOC_META
         ):
             doc_candidates.append(row)
         else:
@@ -144,10 +148,10 @@ def load_breakdown():
     return {int(k): v for k, v in doc.get("rows", {}).items()}
 
 
-def load_breakdown_bits():
-    """Same 8K prefill at other bit widths, keyed by bits."""
+def load_breakdown_variants():
+    """Same 8K prefill under other configurations, keyed by (bits, step, meta)."""
     out = {}
-    for name in DOC_BREAKDOWN_BITS:
+    for name, (_label, _expected) in DOC_BREAKDOWN_VARIANTS.items():
         path = os.path.join(RESULTS, name)
         if not os.path.exists(path):
             continue
@@ -155,7 +159,12 @@ def load_breakdown_bits():
             doc = json.load(fh)
         rows = doc.get("rows", {})
         for row in rows.values():
-            out[(doc.get("bits"), int(row["requested_tokens"]))] = (name, row)
+            key = (
+                doc.get("bits"),
+                int(row["requested_tokens"]),
+                doc.get("meta_dtype", "fp32"),
+            )
+            out[key] = (name, row, _label)
     return out
 
 
@@ -279,24 +288,32 @@ def main():
                 f"shortfall {resident - measured:.3f}"
             )
 
-    breakdown_bits = load_breakdown_bits()
-    # Seed with the 4-bit 8K row, which lives in the main breakdown artifact,
-    # so the printed table covers 4/3/2 and not just the extra bit widths.
+    breakdown_variants = load_breakdown_variants()
+    # Seed with the 4-bit fp32 8K row, which lives in the main breakdown artifact,
+    # so the printed table covers the documented reference (4-bit fp32) plus the
+    # 3-bit/2-bit/fp16-meta variants next to it.
     if 8192 in breakdown:
-        breakdown_bits[(4, 8192)] = ("block_cache_breakdown.json", breakdown[8192])
-    if breakdown_bits:
+        breakdown_variants[(4, 8192, "fp32")] = (
+            "block_cache_breakdown.json",
+            breakdown[8192],
+            "bits=4 meta=fp32",
+        )
+    if breakdown_variants:
         print("\nresident attribution by bit width (8K prefill, MiB)")
-        print("   bits     payload  metadata  residual     total  meta share")
-        for (bits, ctx), (name, row) in sorted(breakdown_bits.items()):
+        print(
+            "   config                payload  metadata  residual     total  meta share"
+        )
+        for (bits, ctx, meta), (name, row, label) in sorted(breakdown_variants.items()):
             total = row["total_mib"]
             share = row["metadata_mib"] / total if total else 0.0
             print(
-                f"  {bits:>4}  {row['payload_mib']:10.2f} {row['metadata_mib']:9.2f} "
+                f"  {label:<20} {row['payload_mib']:10.2f} {row['metadata_mib']:9.2f} "
                 f"{row['residual_mib']:9.2f} {total:9.2f} {share:11.3f}"
             )
-            want = DOC_BREAKDOWN_BITS.get(name)
+            want = DOC_BREAKDOWN_VARIANTS.get(name)
             if want is None:
                 continue
+            _want_label, want_tuple = want
             got = (
                 row["payload_mib"],
                 row["metadata_mib"],
@@ -304,12 +321,13 @@ def main():
                 row["total_mib"],
                 row["fp16_kv_mib"],
             )
-            for label, g, e in zip(
-                ("payload", "metadata", "residual", "total", "fp16"), got, want
+            for label_field, g, e in zip(
+                ("payload", "metadata", "residual", "total", "fp16"), got, want_tuple
             ):
                 if abs(g - e) > MIB_TOL:
                     failures.append(
-                        f"  {name} [breakdown bits={bits}] {label}: doc={e} results={g}"
+                        f"  {name} [breakdown bits={bits} meta={meta}] "
+                        f"{label_field}: doc={e} results={g}"
                     )
 
     if args.check:

@@ -84,12 +84,25 @@ def main():
             "running the sweep."
         ),
     )
+    ap.add_argument(
+        "--meta-dtype",
+        default="fp32",
+        choices=("fp32", "fp16"),
+        help=(
+            "Precision of the scale/zero metadata. This is the term that does "
+            "not scale with --bits, so it is the ceiling on the saving."
+        ),
+    )
     args = ap.parse_args()
     ladder = tuple(args.lengths) if args.lengths else LADDER
     bits = args.bits
+    meta_dtype = torch.float16 if args.meta_dtype == "fp16" else torch.float32
 
     print(f"torch {torch.__version__} | {torch.cuda.get_device_name(0)}")
-    print(f"block={BLOCK} bits={bits} step={args.step}\n", flush=True)
+    print(
+        f"block={BLOCK} bits={bits} meta={args.meta_dtype} step={args.step}\n",
+        flush=True,
+    )
     tok = AutoTokenizer.from_pretrained(MODEL_ID, local_files_only=True)
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID, dtype=torch.float16, device_map="cuda", local_files_only=True
@@ -107,7 +120,7 @@ def main():
         if n < want:
             print(f"  {want}: corpus only has {n_avail}, using {n}\n", flush=True)
         ids = ids_all[:, : n + 1]
-        cache = BlockQuantCache(block=BLOCK, bits=bits)
+        cache = BlockQuantCache(block=BLOCK, bits=bits, meta_dtype=meta_dtype)
         t0 = time.perf_counter()
         fed = feed(model, cache, ids, args.step)
         torch.cuda.synchronize()
@@ -165,6 +178,7 @@ def main():
             "model": MODEL_ID,
             "block": BLOCK,
             "bits": bits,
+            "meta_dtype": args.meta_dtype,
             "step": args.step,
             "corpus": os.path.basename(CORPUS),
             "rows": rows,
