@@ -21,16 +21,17 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 RESULTS = os.path.join(REPO, "pilot", "results")
 
 # The exact numbers quoted in docs/TURBOQUANT-EXTRAPOLATION.md item (g).
-# context -> (fp16 ppl, block4 ppl, delta pct, fp16 peak alloc, block4 peak alloc)
+# context -> (fp16 ppl, block4 ppl, delta pct, fp16 peak alloc, block4 peak alloc,
+#             saved GiB)
 DOC_TABLE = {
-    8192: (6.0228, 6.0815, 0.97, 6.40, 6.23),
-    16384: (4.6279, 4.6711, 0.93, 6.68, 6.34),
-    24576: (3.4889, 3.5157, 0.77, 6.96, 6.47),
-    32768: (2.5536, 2.5700, 0.64, 7.24, 6.71),
+    8192: (6.0228, 6.0815, 0.97, 6.400, 6.233, 0.167),
+    16384: (4.6279, 4.6711, 0.93, 6.681, 6.338, 0.343),
+    24576: (3.4889, 3.5157, 0.77, 6.963, 6.471, 0.492),
+    32768: (2.5536, 2.5700, 0.64, 7.244, 6.706, 0.538),
 }
 
 PPL_TOL = 0.0001
-GIB_TOL = 0.006
+GIB_TOL = 0.0006
 DELTA_TOL = 0.006
 
 # Runs captured *before* the get_seq_length/get_mask_sizes overrides landed.
@@ -102,13 +103,14 @@ def main():
         want = DOC_TABLE.get(ctx)
         if want is None:
             continue
-        w_fp16, w_b4, w_delta, w_fa, w_ba = want
+        w_fp16, w_b4, w_delta, w_fa, w_ba, w_saved = want
         for label, got, exp, tol in (
             ("fp16 ppl", fl["perplexity"], w_fp16, PPL_TOL),
             ("block4 ppl", b4["perplexity"], w_b4, PPL_TOL),
             ("delta pct", delta, w_delta, DELTA_TOL),
             ("fp16 alloc", fl["peak_alloc_gib"], w_fa, GIB_TOL),
             ("block4 alloc", b4["peak_alloc_gib"], w_ba, GIB_TOL),
+            ("saved", saved, w_saved, GIB_TOL),
         ):
             if abs(got - exp) > tol:
                 failures.append(

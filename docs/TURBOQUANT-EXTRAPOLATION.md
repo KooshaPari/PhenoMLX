@@ -511,12 +511,20 @@ check fails loud.
 The cache holds at every context length up to 32K, on the same `tq_block_cache_eval_long.py`
 driver and the same 3B model (`pilot/results/block_cache_{8k,16k,24k,32k}_*.json`):
 
-| Context | fp16 PPL | block4 PPL | delta PPL | peak fp16 (GiB) | peak block4 (GiB) | saved | mean unsat rel |
+| Context | fp16 PPL | block4 PPL | delta PPL | fp16 peak alloc (GiB) | block4 peak alloc (GiB) | saved (GiB) | mean unsat rel |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-|  8K | 6.0228 | 6.0815 | +0.97% | 6.40 | 6.23 | 170 MB | 0.88% |
-| 16K | 4.6279 | 4.6711 | +0.93% | 6.68 | 6.34 | 340 MB | 1.00% |
-| 24K | 3.4889 | 3.5157 | +0.77% | 6.96 | 6.47 | 490 MB | 0.90% |
-| 32K | 2.5536 | 2.5700 | +0.64% | 7.24 | 6.71 | 530 MB | 0.90% |
+|  8K | 6.0228 | 6.0815 | +0.97% | 6.400 | 6.233 | 0.167 | 0.88% |
+| 16K | 4.6279 | 4.6711 | +0.93% | 6.681 | 6.338 | 0.343 | 1.00% |
+| 24K | 3.4889 | 3.5157 | +0.77% | 6.963 | 6.471 | 0.492 | 0.90% |
+| 32K | 2.5536 | 2.5700 | +0.64% | 7.244 | 6.706 | 0.538 | 0.90% |
+
+`python tq_block_cache_results_table.py --check` regenerates this table from
+the committed `pilot/results/block_cache_*.json` and fails if any cell above
+drifts, so the numbers are asserted rather than transcribed. The `saved`
+column is GiB (earlier revisions printed decimal MB and read ~2% low).
+`pilot/results/block_cache_8k.json` and `block_cache_1k.json` are deliberately
+*not* the 8K row: they are the pre-fix runs whose block4 PPL is 811,272 and
+56,657, kept as the fingerprint of the second-chunk mask bug described above.
 
 Three observations the table supports.
 
@@ -530,17 +538,56 @@ Three observations the table supports.
   delta and the saturation-aware step rel diff, so a failure mode in either
   shows up in the report. The exclusion (`abs(loss) < 0.05` nats) is fixed in
   `tq_block_cache_eval_long.py`.
-- **Cache VRAM savings grow with context.** 170 MB at 8K is small, but 530 MB
-  at 32K -- 7% of the 7.24 GiB fp16 footprint -- is the start of a real win
-  and the trajectory is linear in stored blocks. The cache holds less VRAM
-  than fp16 *because* its compressed payload is smaller than the fp16 KV
-  tensor it replaces; the residual growth comes from the partial trailing
-  block and the fp16 metadata, which are constant per layer.
-- **Decode-step memory is well under control at every length.** `tq_block_cache_decode_oom_probe.py`
-  now tests the full 1K through 24K prefill × 4 decode-step ladder. Peak reserved
-  VRAM at step-0 is 5.88 GiB (1K) → 6.50 GiB (8K) on the 24 GiB card, with the
-  growth proportional to stored blocks, and step-1+ settles ~0.4 GiB below
-  step-0 because the model releases the activation buffer after the forward pass.
+- **Cache VRAM savings grow with context.** 0.167 GiB at 8K is small, but
+  0.538 GiB at 32K -- 7% of the 7.244 GiB fp16 footprint -- is the start of a
+  real win and the trajectory is linear in stored blocks. The cache holds
+  less VRAM than fp16 *because* its compressed payload is smaller than the
+  fp16 KV tensor it replaces; the residual growth comes from the partial
+  trailing block and the fp32 metadata, which are constant per layer.
+- **Decode-step memory has no ceiling inside the tested window.**
+  `tq_block_cache_decode_oom_probe.py` isolates the decode cost: prefill N
+  tokens, run 4 decode steps, report peak allocated and reserved VRAM per
+  step, with the model loaded *once* for the whole ladder so safetensors
+  fragmentation from reloading cannot masquerade as a ceiling. Every rung
+  through 16384 survived all 4 decode steps:
+
+  | prefill tokens | blocks | step-0 peak alloc | step-0 peak reserved | step-1+ peak reserved |
+  |---:|---:|---:|---:|---:|
+  | 1024 | 32 | 5.83 | 5.88 | 5.87 |
+  | 2048 | 64 | 5.90 | 5.92 | 5.88 |
+  | 4096 | 128 | 6.05 | 6.11 | 5.96 |
+  | 6144 | 192 | 6.20 | 6.32 | 6.04 |
+  | 8192 | 256 | 6.35 | 6.50 | 6.22 |
+  | 12288 | 384 | 6.64 | 6.91 | 6.42 |
+  | 16384 | 512 | 6.94 | 7.30 | 6.64 |
+
+  Two slopes come out of that table, and they are different costs. Step 0 is
+  measured right after a *single-shot* N-token prefill, so it carries the
+  prefill's QDQ workspace: 1.42 GiB over 480 blocks, an endpoint slope of
+  ~3.0 MiB reserved per 32-token block. Steps 1+ are clean decode-step peaks
+  (the probe resets peak stats and empties the allocator before each one) and
+  slope at ~1.6 MiB per block, still 1.5x the 1.125 MiB of fp16 KV those
+  tokens would occupy and ~6x the 0.281 MiB the cache actually stores packed.
+  Both slopes are endpoint estimates from two rungs, not fits; the per-rung
+  deltas in the logs are noisy (0.3-2.9 MiB/block for step 1+) but never
+  negative, so the growth is real and linear-ish rather than a phase change.
+  The honest reading is that the *transient* re-decode workspace dominates
+  the growth, not the resident packed cache -- `BlockQuantCache.byte_breakdown()`
+  separates payload, fp32 metadata and fp16 residual and is the way to
+  attribute the rest, which is the next measurement rather than a claim.
+
+  The ladder stops at 16384 here only because the probe's corpus has to be
+  longer than `max(prefill) + 5`: the 19,522-token `corpus_repodocs.txt` ran
+  the 24K rung off its end and attention failed with `The size of tensor a
+  (19522) must match the size of tensor b (24576)`. That is a corpus-length
+  bug wearing a shape-error costume, so the probe now carries a per-rung
+  length guard that prints `SKIPPED: corpus has N tokens, need M`, and
+  `CORPUS` points at `corpus_long.txt` (39,061 tokens). Peak VRAM depends on
+  the stored block count alone, so the ladder is comparable across corpora;
+  the reported losses are not. The stronger evidence that decode is not
+  where this design hits a wall is the 32K row above:
+  `tq_block_cache_eval_long.py` prefills 32768 tokens and then decodes 128
+  steps at 7.59 GiB reserved (fp16) / 6.94 GiB (block4).
 
 **The 24K and 32K measurements use a *repeated* corpus because the original
 text is only 19,522 tokens. The saturation-aware metric (`mean unsat rel diff`)
@@ -556,7 +603,7 @@ designed to confirm.**
 2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B. **Largely done** via `BlockQuantCache` (`perf-core/turbo-quant-cuda/tq_block_cache.py`); the 3B 8K streamed PPL is +0.97% vs fp16 with peak VRAM slightly lower than fp16 itself (item (g)). The remaining work is the throughput claim (item (a)'s fused decode) and the 7B / 15B re-runs.
 3. Re-run 7B/15B benchmarks on desktop with TurboQuant+ packed-KV active
 4. Measure actual quality preservation with MMLU/GPQA subsets
-5. Concurrency and long-context sweep: 2048-token windows at 3B are done (item (d), where the codec's deficit grows to +61.8% while per-channel K holds at +1.45%). **8192-token at 3B is done** via `BlockQuantCache` (item (g), +0.97% vs fp16). 16K/32K and batch > 1 are still open. The cache's host-side decode grows linearly with stored blocks (~20 ms per layer per step at 4K tokens, item below the table). The 24 GiB 3090 Ti ceiling for autoregressive decode past an 8K prefill is comfortably above 8K: `tq_block_cache_decode_oom_probe.py` cleared all five test points (1K/2K/4K/6K/8K prefill × 4 decode steps), with peak reserved VRAM at step-0 rising from 5.88 GiB (1024 tokens, 32 blocks) to 6.50 GiB (8192 tokens, 256 blocks) -- the growth is linear in stored blocks, and on a 24 GiB card the curve does not hit OOM anywhere in the 8K window.
+5. Concurrency and long-context sweep: 2048-token windows at 3B are done (item (d), where the codec's deficit grows to +61.8% while per-channel K holds at +1.45%). **8192-token at 3B is done** via `BlockQuantCache` (item (g), +0.97% vs fp16), and **16K/24K/32K at 3B are done too** (`tq_block_cache_eval_long.py`, +0.93% / +0.77% / +0.64%, same table). Batch > 1 is still open. The cache's host-side decode grows linearly with stored blocks (~20 ms per layer per step at 4K tokens, item below the table). The 24 GiB 3090 Ti decode ceiling is not inside the measured window: `tq_block_cache_decode_oom_probe.py` cleared every rung from 1K to 16K prefill (× 4 decode steps) with step-0 reserved rising 5.88 GiB (1024 tokens, 32 blocks) to 7.30 GiB (16384 tokens, 512 blocks), and `tq_block_cache_eval_long.py` independently prefills and decodes 32K. The 24K probe rung is pending re-measurement on `corpus_long.txt`; the rung only failed before because the 19,522-token corpus ran out, not because VRAM did.
 6. PPL gate: adopt perplexity, with a high-bit control run, as the quality gate before any further quantization claim
 7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both. **The decode must be fused:** a host-side packed cache is measured non-viable (3.3 s per update at 4K tokens for one layer, against 0.18 ms for FP16), so the block layout has to be paired with an in-attention dequantize.
 
