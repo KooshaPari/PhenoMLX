@@ -99,7 +99,7 @@ def probe(prefill, decode_steps=4):
 def main():
     print(f"torch {torch.__version__} | {torch.cuda.get_device_name(0)}\n")
     print("decode-step memory ceiling probe (block=32, bits=4)\n")
-    for prefill in (1024, 2048, 4096, 6144, 8192):
+    for prefill in (1024, 2048, 4096, 6144, 8192, 12288, 16384, 24576):
         last_ok = probe(prefill)
         gc.collect()
         torch.cuda.empty_cache()
