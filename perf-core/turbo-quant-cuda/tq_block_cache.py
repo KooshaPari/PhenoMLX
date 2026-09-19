@@ -37,11 +37,12 @@ from turbo_quant_cuda import decode_uniform_cuda, encode_uniform_cuda  # noqa: E
 class BlockQuantCache(cu.DynamicCache):
     """Quantize-once KV cache with per-channel K and per-token V."""
 
-    def __init__(self, block=32, bits=4, v_group=32):
+    def __init__(self, block=32, bits=4, v_group=32, meta_dtype=torch.float32):
         super().__init__()
         self.block = block
         self.bits = bits
         self.v_group = v_group
+        self.meta_dtype = meta_dtype
         self._stored = {}  # layer -> dict with 'k' and 'v' block lists
         self._residual = {}  # layer -> (k_res, v_res)
 
@@ -56,6 +57,11 @@ class BlockQuantCache(cu.DynamicCache):
         # The CUDA codec works in float32; the model hands us fp16.
         rows = tensor_rows.reshape(-1, group).contiguous().to(torch.float32)
         packed, scales, zeros = encode_uniform_cuda(rows.reshape(-1), self.bits, group)
+        # Metadata is the second-largest term in the resident footprint, so let the
+        # caller choose its precision (fp16 halves it) rather than hardcoding fp32.
+        if self.meta_dtype != torch.float32:
+            scales = scales.to(self.meta_dtype)
+            zeros = zeros.to(self.meta_dtype)
         return (packed, scales, zeros, rows.shape)
 
     def _decode(self, entry, group):
@@ -63,6 +69,9 @@ class BlockQuantCache(cu.DynamicCache):
         n = 1
         for dim in row_shape:
             n *= int(dim)
+        # The codec decodes in float32, so upcast whatever precision we stored.
+        scales = scales.to(torch.float32)
+        zeros = zeros.to(torch.float32)
         flat = decode_uniform_cuda(packed, scales, zeros, n, self.bits, group)
         return flat.reshape(row_shape)
 
@@ -145,7 +154,8 @@ class BlockQuantCache(cu.DynamicCache):
                 for entry, _meta in bucket[group]:
                     packed, scales, zeros, _shape = entry
                     payload += packed.numel()
-                    metadata += (scales.numel() + zeros.numel()) * 4
+                    metadata += scales.numel() * scales.element_size()
+                    metadata += zeros.numel() * zeros.element_size()
         for res in self._residual.values():
             if res is not None and res[0] is not None:
                 residual += res[0].numel() * res[0].element_size()

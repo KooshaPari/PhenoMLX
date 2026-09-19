@@ -205,9 +205,16 @@ quantized post-RoPE, V at `v_proj`; `codec_eval_3b_postrope_b4_decomp.json`):
    without the QJL stage does worse than the current codec here, which is
    consistent with the paper's own stated motivation for QJL. Implementing QJL
    and re-running is a prerequisite for a parity claim in either direction.
-5. **Metadata is a real cost.** "4-bit" uniform RTN with fp32 scale + zero per
-   group of 32 costs 6 bits/coordinate on the wire. TurboQuant's single fp16
-   norm per 128-dim vector costs 0.125 bits/coordinate.
+5. **Metadata is a real cost, and halving its precision is a measured free win.**
+   "4-bit" uniform RTN with fp32 scale + zero per group of 32 costs 6
+   bits/coordinate on the wire; TurboQuant's single fp16 norm per 128-dim vector
+   costs 0.125 bits/coordinate. On the resident cache this term is 22% of the
+   footprint, and storing it as fp16 halves it: 73,728 -> 65,536 resident bytes for
+   the same blocks (152 tokens, block=32), improving the effective reduction from
+   2.11x to 2.38x while reconstruction error moves by +0.01%
+   (`perf-core/turbo-quant-cuda/tq_block_cache_metadata_check.py`, which asserts both
+   the byte drop and the error bound rather than assuming them). fp32 metadata is
+   the avoidable part.
 
 Caveats: this is still fake-quant (QDQ), not a resident packed cache, so it
 measures quality only and no throughput claim is made. PPL windows are chunked,
