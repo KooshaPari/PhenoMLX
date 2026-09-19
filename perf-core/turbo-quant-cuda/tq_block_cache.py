@@ -49,7 +49,10 @@ class BlockQuantCache(cu.DynamicCache):
     # -- internal helpers -------------------------------------------------
     def _bucket(self, layer_idx):
         if layer_idx not in self._stored:
-            self._stored[layer_idx] = {"k": [], "v": []}
+            self._stored[layer_idx] = {
+                "k": {"packed": [], "scales": [], "zeros": [], "rows": 0, "blocks": 0},
+                "v": {"packed": [], "scales": [], "zeros": [], "rows": 0, "blocks": 0},
+            }
             self._residual[layer_idx] = None
         return self._stored[layer_idx]
 
@@ -62,40 +65,84 @@ class BlockQuantCache(cu.DynamicCache):
         if self.meta_dtype != torch.float32:
             scales = scales.to(self.meta_dtype)
             zeros = zeros.to(self.meta_dtype)
-        return (packed, scales, zeros, rows.shape)
+        return packed, scales, zeros, rows.shape
 
-    def _decode(self, entry, group):
-        packed, scales, zeros, row_shape = entry
-        n = 1
-        for dim in row_shape:
-            n *= int(dim)
-        # The codec decodes in float32, so upcast whatever precision we stored.
-        scales = scales.to(torch.float32)
-        zeros = zeros.to(torch.float32)
+    def _decode_all(self, bucket, group, row_width, group_shape):
+        """Decode every stored block in ONE codec call.
+
+        Encoding happens per block, so the concatenated buffers are in block-major
+        group order: block0's groups, then block1's, and so on. That order is
+        exactly what the codec expects, so the blocks can be decoded together and
+        the result reordered with a reshape/permute on the decoded floats -- no
+        bit-level work. Doing this per block instead cost 256 codec calls per
+        layer per step, which is what made the host-side cache non-viable.
+
+        `row_width` is the number of values per row (the block size for K, the
+        head dim for V); it is not always the group size, which is why it is a
+        separate argument.
+        """
+        packed = torch.cat(bucket["packed"])
+        scales = torch.cat(bucket["scales"]).to(torch.float32)
+        zeros = torch.cat(bucket["zeros"]).to(torch.float32)
+        blocks = bucket["blocks"]
+        rows = bucket["rows"]
+        n = blocks * rows * row_width
         flat = decode_uniform_cuda(packed, scales, zeros, n, self.bits, group)
-        return flat.reshape(row_shape)
+        return flat.reshape(blocks, rows, *group_shape), blocks, rows
 
-    def _quantize_k_block(self, k_block):
-        """k_block: [B, H, block, D] -> per-channel encode (group along tokens)."""
+    def _flush_k_block(self, bucket, k_block):
+        """k_block [B,H,block,D] -> one group per channel, along the token axis."""
         b, h, s, d = k_block.shape
-        rows = k_block.permute(0, 1, 3, 2).reshape(b * h * d, s)
-        return self._encode(rows, s), (b, h, s, d)
+        packed, scales, zeros, _ = self._encode(
+            k_block.permute(0, 1, 3, 2).reshape(b * h * d, s), s
+        )
+        g = bucket["k"]
+        g["packed"].append(packed)
+        g["scales"].append(scales)
+        g["zeros"].append(zeros)
+        g["rows"], g["blocks"], g["shape"] = b * h * d, g["blocks"] + 1, (b, h, s, d)
 
-    def _quantize_v_block(self, v_block):
-        """v_block: [B, H, block, D] -> per-token encode (group along channels)."""
+    def _flush_v_block(self, bucket, v_block):
+        """v_block [B,H,block,D] -> groups along channels within each token."""
         b, h, s, d = v_block.shape
-        rows = v_block.reshape(b * h * s, d)
-        return self._encode(rows, self.v_group), (b, h, s, d)
+        packed, scales, zeros, _ = self._encode(
+            v_block.reshape(b * h * s, d), self.v_group
+        )
+        g = bucket["v"]
+        g["packed"].append(packed)
+        g["scales"].append(scales)
+        g["zeros"].append(zeros)
+        g["rows"], g["blocks"], g["shape"] = b * h * s, g["blocks"] + 1, (b, h, s, d)
 
-    def _dequantize_k_block(self, entry, meta):
-        b, h, s, d = meta
-        rows = self._decode(entry, s)
-        return rows.reshape(b, h, d, s).permute(0, 1, 3, 2)
+    def _k_tensor(self, bucket):
+        """Stored K blocks as [B,H,blocks*block,D], decoded in one codec call."""
+        g = bucket["k"]
+        if g["blocks"] == 0:
+            return None
+        b, h, s, d = g["shape"]
+        groups, blocks, _rows = self._decode_all(g, s, s, (s,))
+        return (
+            groups.reshape(blocks, b, h, d, s)
+            .permute(1, 2, 0, 4, 3)
+            .reshape(b, h, blocks * s, d)
+        )
 
-    def _dequantize_v_block(self, entry, meta):
-        b, h, s, d = meta
-        rows = self._decode(entry, self.v_group)
-        return rows.reshape(b, h, s, d)
+    def _v_tensor(self, bucket):
+        """Stored V blocks as [B,H,blocks*block,D], decoded in one codec call."""
+        g = bucket["v"]
+        if g["blocks"] == 0:
+            return None
+        b, h, s, d = g["shape"]
+        per_row = d // self.v_group
+        groups, blocks, _rows = self._decode_all(
+            g, self.v_group, d, (per_row, self.v_group)
+        )
+        return (
+            groups.reshape(blocks, b, h, s, per_row, self.v_group)
+            .reshape(blocks, b, h, s, d)
+            .permute(1, 2, 0, 3, 4)
+            .reshape(b, h, blocks * s, d)
+        )
 
     # -- cache API --------------------------------------------------------
     def update(self, key_states, value_states, layer_idx, cache_kwargs=None):
@@ -109,30 +156,37 @@ class BlockQuantCache(cu.DynamicCache):
 
         # Flush every complete block. Encoded once; never re-encoded.
         while k_res.shape[-2] >= self.block:
-            k_blk = k_res[..., : self.block, :]
-            v_blk = v_res[..., : self.block, :]
-            k_entry, k_meta = self._quantize_k_block(k_blk)
-            v_entry, v_meta = self._quantize_v_block(v_blk)
-            bucket["k"].append((k_entry, k_meta))
-            bucket["v"].append((v_entry, v_meta))
+            self._flush_k_block(bucket, k_res[..., : self.block, :])
+            self._flush_v_block(bucket, v_res[..., : self.block, :])
             k_res = k_res[..., self.block :, :]
             v_res = v_res[..., self.block :, :]
         self._residual[layer_idx] = (k_res, v_res)
 
-        k_parts = [self._dequantize_k_block(e, m) for e, m in bucket["k"]]
-        v_parts = [self._dequantize_v_block(e, m) for e, m in bucket["v"]]
-        # Decoded blocks come back in float32; concatenate in the caller's dtype
-        # (fp16 in the model) so attention receives what it expects.
-        k_parts = [p.to(k_res.dtype) for p in k_parts]
-        v_parts = [p.to(v_res.dtype) for p in v_parts]
+        # One decode call per layer for all stored blocks, instead of one per
+        # block. Decoded values come back in float32, so cast to the caller's
+        # dtype (fp16 in the model) before concatenating with the residual.
+        k_stored, v_stored = self._k_tensor(bucket), self._v_tensor(bucket)
+        k_parts = [] if k_stored is None else [k_stored.to(k_res.dtype)]
+        v_parts = [] if v_stored is None else [v_stored.to(v_res.dtype)]
         k_parts.append(k_res)
         v_parts.append(v_res)
         return torch.cat(k_parts, dim=-2), torch.cat(v_parts, dim=-2)
 
     def get_seq_length(self, layer_idx=None):
-        """Tokens currently cached, including the FP16 residual."""
-        buckets = self._stored.get(layer_idx, {"k": [], "v": []})
-        total = sum(meta[2] for _entry, meta in buckets["k"])
+        """Tokens currently cached, including the FP16 residual.
+
+        Must default the same way the parent does: the model calls this with no
+        argument to size its causal mask. Defaulting to None made the lookup miss
+        and report 0, so the mask assumed an empty prefix while attention received
+        the full cached K/V -- correct values, garbage output, at every context
+        length. Any layer's cache has the same length, so 0 is a safe default.
+        """
+        if layer_idx is None:
+            layer_idx = 0
+        bucket = self._stored.get(layer_idx)
+        total = 0
+        if bucket:
+            total = bucket["k"]["blocks"] * bucket["k"]["shape"][2]
         res = self._residual.get(layer_idx)
         if res is not None and res[0] is not None:
             total += res[0].shape[-2]
@@ -150,12 +204,11 @@ class BlockQuantCache(cu.DynamicCache):
         """
         payload = metadata = residual = 0
         for bucket in self._stored.values():
-            for group in ("k", "v"):
-                for entry, _meta in bucket[group]:
-                    packed, scales, zeros, _shape = entry
-                    payload += packed.numel()
-                    metadata += scales.numel() * scales.element_size()
-                    metadata += zeros.numel() * zeros.element_size()
+            for kind in ("k", "v"):
+                g = bucket[kind]
+                payload += sum(p.numel() for p in g["packed"])
+                metadata += sum(s.numel() * s.element_size() for s in g["scales"])
+                metadata += sum(z.numel() * z.element_size() for z in g["zeros"])
         for res in self._residual.values():
             if res is not None and res[0] is not None:
                 residual += res[0].numel() * res[0].element_size()

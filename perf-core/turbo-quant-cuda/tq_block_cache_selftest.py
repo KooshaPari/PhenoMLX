@@ -67,14 +67,14 @@ for step_i, n in enumerate(SEQ_STEPS):
         f"got {cache.get_seq_length(0)}",
     )
     # snapshot the stored blocks so we can prove they are never rewritten
-    snapshots.append([e[0][0].clone() for e in cache._stored[0]["k"]])
+    snapshots.append([p.clone() for p in cache._stored[0]["k"]["packed"]])
 
 print()
 total_blocks = fed // BLOCK
 check(
     "block count matches full blocks",
-    len(cache._stored[0]["k"]) == total_blocks,
-    f"{len(cache._stored[0]['k'])} blocks for {fed} tokens",
+    cache._stored[0]["k"]["blocks"] == total_blocks,
+    f"{cache._stored[0]['k']['blocks']} blocks for {fed} tokens",
 )
 check(
     f"residual holds the remainder ({fed % BLOCK} tokens)",
@@ -83,7 +83,7 @@ check(
 
 # quantize-once: every block stored at step i must be unchanged at the end
 unchanged = all(
-    torch.equal(snap[i], cache._stored[0]["k"][i][0][0])
+    torch.equal(snap[i], cache._stored[0]["k"]["packed"][i])
     for snap in snapshots
     for i in range(len(snap))
 )

@@ -426,31 +426,34 @@ next implementation question is therefore the re-quantization policy -- ideally
 quantize each block once and never revisit it -- but the decode side must be fused
 into attention, not done host-side; see below -- not the bit width.
 
-**A host-side packed cache is not viable -- measured.** Quantize-once fixes the
-quality mechanism, but it does not make a Python-side packed cache usable. From
-`perf-core/turbo-quant-cuda/tq_block_cache_bench.py`, one layer, synthetic K/V,
-256-token steps:
+**A host-side packed cache needs a batched decode -- and then it works.** The first
+implementation decoded one stored block at a time: 256 codec calls per layer per
+step, growing with the prefix (3.3 s per update at 4096 tokens for a *single* layer,
+against 0.18 ms for FP16). That is the shape that made the 8K comparison abort after
+22 minutes, and it is the only reason the earlier note here called a host-side cache
+non-viable.
 
-| step | tokens | FP16 (`DynamicCache`) | `BlockQuantCache` | ratio |
-|---|---|---|---|---|
-| 1 | 256 | 82.15 ms | 710.56 ms | 8.6x |
-| 8 | 2048 | 39.88 ms | 2299.10 ms | 57.6x |
-| 16 | 4096 | 0.18 ms | 3296.30 ms | 18,529x |
+The blocks can instead be decoded in a **single** call. Per-block storage is already
+in the group order the codec expects, so concatenating the block buffers and
+decoding once per layer needs nothing but a reshape/permute on the decoded floats --
+no bit-level work. `tq_block_cache_bench.py`, one layer, 256-token steps, before and
+after:
 
-`DynamicCache` is flat because appending is a copy. The packed cache's per-step cost
-rises with the prefix because it re-decodes every stored block to hand attention a
-full K/V tensor: 3.3 s per update at 4096 tokens for a *single* layer. That is why
-the 8K quality comparison against hqq was abandoned after 22 minutes instead of
-finishing, and why the quantize-once 8K quality figure is recorded here as
-**UNKNOWN** rather than estimated.
+| implementation | last step (4096 tok) | growth across 16 steps | total |
+|---|---|---|---|
+| per-block decode | 3296.30 ms | 4.6x | 35,243.6 ms |
+| **single batched decode** | **20.32 ms** | **0.2x** | **455.2 ms** |
 
-The implication is architectural and matches what section 4 said from the start:
-dequantization belongs **inside the attention kernel**, not in the cache.
-Quantize-once is the right quality policy -- the `residual_length` sweep showed
-re-quantizing costs about 5x -- but a fused decode is a precondition for any
-throughput claim. Future Work item 7 therefore becomes: implement the block layout
-*plus* a fused decode, not a host-side cache. No end-to-end latency can be
-measured from this work, and none is claimed.
+The per-step cost is now flat at ~20 ms per layer instead of rising: 162x better at
+4096 tokens, and quadratic growth is gone. That makes the previously-aborted 8K
+measurement affordable (~23 s of cache time for a 32-step window per configuration),
+and it is reported below.
+
+The architectural point survives in weaker form: ~20 ms per layer per step is still
+~250x the cost of FP16's copy (0.08 ms per layer), so production throughput still
+requires the dequantize fused into attention. But the host-side design is no longer
+structurally blocked, and measuring quality with it is practical -- which is what
+the measurement below does.
 
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
