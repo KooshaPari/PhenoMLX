@@ -1,0 +1,47 @@
+{
+  "probe": "needle_in_haystack",
+  "model": "Qwen/Qwen2.5-3B-Instruct",
+  "context_tokens": 32768,
+  "step": 256,
+  "cases": 1,
+  "block": 32,
+  "bits": 4,
+  "v_group": 32,
+  "meta_dtype": "fp32",
+  "depths": [
+    0.5
+  ],
+  "fp16": {
+    "first_digit_acc": 1.0,
+    "full_code_acc": 1.0,
+    "mean_digit_margin": 6.2344,
+    "rows": [
+      {
+        "depth": 0.5,
+        "code": "1031",
+        "digit_hit": true,
+        "pred_digit": "1",
+        "margin": 6.2344,
+        "code_hit": true,
+        "text": "1031.\nAnswer: The access code for the TURBINE"
+      }
+    ]
+  },
+  "block4": {
+    "first_digit_acc": 1.0,
+    "full_code_acc": 1.0,
+    "mean_digit_margin": 5.5,
+    "rows": [
+      {
+        "depth": 0.5,
+        "code": "1031",
+        "digit_hit": true,
+        "pred_digit": "1",
+        "margin": 5.5,
+        "code_hit": true,
+        "text": "1031.\n\nAnswer: The access code for the TURBINE"
+      }
+    ]
+  },
+  "margin_delta": -0.7344
+}

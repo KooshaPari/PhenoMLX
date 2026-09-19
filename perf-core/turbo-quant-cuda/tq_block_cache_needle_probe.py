@@ -160,6 +160,14 @@ def main():
     ap.add_argument("--model", default="Qwen/Qwen2.5-3B-Instruct")
     ap.add_argument("--cases", type=int, default=10)
     ap.add_argument(
+        "--depths",
+        default=None,
+        help="Comma-separated depth fractions, overriding the default "
+        "0.10,0.30,0.50,0.70,0.90 cycle. Useful at 32K, where a single case "
+        "costs ~5 minutes under block4 and the 5-depth sweep does not fit in "
+        "one run.",
+    )
+    ap.add_argument(
         "--out",
         default=None,
         help="Optional JSON artifact path. Records per-case rows plus the "
@@ -196,8 +204,9 @@ def main():
     haystack = torch.tensor(hay[: args.context], dtype=torch.long)
 
     cases = []
+    depths = [float(x) for x in args.depths.split(",")] if args.depths else DEPTHS
     for i in range(args.cases):
-        depth = DEPTHS[i % len(DEPTHS)]
+        depth = depths[i % len(depths)]
         name = NAMES[i % len(NAMES)]
         code = str(1000 + (i * 1207 + 31) % 9000)
         ids, pos = build_case(tok, haystack, depth, name, code)

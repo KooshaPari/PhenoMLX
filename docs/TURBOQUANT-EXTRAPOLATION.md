@@ -831,17 +831,23 @@ Three observations the table supports.
   |  4K | 10 | 0.10-0.90 (x2) | block4 | 1.00 | 1.00 | +13.54 |
   | 16K |  5 | 0.10-0.90 | fp16 | 1.00 | 1.00 | +7.64 |
   | 16K |  5 | 0.10-0.90 | block4 | 1.00 | 1.00 | +7.58 |
+  | 32K |  1 | 0.50 | fp16 | 1.00 | 1.00 | +6.23 |
+  | 32K |  1 | 0.50 | block4 | 1.00 | 1.00 | +5.50 |
 
   Retrieval is perfect under both caches at every depth, and the *margin* the
   model holds over the best wrong digit is nearly untouched: -0.78 nats at 4K
-  (a 5% reduction on a +14 nat margin) and -0.06 nats at 16K. Two things are
+  (a 5% reduction on a +14 nat margin), -0.06 nats at 16K, and -0.73 nats on the
+  single 32K mid-depth case (`pilot/results/needle_32k.json`; one case is not a
+  rate, and a 5-depth 32K sweep does not fit one run -- block4 costs ~110 s per
+  32K case, so it needs per-depth invocations). Two things are
   worth reading off this. First, the 4-bit cache is not merely "close in
   perplexity" -- the fact is still retrievable from the quantized blocks at
-  16K of context, which is the failure mode that would actually break a
+  16K of context (and at 32K, at a still-large +5.5 nat margin), which is the
+  failure mode that would actually break a
   deployment. Second, the margin shrinks with context for *both* caches (+14.3
-  at 4K to +7.6 at 16K), so the context-length effect is the model's, not the
-  cache's; the cache's own contribution to that change is under 0.1 nat at
-  16K. This supersedes the MMLU/GPQA plan for item 4 below: the datasets are
+  at 4K to +6.2 at 32K), so the context-length effect is the model's, not the
+  cache's; the cache's own contribution is under 0.1 nat at 16K. This
+  supersedes the MMLU/GPQA plan for item 4 below: the datasets are
   not in the local HF cache, `lm_eval` is not installed, and the eval runs are
   offline by policy, whereas this probe runs from the local corpus and targets
   the long-context retrieval failure mode directly.
