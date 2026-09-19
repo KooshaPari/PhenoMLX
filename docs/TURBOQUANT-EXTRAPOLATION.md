@@ -393,16 +393,31 @@ Two conclusions, pointing opposite ways:
   0.04 GiB measured. The harness can see residency and the arithmetic tracks.
 - **Quality: not viable at this context.** The configuration that cost +8.65% at
   2048 tokens costs **+166%** at 8192, a 19x worsening, and 3-bit reaches +5,824%.
-  Quantized context is read by every later attention step, and this cache
-  re-quantizes the entire accumulated prefix whenever its 128-token FP16 window
-  fills -- 64 times across an 8K window -- so the design compounds its own error.
+
+The suspected cause was the cache's habit of re-quantizing its entire accumulated
+prefix every time the 128-token FP16 window fills -- 64 times across an 8K window.
+That is now measured rather than assumed, by varying `residual_length` at 8192
+tokens (`pilot/results/packed_cache_stream_3b_8k_res1024.json`):
+
+| `residual_length` | re-quantizations per 8K window | hqq 4-bit `axis0` | hqq 3-bit `axis0` |
+|---|---|---|---|
+| 128 | 64 | **+166%** | +5,824% |
+| 1024 | 8 | **+33.9%** | +1,441% |
+
+So the policy is a major driver -- eight times fewer re-quantizations buys about
+five times better quality -- but it is not the whole story: +33.9% remains at 8192
+tokens even then, against +8.65% for the same cache at 2048 and +1.45% for
+per-channel K in the hook harness at 2048. Longer context over quantized K costs
+something by itself. Note the trade: the larger residual also gives back some
+memory (0.17 GiB saved against 0.19 GiB at `residual_length=128`).
 
 So the memory case is narrower than this document originally promised, and now
 measurable in both directions: 4-bit KV does deliver the modelled memory reduction
 (0.19 GiB at 8K, within 10% of prediction), but not with this cache's
 re-quantization policy, and no throughput claim follows until both are fixed. The
-next implementation question is therefore the re-quantization policy, not the bit
-width.
+next implementation question is therefore the re-quantization policy -- ideally
+quantize each block once and never revisit it, which is the design specified in
+Future Work item 7 -- not the bit width.
 
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
