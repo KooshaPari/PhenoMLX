@@ -416,8 +416,34 @@ measurable in both directions: 4-bit KV does deliver the modelled memory reducti
 (0.19 GiB at 8K, within 10% of prediction), but not with this cache's
 re-quantization policy, and no throughput claim follows until both are fixed. The
 next implementation question is therefore the re-quantization policy -- ideally
-quantize each block once and never revisit it, which is the design specified in
-Future Work item 7 -- not the bit width.
+quantize each block once and never revisit it -- but the decode side must be fused
+into attention, not done host-side; see below -- not the bit width.
+
+**A host-side packed cache is not viable -- measured.** Quantize-once fixes the
+quality mechanism, but it does not make a Python-side packed cache usable. From
+`perf-core/turbo-quant-cuda/tq_block_cache_bench.py`, one layer, synthetic K/V,
+256-token steps:
+
+| step | tokens | FP16 (`DynamicCache`) | `BlockQuantCache` | ratio |
+|---|---|---|---|---|
+| 1 | 256 | 82.15 ms | 710.56 ms | 8.6x |
+| 8 | 2048 | 39.88 ms | 2299.10 ms | 57.6x |
+| 16 | 4096 | 0.18 ms | 3296.30 ms | 18,529x |
+
+`DynamicCache` is flat because appending is a copy. The packed cache's per-step cost
+rises with the prefix because it re-decodes every stored block to hand attention a
+full K/V tensor: 3.3 s per update at 4096 tokens for a *single* layer. That is why
+the 8K quality comparison against hqq was abandoned after 22 minutes instead of
+finishing, and why the quantize-once 8K quality figure is recorded here as
+**UNKNOWN** rather than estimated.
+
+The implication is architectural and matches what section 4 said from the start:
+dequantization belongs **inside the attention kernel**, not in the cache.
+Quantize-once is the right quality policy -- the `residual_length` sweep showed
+re-quantizing costs about 5x -- but a fused decode is a precondition for any
+throughput claim. Future Work item 7 therefore becomes: implement the block layout
+*plus* a fused decode, not a host-side cache. No end-to-end latency can be
+measured from this work, and none is claimed.
 
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
@@ -426,7 +452,7 @@ Future Work item 7 -- not the bit width.
 4. Measure actual quality preservation with MMLU/GPQA subsets
 5. Concurrency and long-context sweep: 2048-token windows at 3B are done (item (d), where the codec's deficit grows to +61.8% while per-channel K holds at +1.45%). 8K/16K/32K and batch > 1 are still open
 6. PPL gate: adopt perplexity, with a high-bit control run, as the quality gate before any further quantization claim
-7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both.
+7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both. **The decode must be fused:** a host-side packed cache is measured non-viable (3.3 s per update at 4K tokens for one layer, against 0.18 ms for FP16), so the block layout has to be paired with an in-attention dequantize.
 
    Verified rather than asserted: `tq_codec_eval_shipped_check.py` round-trips real
    3B K/V through the **shipped** CUDA port (`turbo_quant_cuda.py`) in both

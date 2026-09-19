@@ -391,7 +391,7 @@ value exactly, baseline included (17.678863413317).
 | # | Task | Why |
 |---|---|---|
 | 1 | Implement per-channel K in the codec (V stays per-token); re-run 3B and 7B | Confirmed at both scales (+0.6% / +0.04%); it is the shipping change |
-| 2 | Real packed-KV residency (item 1 of section 5, still open) | Only path to a legitimate memory/throughput claim |
+| 2 | Real packed-KV residency (item 1 of section 5, still open) | Only path to a legitimate memory/throughput claim. **Measured constraint:** a host-side packed cache is not viable -- 3.3 s per update at 4K tokens for one layer against 0.18 ms for FP16 -- so the block layout must be paired with an in-attention fused decode (§10 item (f)) |
 | 3 | Add the 1-bit QJL stage, then compare against the repo codec | Required before any paper-parity claim in either direction |
 | 4 | Long-context / batched sweep | Where bandwidth-bound compression can actually pay off. 2048-token windows done at 3B: codec +61.8% vs fix +1.45%. 8K+ and batch > 1 still open |
 | 5 | Re-run the TQ PPL harness on 15B+ once per-channel K lands | Same defect should be tested where KV dominates memory |
