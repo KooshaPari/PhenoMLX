@@ -1,0 +1,94 @@
+{
+  "timestamp_utc": "2026-09-19T00:34:26.979790+00:00",
+  "model": "Qwen/Qwen2.5-3B-Instruct",
+  "gpu": "NVIDIA GeForce RTX 3090 Ti",
+  "backend": "transformers QuantizedCache + hqq, driven as a stream",
+  "config": {
+    "max_tokens": 2048,
+    "step": 256,
+    "q_group_size": 32,
+    "residual_length": 128
+  },
+  "results": {
+    "fp16": {
+      "perplexity": 6.058,
+      "tokens": 2047,
+      "step_losses": [
+        2.06656,
+        2.95155,
+        1.79126,
+        2.34254,
+        1.55205,
+        1.47259,
+        1.13741,
+        1.0943
+      ],
+      "peak_alloc_gib": 6.189,
+      "peak_reserved_gib": 6.287
+    },
+    "hqq4_axis0": {
+      "perplexity": 6.58191,
+      "tokens": 2047,
+      "step_losses": [
+        2.06656,
+        3.00265,
+        1.82477,
+        2.3954,
+        1.56038,
+        1.61714,
+        1.1751,
+        1.43082
+      ],
+      "peak_alloc_gib": 6.147,
+      "peak_reserved_gib": 6.287,
+      "ppl_delta_pct": 8.648
+    },
+    "hqq4_axis1": {
+      "perplexity": 7.84634,
+      "tokens": 2047,
+      "step_losses": [
+        2.06656,
+        3.07399,
+        2.02772,
+        2.69198,
+        1.70305,
+        1.85956,
+        1.36101,
+        1.69509
+      ],
+      "peak_alloc_gib": 6.147,
+      "peak_reserved_gib": 6.23,
+      "ppl_delta_pct": 29.52
+    },
+    "hqq3_axis0": {
+      "perplexity": 10.5117,
+      "tokens": 2047,
+      "step_losses": [
+        2.06656,
+        3.15311,
+        2.09411,
+        2.79026,
+        1.85163,
+        2.23015,
+        1.78502,
+        2.85101
+      ],
+      "peak_alloc_gib": 6.147,
+      "peak_reserved_gib": 6.229,
+      "ppl_delta_pct": 73.518
+    },
+    "hqq3_axis1": {
+      "error": "RuntimeError: The size of tensor a (0) must match the size of tensor b (2048) at non-singleton dimension 0"
+    }
+  },
+  "why_streaming": [
+    "QuantizedLayer.update returns the RAW key/value on its first call, so a prefill-only evaluation cannot observe a QuantizedCache's effect at all.",
+    "From the second update on, attention reads the dequantized prefix and the injected error is real."
+  ],
+  "caveats": [
+    "hqq is a third-party quantizer, not the repo codec: use the axis CONTRAST, not these absolute numbers.",
+    "Peak VRAM here is dominated by the 3B weights; a KV residency difference is only visible at long context.",
+    "The cache re-quantizes the whole quantized prefix whenever the residual window fills, so cost grows with sequence length."
+  ],
+  "wall_clock_s": 19.9
+}
