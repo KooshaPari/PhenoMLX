@@ -163,6 +163,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: doc citation + result-table integrity
+        # Runs even on a docs-only change, because that is exactly the case that
+        # let docs cite six result JSONs which were never committed. Stdlib only.
+        run: |
+          python scripts/check_doc_citations.py
+          python perf-core/turbo-quant-cuda/tq_block_cache_results_table.py --check
       - name: Detect changed Python files
         id: python-changes
         shell: bash
