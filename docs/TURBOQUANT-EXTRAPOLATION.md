@@ -364,6 +364,16 @@ it still has not been. The 3-bit `axis_key=1` cell raises inside HQQ (`size of
 tensor a (0) must match the size of tensor b (2048)` during dequantize) and is
 recorded as a failed cell rather than dropped.
 
+The saving is nonetheless *visible* and agrees with the arithmetic, which is what
+makes a long-context run worth predicting a number for. KV for 3B at 2048 tokens is
+72 MiB in FP16 (2 kinds x 36 layers x 2 KV heads x 128 head_dim x 2048 tokens x 2
+bytes); 4-bit makes it 18 MiB, so the predicted saving is 0.053 GiB, less the
+4.5 MiB the `residual_length` window keeps at FP16 and hqq's scale/zero metadata,
+i.e. roughly 0.046 GiB. Measured: 0.04 GiB (6.19 -> 6.15). At 8192 tokens the same
+arithmetic gives 288 MiB FP16 against 72 MiB quantized, a ~0.21 GiB saving -- five
+times the signal at four times the context. That is the run to do next, and it now
+has a number to check against.
+
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
 2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B
