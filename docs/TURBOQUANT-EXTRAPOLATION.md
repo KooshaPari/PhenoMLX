@@ -509,7 +509,8 @@ catches both overrides -- if either is removed, step 1 diverges by 4-5x and the
 check fails loud.
 
 The cache holds at every context length up to 32K, on the same `tq_block_cache_eval_long.py`
-driver and the same 3B model (`pilot/results/block_cache_{8k,16k,24k,32k}_*.json`):
+driver and the same 3B model (`pilot/results/block_cache_8k_fixed.json`,
+`block_cache_16k.json`, `block_cache_24k.json`, `block_cache_32k.json`):
 
 | Context | fp16 PPL | block4 PPL | delta PPL | fp16 peak alloc (GiB) | block4 peak alloc (GiB) | saved (GiB) | mean unsat rel |
 |---:|---:|---:|---:|---:|---:|---:|---:|
