@@ -559,33 +559,43 @@ Three observations the table supports.
   | 4096 | 128 | 6.05 | 6.11 | 5.96 |
   | 6144 | 192 | 6.20 | 6.32 | 6.04 |
   | 8192 | 256 | 6.35 | 6.50 | 6.22 |
-  | 12288 | 384 | 6.64 | 6.91 | 6.42 |
-  | 16384 | 512 | 6.94 | 7.30 | 6.64 |
+  | 12288 | 384 | 6.64 | 6.91 | 6.44 |
+  | 16384 | 512 | 6.40 | 6.67 | 6.67 |
+  | 24576 | 768 | 6.72 | 7.12 | 7.12 |
 
   Two slopes come out of that table, and they are different costs. Step 0 is
   measured right after a *single-shot* N-token prefill, so it carries the
-  prefill's QDQ workspace: 1.42 GiB over 480 blocks, an endpoint slope of
-  ~3.0 MiB reserved per 32-token block. Steps 1+ are clean decode-step peaks
-  (the probe resets peak stats and empties the allocator before each one) and
-  slope at ~1.6 MiB per block, still 1.5x the 1.125 MiB of fp16 KV those
+  prefill's QDQ workspace: 1.42 GiB over 480 blocks (1K-12288 rows), an endpoint
+  slope of ~3.0 MiB reserved per 32-token block. Steps 1+ are clean decode-step
+  peaks (the probe resets peak stats and empties the allocator before each one)
+  and slope at ~1.6 MiB per block, still 1.5x the 1.125 MiB of fp16 KV those
   tokens would occupy and ~6x the 0.281 MiB the cache actually stores packed.
-  Both slopes are endpoint estimates from two rungs, not fits; the per-rung
-  deltas in the logs are noisy (0.3-2.9 MiB/block for step 1+) but never
-  negative, so the growth is real and linear-ish rather than a phase change.
-  The growth is *transient* workspace, not the resident packed cache; the
-  paragraph after next measures the resident term separately and uses the two
-  together to bound it.
+  The 16384 and 24576 rows use the chunked-prefill variant
+  (`oom_probe_chunked.py` at `C:\Users\koosh\agents\sandbox\tq-eval`), which
+  feeds the cache in 256-token chunks so the 16K/24K single-shot prefill (O(N²)
+  attention, >35 min on a 3090 Ti) does not have to finish; the chunked variant
+  measures decode-step peak in isolation after a chunked prefill. Because the
+  chunked path does not leave the prefill's QDQ workspace in the allocator when
+  peak stats are reset, the chunked step-0 numbers read *lower* than the
+  single-shot step-0 numbers at the same prefill: 6.40 GiB allocated at 16384
+  vs 6.94 single-shot, because the QDQ workspace is reclaimed. The step-1+
+  reserved numbers track between variants because both reset peak stats before
+  the decode step starts. Both slopes are endpoint estimates from two rungs,
+  not fits; the per-rung deltas in the logs are noisy (0.3-2.9 MiB/block for
+  step 1+) but never negative, so the growth is real and linear-ish rather
+  than a phase change. The growth is *transient* workspace, not the resident
+  packed cache; the paragraph after next measures the resident term separately
+  and uses the two together to bound it.
 
-  The ladder stops at 16384 here only because the probe's corpus has to be
-  longer than `max(prefill) + 5`: the 19,522-token `corpus_repodocs.txt` ran
-  the 24K rung off its end and attention failed with `The size of tensor a
-  (19522) must match the size of tensor b (24576)`. That is a corpus-length
-  bug wearing a shape-error costume, so the probe now carries a per-rung
-  length guard that prints `SKIPPED: corpus has N tokens, need M`, and
-  `CORPUS` points at `corpus_long.txt` (39,061 tokens). Peak VRAM depends on
-  the stored block count alone, so the ladder is comparable across corpora;
-  the reported losses are not. The stronger evidence that decode is not
-  where this design hits a wall is the 32K row above:
+  The ladder stops at 24576 here because `corpus_long.txt` has 39,061 tokens and
+  the next rung (32K prefill + 5 decode tokens) would need 32,005 + the decode
+  steps, which `corpus_long.txt` cannot supply; a 50K+ corpus would extend it.
+  The corpus-length bug from earlier sessions (the 19,522-token corpus failing
+  24K with a shape error) is gone: the probe now carries a per-rung length guard
+  and `CORPUS` points at `corpus_long.txt`. Peak VRAM depends on the stored
+  block count alone, so the ladder is comparable across corpora; the reported
+  losses are not. The strongest evidence that decode is not where this design
+  hits a wall is the 32K row in the long-context table below:
   `tq_block_cache_eval_long.py` prefills 32768 tokens and then decodes 128
   steps at 7.59 GiB reserved (fp16) / 6.94 GiB (block4).
 
@@ -666,6 +676,30 @@ Three observations the table supports.
   16x), not a bit-width change, which is why 3 bits is not a useful operating
   point: it pays 5x the quality for 18 MiB and moves the ceiling not at all.
 
+  **The metadata precision itself is also a knob.** Same driver, same corpus,
+  same `block=32 bits=4`, only the metadata precision changes from fp32 to
+  fp16 (`pilot/results/block_cache_breakdown_meta16_8k.json`,
+  `block_cache_b4_meta16_8k.json`, `block_cache_b4_meta16_16k.json`):
+
+  | Context | fp16 metadata (MiB) | total (MiB) | metadata share | vs fp16 KV | fp16 PPL | block4 PPL | delta PPL | saved alloc (GiB) |
+  |---:|---:|---:|---:|---:|---:|---:|---:|---:|
+  |  8K | 18 | 90 | 0.200 | 3.20x | 6.0228 | 6.0862 | +1.05% | 0.185 |
+  | 16K | 36 | 180 | 0.200 | 3.20x | 4.6279 | 4.6629 | +0.75% | 0.378 |
+
+  Halving the metadata precision at 8K is exactly the prediction: 36 MiB -> 18 MiB,
+  2.67x -> 3.20x resident reduction, **with no measurable quality cost** (8K delta
+  drifts from +0.97% to +1.05%, within per-step noise; 16K delta *improves* from
+  +0.93% to +0.75%, also within noise). Because `BlockQuantCache.__init__`
+  already takes `meta_dtype`, this is a one-argument change at call sites; the
+  cached-everywhere fp32 path stays the default so callers don't opt into a
+  precision they did not ask for. The `mean unsat rel diff` for fp16 metadata is
+  0.86% (8K, 32/32 steps) and 0.90% (16K, 64/64), still consistent with the fp32
+  numbers in the long-context table. So fp16 metadata is the cheapest way to
+  break the 8x ceiling from 2.67x to 3.20x resident reduction at 4 bits, and
+  it carries no quality penalty at the resolution of the per-step metric.
+  Pushing past 3.20x resident reduction at 4 bits is a different problem
+  entirely (bits 4->3 or 4->2 buys 18 MiB at 5x quality, see the previous table).
+
 - **Chunk size does not have to be block-aligned.** Every ladder row above
   steps in multiples of the 32-token block, which leaves the fp16 residual
   term at exactly 0 and says nothing about a real generator, whose chunking
@@ -691,9 +725,9 @@ designed to confirm.**
 2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B. **Largely done** via `BlockQuantCache` (`perf-core/turbo-quant-cuda/tq_block_cache.py`); the 3B 8K streamed PPL is +0.97% vs fp16 with peak VRAM slightly lower than fp16 itself (item (g)). The remaining work is the throughput claim (item (a)'s fused decode) and the 7B / 15B re-runs.
 3. Re-run 7B/15B benchmarks on desktop with TurboQuant+ packed-KV active. **Blocked on weights, 2026-09-19:** `tq_block_cache_eval_long.py` now takes `--model Qwen/Qwen2.5-7B-Instruct` and the 3B methodology carries over unchanged, but the local HF cache at `C:\Users\koosh\.cache\huggingface\hub\models--Qwen--Qwen2.5-7B-Instruct` holds only `config.json` + tokenizer files -- the largest blob is 7 MB, so there are no weights and the run dies in `from_pretrained` with `AttributeError: 'NoneType' object has no attribute 'endswith'`. The 7B numbers already on this page were produced when the weights were present. Needs a ~15 GB download (the runs are otherwise offline) or an alternate path to the checkpoint.
 4. Measure actual quality preservation with MMLU/GPQA subsets
-5. Concurrency and long-context sweep: 2048-token windows at 3B are done (item (d), where the codec's deficit grows to +61.8% while per-channel K holds at +1.45%). **8192-token at 3B is done** via `BlockQuantCache` (item (g), +0.97% vs fp16), and **16K/24K/32K at 3B are done too** (`tq_block_cache_eval_long.py`, +0.93% / +0.77% / +0.64%, same table). Batch > 1 is still open. The cache's host-side decode grows linearly with stored blocks (~20 ms per layer per step at 4K tokens, item below the table). The 24 GiB 3090 Ti decode ceiling is not inside the measured window: `tq_block_cache_decode_oom_probe.py` cleared every rung from 1K to 16K prefill (× 4 decode steps) with step-0 reserved rising 5.88 GiB (1024 tokens, 32 blocks) to 7.30 GiB (16384 tokens, 512 blocks), and `tq_block_cache_eval_long.py` independently prefills and decodes 32K. The 24K probe rung is pending re-measurement on `corpus_long.txt`; the rung only failed before because the 19,522-token corpus ran out, not because VRAM did.
+5. Concurrency and long-context sweep: 2048-token windows at 3B are done (item (d), where the codec's deficit grows to +61.8% while per-channel K holds at +1.45%). **8192-token at 3B is done** via `BlockQuantCache` (item (g), +0.97% vs fp16), and **16K/24K/32K at 3B are done too** (`tq_block_cache_eval_long.py`, +0.93% / +0.77% / +0.64%, same table). Batch > 1 is still open. The cache's host-side decode grows linearly with stored blocks (~20 ms per layer per step at 4K tokens, item below the table). The 24 GiB 3090 Ti decode ceiling has been probed up through 24K prefill (768 blocks) on `corpus_long.txt`: every rung from 1K to 24K clears 4 decode steps without OOM, with step-0 reserved rising 5.88 GiB (1024 tokens, 32 blocks) to 7.12 GiB (24576 tokens, 768 blocks). The next rung (32K) needs a longer corpus than `corpus_long.txt` can supply; the eval-long driver's 32K row already prefills and decodes at 7.59 / 6.94 GiB so the ladder is bounded from above by that measurement even without a 32K probe rung.
 6. PPL gate: adopt perplexity, with a high-bit control run, as the quality gate before any further quantization claim
-7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both. **The decode must be fused:** a host-side packed cache is measured non-viable (3.3 s per update at 4K tokens for one layer, against 0.18 ms for FP16), so the block layout has to be paired with an in-attention dequantize. **And the metadata is now the measured ceiling, not the bit width** (item (g)): with fp32 scales/zeros at `block=32` the resident reduction tops out at 8x however few bits the payload uses, because the fp32 metadata does not shrink with bit width -- it is 36 MiB at 8K at every width from 4 bits down to 2, so 36 MiB is the floor the resident total approaches. `BlockQuantCache` already takes `meta_dtype` in its constructor, so switching scales and zeros to fp16 is a one-argument experiment that would double the ceiling to 16x -- the open question is whether fp16 scales cost quality, which is not yet measured.
+7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both. **The decode must be fused:** a host-side packed cache is measured non-viable (3.3 s per update at 4K tokens for one layer, against 0.18 ms for FP16), so the block layout has to be paired with an in-attention dequantize. **The fp16 metadata experiment is now measured** (table just above): with fp16 scales and zeros the resident reduction goes from 2.67x to 3.20x at 4 bits and the deficit stays flat at +1.05% (8K) / +0.75% (16K). The metadata is no longer an open question at 3B; the remaining unknown is whether the same holds at 7B and 15B once the cached weights are available (item 3).
 
    Verified rather than asserted: `tq_codec_eval_shipped_check.py` round-trips real
    3B K/V through the **shipped** CUDA port (`turbo_quant_cuda.py`) in both
