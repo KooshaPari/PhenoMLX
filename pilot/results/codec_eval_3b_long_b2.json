@@ -1,0 +1,159 @@
+{
+  "timestamp_utc": "2026-09-19T00:20:25.910494+00:00",
+  "model": "Qwen/Qwen2.5-3B-Instruct",
+  "gpu": "NVIDIA GeForce RTX 3090 Ti",
+  "corpus": "C:\\Users\\koosh\\agents\\sandbox\\tq-eval\\corpus_repodocs.txt",
+  "config": {
+    "bits": 2,
+    "group_size": 32,
+    "k_mode": "post-rope",
+    "eval_tokens": 4096,
+    "chunk": 2048,
+    "capture_tokens": 1024,
+    "d_head": 128,
+    "kv_heads": 2
+  },
+  "bits_per_coordinate_including_metadata": {
+    "fp16_kv": 16.0,
+    "uniform_rtn_g32_b2": 4.0,
+    "uniform_rtn_chanK_g32_b2": 4.0,
+    "uniform_rtn_konly_g32_b2": 4.0,
+    "uniform_rtn_chanK_konly_g32_b2": 4.0,
+    "uniform_rtn_vonly_g32_b2": 4.0,
+    "rht_rtn_b2": 4.0,
+    "rht_uniform_b2": 2.125,
+    "rht_lloyd_b2": 2.125
+  },
+  "distortion_on_real_kv": {
+    "uniform_rtn_g32_b2": {
+      "mse": 1.4074783068822905,
+      "relative_error": 0.48134886117138487,
+      "worst_row_relative_error": 1.105736255645752
+    },
+    "uniform_rtn_chanK_g32_b2": {
+      "mse": 0.17265631002373993,
+      "relative_error": 0.1685894218074967,
+      "worst_row_relative_error": 2.5612170696258545
+    },
+    "uniform_rtn_konly_g32_b2": {
+      "mse": 2.60114393548833,
+      "relative_error": 0.48853940381944116,
+      "worst_row_relative_error": 1.105736255645752
+    },
+    "uniform_rtn_chanK_konly_g32_b2": {
+      "mse": 0.13149994177122912,
+      "relative_error": 0.10984497288171215,
+      "worst_row_relative_error": 2.5612170696258545
+    },
+    "uniform_rtn_vonly_g32_b2": {
+      "mse": 0.21381267827625075,
+      "relative_error": 0.413440864642735,
+      "worst_row_relative_error": 0.8220466375350952
+    },
+    "rht_rtn_b2": {
+      "mse": 0.8467045682223721,
+      "relative_error": 0.37334044875567574,
+      "worst_row_relative_error": 0.5498626232147217
+    },
+    "rht_uniform_b2": {
+      "mse": 2.0056674984645926,
+      "relative_error": 0.5746038904685906,
+      "worst_row_relative_error": 0.6860912442207336
+    },
+    "rht_lloyd_b2": {
+      "mse": 0.6934842049441714,
+      "relative_error": 0.33787602844238845,
+      "worst_row_relative_error": 0.4795236587524414
+    }
+  },
+  "perplexity_qdq_hooked": {
+    "fp16_kv": {
+      "perplexity": 5.819605480227209,
+      "tokens": 4095,
+      "window_losses": [
+        1.80287,
+        1.71958
+      ],
+      "ppl_delta_pct": 0.0
+    },
+    "uniform_rtn_g32_b2": {
+      "perplexity": 2641.862590742267,
+      "tokens": 4095,
+      "window_losses": [
+        9.00822,
+        6.7497
+      ],
+      "ppl_delta_pct": 45295.905
+    },
+    "uniform_rtn_chanK_g32_b2": {
+      "perplexity": 9.06308133183036,
+      "tokens": 4095,
+      "window_losses": [
+        2.22062,
+        2.18779
+      ],
+      "ppl_delta_pct": 55.734
+    },
+    "uniform_rtn_konly_g32_b2": {
+      "perplexity": 1001.5851046578316,
+      "tokens": 4095,
+      "window_losses": [
+        7.35809,
+        6.46037
+      ],
+      "ppl_delta_pct": 17110.533
+    },
+    "uniform_rtn_chanK_konly_g32_b2": {
+      "perplexity": 7.616546398850546,
+      "tokens": 4095,
+      "window_losses": [
+        2.05867,
+        2.00196
+      ],
+      "ppl_delta_pct": 30.877
+    },
+    "uniform_rtn_vonly_g32_b2": {
+      "perplexity": 6.4392794079775895,
+      "tokens": 4095,
+      "window_losses": [
+        1.88078,
+        1.84404
+      ],
+      "ppl_delta_pct": 10.648
+    },
+    "rht_rtn_b2": {
+      "perplexity": 12486.466469057195,
+      "tokens": 4095,
+      "window_losses": [
+        10.66207,
+        8.20213
+      ],
+      "ppl_delta_pct": 214458.642
+    },
+    "rht_uniform_b2": {
+      "perplexity": 63517.405825527414,
+      "tokens": 4095,
+      "window_losses": [
+        12.87889,
+        9.23835
+      ],
+      "ppl_delta_pct": 1091338.346
+    },
+    "rht_lloyd_b2": {
+      "perplexity": 6648.269954032874,
+      "tokens": 4095,
+      "window_losses": [
+        9.68481,
+        7.91898
+      ],
+      "ppl_delta_pct": 114139.186
+    }
+  },
+  "limitations": [
+    "QDQ measures quality only; the resident cache stays FP16 and no decode-speed claim is made.",
+    "rht_lloyd is TurboQuant's core (RHT + per-coordinate optimal scalar quantizer + fp16 norm) WITHOUT the 1-bit QJL residual stage, which exists to remove the inner-product bias of an MSE-optimal quantizer.",
+    "PPL uses chunked windows; no window sees beyond `chunk` tokens of context.",
+    "A high-bit control run (TQ_BITS=8) is required to validate the harness before trusting any 4-bit delta."
+  ],
+  "wall_clock_s": 117.1
+}

@@ -294,12 +294,30 @@ Reproducibility: an independent rerun of the 7B block in a separate process
 distortion value exactly, FP16 baseline included (17.678863413317), so the 7B
 result is not a one-off.
 
-**Not measured: the 2-bit point.** Two attempts at 3B and 2048-token windows
-produced no output at all (the process never reached its first print) while the
-desktop was saturated by other agents' builds and test runs. 2-bit quality is
-therefore **UNKNOWN**. The 87% reduction figure in the table near the top of this
-document is arithmetic, not a measured quality result, and must not be quoted as
-though it were one.
+**2 bits is where it breaks.** Same setup (`pilot/results/codec_eval_3b_long_b2.json`;
+this point needed a detached scheduled task, because backgrounded children of the
+agent process are killed when the session reloads):
+
+| Scheme | Bits/coord | PPL | delta PPL |
+|---|---|---|---|
+| FP16 KV (baseline) | 16.0 | 5.820 | - |
+| uniform RTN g32 (repo codec) | 4.00 | 2641.863 | +45,296% |
+| K only, token axis | 4.00 | 1001.585 | +17,111% |
+| K only, **per-channel** | 4.00 | 7.617 | **+30.88%** |
+| V only, token axis | 4.00 | 6.439 | +10.65% |
+| **per-channel K** + token V | 4.00 | 9.063 | **+55.73%** |
+| rotate + repo RTN | 4.00 | 12486.466 | +214,459% |
+| rotate + Lloyd-Max 2-bit | 2.125 | 6648.270 | +114,139% |
+| rotate + fixed uniform 2-bit | 2.125 | 63517.406 | +1,091,338% |
+
+Per-channel K still beats the shipped grouping by more than three orders of
+magnitude at 2 bits (+30.9% against +17,111%), so the axis finding holds at every
+width tested. But 2 bits is no longer a trade worth making. The ladder for K,
+all at 3B and 2048-token windows: **4 bits +0.95%, 3 bits +4.33%, 2 bits
++30.88%** (K only; +1.45% / +7.16% / +55.73% with V also quantized). So 4 bits is
+the safe default, 3 bits is an 81% KV reduction for about +4% PPL, and 2 bits is
+not usable. The 87% reduction figure near the top of this document is arithmetic;
+its quality cost is the +30.9% measured here.
 
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)

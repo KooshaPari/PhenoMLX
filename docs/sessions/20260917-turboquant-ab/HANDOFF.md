@@ -334,11 +334,23 @@ not comparable across window sizes -- only deltas within a run are.
 | K only, **per-channel** | 5.00 | 6.072 | **+4.33%** |
 | **per-channel K** + token V | 5.00 | 6.236 | +7.16% |
 
-So 3 bits buys an 81% KV reduction for roughly +4% PPL at 3B, where 4 bits is
-free. **2-bit is UNKNOWN**: two attempts produced no output at all (the process
-never reached its first print) while the desktop was saturated by other agents'
-builds and test runs. Nothing is claimed for 2-bit; the 87% reduction figure is
-arithmetic, not a measured result.
+The full ladder for K at this setup, K only, with the V-also-quantized figure in
+brackets:
+
+| K bits | KV reduction | PPL delta | with V also 4/3/2-bit |
+|---|---|---|---|
+| 4 | 75% | **+0.95%** | +1.45% |
+| 3 | 81% | **+4.33%** | +7.16% |
+| 2 | 87% | **+30.88%** | +55.73% |
+
+For contrast, the shipped per-token K grouping at the same points: +60.4% (4-bit),
++4,263% (3-bit), +17,111% (2-bit). So the axis fix holds at every width tested,
+4 bits is the safe default, 3 bits is an 81% reduction for about +4% PPL, and
+2 bits is not usable.
+
+The 2-bit point needed a detached `schtasks` run to complete: backgrounded
+children of the agent process are killed when the session reloads (observed as a
+KeyboardInterrupt mid-hook), which is worth remembering for any long measurement.
 
 Reproducibility: an independent 7B rerun in a separate process
 (`codec_eval_7b_postrope_b4_rerun.json`) reproduces every PPL and distortion
