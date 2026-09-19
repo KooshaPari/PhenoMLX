@@ -49,6 +49,15 @@ def main():
         "--max-tokens", type=int, default=16384, help="Context length to evaluate at."
     )
     ap.add_argument("--step", type=int, default=256, help="Streaming chunk size.")
+    ap.add_argument(
+        "--model",
+        default=base.MODEL_ID,
+        help=(
+            "HF model id. Defaults to the 3B the rest of the table uses; the 7B "
+            "re-run passes Qwen/Qwen2.5-7B-Instruct. It has to be in the local "
+            "cache because the run is offline."
+        ),
+    )
     ap.add_argument("--block", type=int, default=32, help="BlockQuantCache block size.")
     ap.add_argument("--bits", type=int, default=4, help="BlockQuantCache bit width.")
     ap.add_argument(
@@ -61,12 +70,12 @@ def main():
     t0 = time.perf_counter()
     print(
         f"torch {torch.__version__} | {torch.cuda.get_device_name(0)} | "
-        f"target {args.max_tokens} step {args.step}",
+        f"target {args.max_tokens} step {args.step} | model {args.model}",
         flush=True,
     )
-    tok = AutoTokenizer.from_pretrained(base.MODEL_ID, local_files_only=True)
+    tok = AutoTokenizer.from_pretrained(args.model, local_files_only=True)
     model = AutoModelForCausalLM.from_pretrained(
-        base.MODEL_ID, dtype=torch.float16, device_map="cuda", local_files_only=True
+        args.model, dtype=torch.float16, device_map="cuda", local_files_only=True
     )
     model.eval()
     text = open(args.corpus, encoding="utf-8", errors="replace").read()
@@ -136,7 +145,7 @@ def main():
 
     report = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "model": base.MODEL_ID,
+        "model": args.model,
         "gpu": torch.cuda.get_device_name(0),
         "question": "does BlockQuantCache hold the +0.97% 8K figure as context "
         "extends to 16K/32K?",

@@ -1,0 +1,27 @@
+{
+  "bits": 3,
+  "block": 32,
+  "corpus": "corpus_long.txt",
+  "model": "Qwen/Qwen2.5-3B-Instruct",
+  "rows": {
+    "8192": {
+      "blocks_total": 9216,
+      "fed_tokens": 8192,
+      "fp16_kv_mib": 288.0,
+      "layers": 36,
+      "metadata_mib": 36.0,
+      "metadata_share": 0.4,
+      "mib_per_block": 0.0098,
+      "payload_mib": 54.0,
+      "payload_share": 0.6,
+      "reduction_vs_fp16": 3.2,
+      "requested_tokens": 8192,
+      "residual_mib": 0.0,
+      "residual_share": 0.0,
+      "seq_len": 8192,
+      "total_mib": 90.0,
+      "wall_clock_s": 44.2
+    }
+  },
+  "step": 256
+}

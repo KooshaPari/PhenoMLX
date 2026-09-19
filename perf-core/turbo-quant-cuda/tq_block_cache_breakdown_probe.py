@@ -74,11 +74,22 @@ def main():
     ap.add_argument("lengths", nargs="*", type=int, default=[])
     ap.add_argument("--json")
     ap.add_argument("--step", type=int, default=STEP)
+    ap.add_argument(
+        "--bits",
+        type=int,
+        default=BITS,
+        help=(
+            "Quantization width. The payload term should scale with this while "
+            "the fp32 scale/zero term does not move, which is the whole point of "
+            "running the sweep."
+        ),
+    )
     args = ap.parse_args()
     ladder = tuple(args.lengths) if args.lengths else LADDER
+    bits = args.bits
 
     print(f"torch {torch.__version__} | {torch.cuda.get_device_name(0)}")
-    print(f"block={BLOCK} bits={BITS} step={args.step}\n", flush=True)
+    print(f"block={BLOCK} bits={bits} step={args.step}\n", flush=True)
     tok = AutoTokenizer.from_pretrained(MODEL_ID, local_files_only=True)
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID, dtype=torch.float16, device_map="cuda", local_files_only=True
@@ -96,7 +107,7 @@ def main():
         if n < want:
             print(f"  {want}: corpus only has {n_avail}, using {n}\n", flush=True)
         ids = ids_all[:, : n + 1]
-        cache = BlockQuantCache(block=BLOCK, bits=BITS)
+        cache = BlockQuantCache(block=BLOCK, bits=bits)
         t0 = time.perf_counter()
         fed = feed(model, cache, ids, args.step)
         torch.cuda.synchronize()
@@ -153,7 +164,7 @@ def main():
         out = {
             "model": MODEL_ID,
             "block": BLOCK,
-            "bits": BITS,
+            "bits": bits,
             "step": args.step,
             "corpus": os.path.basename(CORPUS),
             "rows": rows,

@@ -626,11 +626,56 @@ Three observations the table supports.
   visible in the peak. It does not yet reverse the result. Over 8K to 32K the
   resident advantage accrues 0.527 GiB while the shortfall takes back 0.156
   GiB, roughly 30%, so the measured saving still grows (0.167 to 0.538 GiB).
-  A two-point extrapolation of the shortfall says it keeps losing ground
-  slower than it gains, so no crossover is predicted inside this context
-  range -- but that is a 4-point reading of a noisy term on one card, not a
-  law, and the honest summary is that the transient is the term to watch if
-  this ever needs to be pushed past 32K.
+- **Bit width has a cliff at 3 bits, and a floor from the metadata.** Same
+  driver, same corpus, `block=32`, only `--bits` varies
+  (`pilot/results/block_cache_b3_8k.json`, `block_cache_b3_16k.json`,
+  `block_cache_b2_8k.json`):
+
+  | Context | fp16 PPL | 4-bit PPL | 4-bit delta | 3-bit PPL | 3-bit delta | 2-bit PPL | 2-bit delta |
+  |---:|---:|---:|---:|---:|---:|---:|---:|
+  |  8K | 6.0228 | 6.0815 | +0.97% | 6.3559 | +5.53% | 9.3076 | +54.54% |
+  | 16K | 4.6279 | 4.6711 | +0.93% | 4.8556 | +4.92% | -- | -- |
+
+  Four bits is close to free; three bits costs 5x the deficit and trips the
+  driver's own >5% warn threshold at 8K; two bits is catastrophic. The 2-bit
+  delta reproduces the fake-quant codec's +54.5% at the same width almost
+  exactly, which is the useful cross-check here -- the resident cache is
+  faithful to the codec at the width that works *and* at the width that
+  fails, so its 4-bit number is not an artifact of the cache path. The
+  per-step unsaturated rel diff agrees: 0.88% at 4 bits, 3.69% mean / 22.19%
+  worst at 3 bits, 27.24% mean at 2 bits.
+
+  Dropping a bit buys almost no memory. At 8K the measured peak saving over
+  fp16 is 0.167 GiB at 4 bits, 0.185 GiB at 3 bits and 0.202 GiB at 2 bits,
+  so 4 -> 3 bits is worth *18 MiB* while costing 5x the quality. The reason
+  is visible in the resident breakdown at the same 8K prefill
+  (`pilot/results/block_cache_breakdown_b3_8k.json`,
+  `pilot/results/block_cache_breakdown_b2_8k.json`):
+
+  | bits | payload (MiB) | fp32 metadata (MiB) | residual | total (MiB) | metadata share | vs fp16 KV |
+  |---:|---:|---:|---:|---:|---:|---:|
+  | 4 | 72 | 36 | 0 | 108 | 0.333 | 2.67x |
+  | 3 | 54 | 36 | 0 | 90 | 0.400 | 3.20x |
+  | 2 | 36 | 36 | 0 | 72 | 0.500 | 4.00x |
+
+  The payload scales with the bit width exactly as advertised and the metadata
+  does not move at all, so the metadata sets a hard floor: at `block=32` with
+  fp32 scales and zeros the resident reduction cannot exceed **8x** no matter
+  how few bits the payload uses, because the floor is `288/36`. Getting past
+  that is a metadata change (fp16 scales/zeros would double the ceiling to
+  16x), not a bit-width change, which is why 3 bits is not a useful operating
+  point: it pays 5x the quality for 18 MiB and moves the ceiling not at all.
+
+- **Chunk size does not have to be block-aligned.** Every ladder row above
+  steps in multiples of the 32-token block, which leaves the fp16 residual
+  term at exactly 0 and says nothing about a real generator, whose chunking
+  is not block-aligned. The same 8K window fed in 100-token chunks (82 steps;
+  100 is not a multiple of 32, so a partial block is held in fp16 at almost
+  every step, and only the final token count lands on a boundary) gives bit-4
+  PPL 6.1129 against fp16's 6.0391, a +1.22% deficit versus +0.97% aligned,
+  and a peak saving of 0.170 GiB versus 0.167 GiB. So arbitrary chunking costs
+  about a quarter of a percentage point and no memory, which is the answer
+  that matters for streaming inference.
 
 **The 24K and 32K measurements use a *repeated* corpus because the original
 text is only 19,522 tokens. The saturation-aware metric (`mean unsat rel diff`)
@@ -644,11 +689,11 @@ designed to confirm.**
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
 2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B. **Largely done** via `BlockQuantCache` (`perf-core/turbo-quant-cuda/tq_block_cache.py`); the 3B 8K streamed PPL is +0.97% vs fp16 with peak VRAM slightly lower than fp16 itself (item (g)). The remaining work is the throughput claim (item (a)'s fused decode) and the 7B / 15B re-runs.
-3. Re-run 7B/15B benchmarks on desktop with TurboQuant+ packed-KV active
+3. Re-run 7B/15B benchmarks on desktop with TurboQuant+ packed-KV active. **Blocked on weights, 2026-09-19:** `tq_block_cache_eval_long.py` now takes `--model Qwen/Qwen2.5-7B-Instruct` and the 3B methodology carries over unchanged, but the local HF cache at `C:\Users\koosh\.cache\huggingface\hub\models--Qwen--Qwen2.5-7B-Instruct` holds only `config.json` + tokenizer files -- the largest blob is 7 MB, so there are no weights and the run dies in `from_pretrained` with `AttributeError: 'NoneType' object has no attribute 'endswith'`. The 7B numbers already on this page were produced when the weights were present. Needs a ~15 GB download (the runs are otherwise offline) or an alternate path to the checkpoint.
 4. Measure actual quality preservation with MMLU/GPQA subsets
 5. Concurrency and long-context sweep: 2048-token windows at 3B are done (item (d), where the codec's deficit grows to +61.8% while per-channel K holds at +1.45%). **8192-token at 3B is done** via `BlockQuantCache` (item (g), +0.97% vs fp16), and **16K/24K/32K at 3B are done too** (`tq_block_cache_eval_long.py`, +0.93% / +0.77% / +0.64%, same table). Batch > 1 is still open. The cache's host-side decode grows linearly with stored blocks (~20 ms per layer per step at 4K tokens, item below the table). The 24 GiB 3090 Ti decode ceiling is not inside the measured window: `tq_block_cache_decode_oom_probe.py` cleared every rung from 1K to 16K prefill (× 4 decode steps) with step-0 reserved rising 5.88 GiB (1024 tokens, 32 blocks) to 7.30 GiB (16384 tokens, 512 blocks), and `tq_block_cache_eval_long.py` independently prefills and decodes 32K. The 24K probe rung is pending re-measurement on `corpus_long.txt`; the rung only failed before because the 19,522-token corpus ran out, not because VRAM did.
 6. PPL gate: adopt perplexity, with a high-bit control run, as the quality gate before any further quantization claim
-7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both. **The decode must be fused:** a host-side packed cache is measured non-viable (3.3 s per update at 4K tokens for one layer, against 0.18 ms for FP16), so the block layout has to be paired with an in-attention dequantize.
+7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both. **The decode must be fused:** a host-side packed cache is measured non-viable (3.3 s per update at 4K tokens for one layer, against 0.18 ms for FP16), so the block layout has to be paired with an in-attention dequantize. **And the metadata is now the measured ceiling, not the bit width** (item (g)): with fp32 scales/zeros at `block=32` the resident reduction tops out at 8x however few bits the payload uses, because the fp32 metadata does not shrink with bit width -- it is 36 MiB at 8K at every width from 4 bits down to 2, so 36 MiB is the floor the resident total approaches. `BlockQuantCache` already takes `meta_dtype` in its constructor, so switching scales and zeros to fp16 is a one-argument experiment that would double the ceiling to 16x -- the open question is whether fp16 scales cost quality, which is not yet measured.
 
    Verified rather than asserted: `tq_codec_eval_shipped_check.py` round-trips real
    3B K/V through the **shipped** CUDA port (`turbo_quant_cuda.py`) in both
