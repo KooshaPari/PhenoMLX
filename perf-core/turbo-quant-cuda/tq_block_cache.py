@@ -114,14 +114,14 @@ class BlockQuantCache(cu.DynamicCache):
         g["zeros"].append(zeros)
         g["rows"], g["blocks"], g["shape"] = b * h * s, g["blocks"] + 1, (b, h, s, d)
 
-    def _k_tensor(self, bucket):
+    def _k_tensor(self, bucket, dtype=torch.float16):
         """Stored K blocks as [B,H,blocks*block,D], decoded in one codec call.
 
-        Returns fp16 directly: casting before the .permute()/.reshape() pair
-        halves the bandwidth of the post-permute contiguous copy (since the
-        permute forces a copy, and doing it in fp16 instead of fp32 saves
-        roughly N*2 bytes per call). The caller's `update()` path then skips
-        its own .to(k_res.dtype) cast."
+        Casts to `dtype` *before* the .permute()/.reshape() pair. The permute
+        makes the layout non-contiguous, so the final reshape is a real copy;
+        doing that copy in fp16 instead of fp32 halves its bandwidth. The
+        default is fp16 because that is what the model runs in; `update()`
+        passes the caller's dtype so a bf16 or fp32 model still concatenates.
         """
         g = bucket["k"]
         if g["blocks"] == 0:
@@ -129,16 +129,15 @@ class BlockQuantCache(cu.DynamicCache):
         b, h, s, d = g["shape"]
         groups, blocks, _rows = self._decode_all(g, s, s, (s,))
         return (
-            groups.half().reshape(blocks, b, h, d, s)
+            groups.to(dtype).reshape(blocks, b, h, d, s)
             .permute(1, 2, 0, 4, 3)
             .reshape(b, h, blocks * s, d)
         )
 
-    def _v_tensor(self, bucket):
+    def _v_tensor(self, bucket, dtype=torch.float16):
         """Stored V blocks as [B,H,blocks*block,D], decoded in one codec call.
 
-        Returns fp16 directly, same reason as `_k_tensor`. The caller's
-        `update()` skips its own .to(v_res.dtype) cast.
+        Casts to `dtype` before the permute, same reason as `_k_tensor`.
         """
         g = bucket["v"]
         if g["blocks"] == 0:
@@ -149,7 +148,7 @@ class BlockQuantCache(cu.DynamicCache):
             g, self.v_group, d, (per_row, self.v_group)
         )
         return (
-            groups.half().reshape(blocks, b, h, s, per_row, self.v_group)
+            groups.to(dtype).reshape(blocks, b, h, s, per_row, self.v_group)
             .reshape(blocks, b, h, s, d)
             .permute(1, 2, 0, 3, 4)
             .reshape(b, h, blocks * s, d)
@@ -174,11 +173,12 @@ class BlockQuantCache(cu.DynamicCache):
         self._residual[layer_idx] = (k_res, v_res)
 
         # One decode call per layer for all stored blocks, instead of one per
-        # block. _k_tensor / _v_tensor return fp16 directly (decoded in fp32, then
-        # cast to fp16 before the permute so the post-permute contig copy is in
-        # fp16 -- see `_k_tensor` for the reasoning); concatenate with the
-        # residual in the caller's dtype.
-        k_stored, v_stored = self._k_tensor(bucket), self._v_tensor(bucket)
+        # block. _k_tensor / _v_tensor decode in fp32 and cast to the caller's
+        # dtype before the permute (so the post-permute contig copy is in the
+        # caller's dtype, not fp32 -- see `_k_tensor`); concatenate with the
+        # residual, which is already in that dtype.
+        k_stored = self._k_tensor(bucket, k_res.dtype)
+        v_stored = self._v_tensor(bucket, v_res.dtype)
         k_parts = [] if k_stored is None else [k_stored]
         v_parts = [] if v_stored is None else [v_stored]
         k_parts.append(k_res)
