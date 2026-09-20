@@ -91,28 +91,57 @@ class BlockQuantCache(cu.DynamicCache):
         return flat.reshape(blocks, rows, *group_shape), blocks, rows
 
     def _flush_k_block(self, bucket, k_block):
-        """k_block [B,H,block,D] -> one group per channel, along the token axis."""
-        b, h, s, d = k_block.shape
+        """k_block [B,H,m*block,D] -> one group per channel, along the token axis.
+
+        Accepts any whole number of blocks m >= 1 and encodes them in ONE codec
+        call: at the real flush shape the codec is launch-bound, not
+        bandwidth-bound (0.46 ms at 114,688 elements and 0.46 ms at 917,504 --
+        see encode_scale_bench.py), so batching the up-to-8 blocks a chunk
+        produces is nearly free bandwidth and saves 7 kernel-launch round
+        trips. The output is split back into per-block entries, so what lands
+        in the bucket lists is bit-identical to the per-block version.
+        """
+        b, h, tok, d = k_block.shape
+        m = tok // self.block
+        s = self.block
+        # Blocks must stay outermost in the group order, exactly as m
+        # consecutive per-block calls would append them: group axis is
+        # (block, b, h, d), so the permute pairs each channel with the m
+        # token slabs of its own block only.
         packed, scales, zeros, _ = self._encode(
-            k_block.permute(0, 1, 3, 2).reshape(b * h * d, s), s
+            k_block.reshape(b, h, m, s, d)
+            .permute(2, 0, 1, 4, 3)
+            .reshape(b * h * m * d, s),
+            s,
         )
         g = bucket["k"]
-        g["packed"].append(packed)
-        g["scales"].append(scales)
-        g["zeros"].append(zeros)
-        g["rows"], g["blocks"], g["shape"] = b * h * d, g["blocks"] + 1, (b, h, s, d)
+        g["packed"].extend(packed.split(b * h * d * s * self.bits // 8))
+        g["scales"].extend(scales.split(b * h * d))
+        g["zeros"].extend(zeros.split(b * h * d))
+        g["rows"], g["blocks"], g["shape"] = b * h * d, g["blocks"] + m, (b, h, s, d)
 
     def _flush_v_block(self, bucket, v_block):
-        """v_block [B,H,block,D] -> groups along channels within each token."""
-        b, h, s, d = v_block.shape
+        """v_block [B,H,m*block,D] -> groups along channels within each token.
+
+        Same one-call batching as `_flush_k_block`.
+        """
+        b, h, tok, d = v_block.shape
+        m = tok // self.block
+        rows = b * h * self.block
+        # Same block-outer ordering as K: per-block calls appended (b, h,
+        # token-within-block) rows, so the batched flatten must be
+        # (block, b, h, token, channel), not (b, h, token-across-blocks).
         packed, scales, zeros, _ = self._encode(
-            v_block.reshape(b * h * s, d), self.v_group
+            v_block.reshape(b, h, m, self.block, d)
+            .permute(2, 0, 1, 3, 4)
+            .reshape(m * rows, d),
+            self.v_group,
         )
         g = bucket["v"]
-        g["packed"].append(packed)
-        g["scales"].append(scales)
-        g["zeros"].append(zeros)
-        g["rows"], g["blocks"], g["shape"] = b * h * s, g["blocks"] + 1, (b, h, s, d)
+        g["packed"].extend(packed.split(rows * d * self.bits // 8))
+        g["scales"].extend(scales.split(rows * d // self.v_group))
+        g["zeros"].extend(zeros.split(rows * d // self.v_group))
+        g["rows"], g["blocks"], g["shape"] = rows, g["blocks"] + m, (b, h, self.block, d)
 
     def _k_tensor(self, bucket, dtype=torch.float16):
         """Stored K blocks as [B,H,blocks*block,D], decoded in one codec call.
@@ -164,12 +193,17 @@ class BlockQuantCache(cu.DynamicCache):
             k_res = torch.cat([res[0], key_states], dim=-2)
             v_res = torch.cat([res[1], value_states], dim=-2)
 
-        # Flush every complete block. Encoded once; never re-encoded.
-        while k_res.shape[-2] >= self.block:
-            self._flush_k_block(bucket, k_res[..., : self.block, :])
-            self._flush_v_block(bucket, v_res[..., : self.block, :])
-            k_res = k_res[..., self.block :, :]
-            v_res = v_res[..., self.block :, :]
+        # Flush every complete block. Encoded once; never re-encoded. All
+        # complete blocks are flushed in ONE codec call per K and per V
+        # (batched -- see `_flush_k_block`); the trailing partial block stays
+        # in FP16 as before.
+        n_complete = k_res.shape[-2] // self.block
+        if n_complete:
+            m = n_complete * self.block
+            self._flush_k_block(bucket, k_res[..., :m, :])
+            self._flush_v_block(bucket, v_res[..., :m, :])
+            k_res = k_res[..., m:, :]
+            v_res = v_res[..., m:, :]
         self._residual[layer_idx] = (k_res, v_res)
 
         # One decode call per layer for all stored blocks, instead of one per
