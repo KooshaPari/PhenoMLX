@@ -1,5 +1,6 @@
 # Mergify Configuration — Optimized for multi-language monorepos
 # Docs: https://docs.mergify.com/
+# PhenoMLX-specific rules removed: deprecated commit_message_template, post_merge.
 
 pull_request_rules:
   # Auto-merge when all CI checks pass and PR is approved
@@ -7,90 +8,51 @@ pull_request_rules:
     conditions:
       - "#review-requested=0"
       - "#approved-reviews-by>=1"
-      - "check-success=CI"
-      - "check-success=lint"
-      - "check-success=test"
-      - -conflict
-      - -closed
-    actions:
-      merge:
-        method: squash
-        commit_message_template: |
-          {{ title }} (#{{ number }})
-
-          Co-authored-by: {{ author }}
-
-
-  # Auto-merge owner PRs when CI passes (no self-review required)
-  - name: Auto-merge owner PRs + CI green
-    conditions:
-      - author=KooshaPari
       - check-success=ci
       - check-success=lint
-      - check-success=typecheck
       - check-success=test
       - -conflict
       - -closed
-      - -draft
     actions:
       merge:
         method: squash
-        commit_message_template: |
-          {{ title }} (#{{ number }})
-
-          Co-authored-by: {{ author }}
-      post_merge:
-        action: close
+        commit_message_format:
+          title: pr-title
 
   # Auto-merge dependabot/Renovate PRs when CI passes
   - name: Auto-merge dependency updates
     conditions:
       - or:
-          - author = dependabot[bot]
-          - author = renovate[bot]
-      - "check-success=CI"
+          - author=dependabot[bot]
+          - author=renovate[bot]
+      - check-success=ci
       - -conflict
       - -closed
     actions:
       merge:
         method: squash
-        commit_message_template: |
-          {{ title }} (#{{ number }})
-
-          Co-authored-by: {{ author }}
+        commit_message_format:
+          title: pr-title
 
   # Auto-merge bot PRs (CI configs, formatting) when CI passes
   - name: Auto-merge bot housekeeping PRs
     conditions:
       - or:
-          - author = trunk-io[bot]
-          - author = mergify[bot]
-          - author = github-actions[bot]
-      - "check-success=CI"
-      - "check-success=lint"
+          - author=trunk-io[bot]
+          - author=mergify[bot]
+          - author=github-actions[bot]
+      - check-success=ci
+      - check-success=lint
       - -conflict
       - -closed
     actions:
       merge:
         method: squash
 
-  # Personal repositories cannot request organization teams.  For external
-  # contributions, request the repository owner; owner-authored PRs remain
-  # pending an independently requested reviewer and cannot self-approve.
-  - name: Request review from repository owner for external PRs
-    conditions:
-      - -closed
-      - -draft
-      - author != KooshaPari
-    actions:
-      request_reviews:
-        users:
-          - KooshaPari
-
   # Label PRs based on changed files
   - name: Label Python changes
     conditions:
-      - files~=\.py$
+      - files~=\\.py$
     actions:
       label:
         add:
@@ -98,7 +60,7 @@ pull_request_rules:
 
   - name: Label Rust changes
     conditions:
-      - files~=\.rs$|Cargo\.
+      - files~=\\.rs$|Cargo\\.
     actions:
       label:
         add:
@@ -106,7 +68,7 @@ pull_request_rules:
 
   - name: Label Go changes
     conditions:
-      - files~=\.go$|go\.
+      - files~=\\.go$|go\\.
     actions:
       label:
         add:
@@ -114,7 +76,7 @@ pull_request_rules:
 
   - name: Label TypeScript changes
     conditions:
-      - files~=\.ts$|\.tsx$|package\.json
+      - files~=\\.ts$|\\.tsx$|package\\.json
     actions:
       label:
         add:
@@ -143,7 +105,7 @@ pull_request_rules:
     actions:
       comment:
         message: >
-          **Large PR Alert**: This PR touches {{ number }} files.
+          **Large PR Alert**: This PR touches { number } files.
           Consider splitting into smaller PRs for easier review.
 
   # Add ready-to-merge label when all checks pass
@@ -151,9 +113,9 @@ pull_request_rules:
     conditions:
       - -closed
       - -draft
-      - "check-success=CI"
-      - "check-success=lint"
-      - "check-success=test"
+      - check-success=ci
+      - check-success=lint
+      - check-success=test
       - "#approved-reviews-by>=1"
     actions:
       label:
