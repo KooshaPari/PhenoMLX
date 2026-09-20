@@ -633,6 +633,44 @@ structural to the transformers cache API: `update()` must return the full
 sequence, and removing the cats needs attention to consume the stored blocks
 directly without going through the model forward.
 
+**(cat-skip, commit `fcd4cd4a`)** A targeted post-codec profile
+(`C:\Users\koosh\agents\sandbox\tq-eval\workers\decode-profile\REPORT.md`;
+instruments `BlockQuantCache` by subclass with no semantic changes) showed
+the *final* `torch.cat([stored_k, k_res])` on line 252 was wasted 100% of
+the time in the shipped config: with `STEP=256` and `BLOCK=32`, every chunk
+is exactly `STEP/BLOCK` complete blocks so `k_res` and `v_res` are empty
+when `update()` returns. The cat copied zero bytes at full launch overhead
+on every chunk. Replacing the unconditional cat with three cases per K/V
+(stored-None+residual-non-empty -> return residual; stored-non-None+residual-
+empty -> return stored; stored-non-None+residual-non-None -> `torch.cat`)
+shrinks the `update()` return cost back to a no-op when the residual is
+empty. Bit-identical to the previous path (`catskip_equivalence.py`: 6/6
+chunks match an in-line cat-every-time subclass; `batched_flush_equivalence.py`:
+4/4 chunk patterns still match). Quality preserved (`tq_block_cache_shipped_check.py`:
+PASS, worst per-step rel diff 0.0144, step 1 matches fp16). New 8K numbers
+on a clean 3090 Ti:
+
+| tokens | cache | total (s) | encode (s) | decode (s) | rest (s) |
+|---:|---|---:|---:|---:|---:|
+| 8192 | fp16 | 2.90 | -- | -- | 2.90 |
+| 8192 | block4 (after cat-skip) | 4.34 | -- | -- | -- |
+
+Block4 went **5.97 s -> 4.34 s** at 8K (1.63 s / 27%), and **17.79 s -> 4.34 s**
+end-to-end since the codec landed (4.10x). Block4 vs fp16 (2.90 s) leaves
+1.44 s of cache-side overhead at 8K -- of which ~0.5 s is the residual cat
+inside `_k_tensor` / `_v_tensor` (which joins newly-decoded blocks to the
+cached full tensor and is unavoidable without a fused attention kernel) and
+the rest is the structural cat-bypass spike (`workers\cat-bypass\SPIKE.md`,
+verdict ABANDON: SDPA in `transformers/integrations/sdpa_attention.py:57`
+slices the attention mask down to `key.shape[-2]`, so returning only the
+tail silently breaks decode). Quality at long context still holds with the
+cat-skip change (`C:\Users\koosh\agents\sandbox\tq-eval\block_cache_48k_catskip.json`):
+**fp16 PPL 1.8716, block4 PPL 1.8801, +0.46%** at 49,152 tokens (better
+than the +0.93% at 32K). The cat-skip is the last easy win on this path;
+closing the remaining gap requires a custom fused attention kernel that
+reads packed quantized storage + FP16 residual directly (Option B in the
+cat-bypass spike; multi-week project).
+
 **(g) First resident quantize-once cache measurement, and two bugs it had to
 fix.** The codec above is fake-quant (QDQ), so it cannot measure resident
 behavior at all. `BlockQuantCache` is the actual quantize-once implementation,
