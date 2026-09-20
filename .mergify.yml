@@ -1,6 +1,5 @@
 # Mergify Configuration — Optimized for multi-language monorepos
 # Docs: https://docs.mergify.com/
-# PhenoMLX-specific rules removed: deprecated commit_message_template, post_merge.
 
 pull_request_rules:
   # Auto-merge when all CI checks pass and PR is approved
@@ -52,7 +51,7 @@ pull_request_rules:
   # Label PRs based on changed files
   - name: Label Python changes
     conditions:
-      - files~=\\.py$
+      - files~=\.py$
     actions:
       label:
         add:
@@ -60,7 +59,7 @@ pull_request_rules:
 
   - name: Label Rust changes
     conditions:
-      - files~=\\.rs$|Cargo\\.
+      - files~=\.rs$|Cargo\.
     actions:
       label:
         add:
@@ -68,7 +67,7 @@ pull_request_rules:
 
   - name: Label Go changes
     conditions:
-      - files~=\\.go$|go\\.
+      - files~=\.go$|go\.
     actions:
       label:
         add:
@@ -76,7 +75,7 @@ pull_request_rules:
 
   - name: Label TypeScript changes
     conditions:
-      - files~=\\.ts$|\\.tsx$|package\\.json
+      - files~=\.ts$|\.tsx$|package\.json
     actions:
       label:
         add:
@@ -105,7 +104,7 @@ pull_request_rules:
     actions:
       comment:
         message: >
-          **Large PR Alert**: This PR touches { number } files.
+          **Large PR Alert**: This PR touches {{ number }} files.
           Consider splitting into smaller PRs for easier review.
 
   # Add ready-to-merge label when all checks pass
