@@ -242,14 +242,27 @@ class BlockQuantCache(cu.DynamicCache):
         # block. _k_tensor / _v_tensor decode in fp32 and cast to the caller's
         # dtype before the permute (so the post-permute contig copy is in the
         # caller's dtype, not fp32 -- see `_k_tensor`); concatenate with the
-        # residual, which is already in that dtype.
+        # residual, which is already in that dtype. When the residual is empty
+        # (the shipped config has STEP % BLOCK == 0 so this is every call) and
+        # we already have a stored tensor, the final torch.cat would copy zero
+        # bytes at full launch overhead -- return the cached tensor directly.
+        # The cache_cat inside _k_tensor still runs (it joins newly-decoded
+        # blocks to the cached full tensor); only the *return* cat is skipped.
         k_stored = self._k_tensor(bucket, k_res.dtype)
         v_stored = self._v_tensor(bucket, v_res.dtype)
-        k_parts = [] if k_stored is None else [k_stored]
-        v_parts = [] if v_stored is None else [v_stored]
-        k_parts.append(k_res)
-        v_parts.append(v_res)
-        return torch.cat(k_parts, dim=-2), torch.cat(v_parts, dim=-2)
+        if k_stored is None:
+            k_out = k_res
+        elif k_res.shape[-2] == 0:
+            k_out = k_stored
+        else:
+            k_out = torch.cat([k_stored, k_res], dim=-2)
+        if v_stored is None:
+            v_out = v_res
+        elif v_res.shape[-2] == 0:
+            v_out = v_stored
+        else:
+            v_out = torch.cat([v_stored, v_res], dim=-2)
+        return k_out, v_out
 
     def get_seq_length(self, layer_idx=None):
         """Tokens currently cached, including the FP16 residual.
