@@ -597,6 +597,42 @@ roundtrip differs by 0.000000 (`C:\Users\koosh\agents\sandbox\tq-eval\encode_ben
 The `bits` in {2, 3} path is unchanged, because 3-bit straddles byte boundaries
 and 2-bit is only used for the exploratory quality rows.
 
+**The vectorized codec made encode faster but prefill is still encode-bound,
+because the codec is launch-bound, not bandwidth-bound.** Same probe
+(`encode_scale_bench.py`) shows that doubling the element count from 114,688
+to 917,504 raises the encode cost from 0.46 ms to 0.46 ms -- 8x the work,
+same wall time. The per-block while-loop in `update()` therefore paid 8
+kernel-launch round trips per chunk per layer for nearly free bandwidth. The
+fix (commit `f9419223`): `update()` now flushes all complete blocks in one
+`_flush_k_block` / `_flush_v_block` call, and each flush encodes all `m`
+blocks in a single codec call. The batched flatten keeps the block-outer
+group order (`(block, b, h, ...)`) that per-block appends produced, and the
+outputs are split back into per-block bucket entries -- bit-identical
+(`batched_flush_equivalence.py`: 256 / 512+384 / 1024+100 / 384+384+384 all
+IDENTICAL). The encode fast path is launch-bound end-to-end now, so the same
+trick (`f12e0d01`) makes decode cheap too: `_k_tensor` / `_v_tensor` cache the
+decoded tensor per dtype and decode only the new tail each chunk, instead of
+re-decoding the full prefix. The cache is invalidated if bucket.blocks
+shrinks (never happens, but the invariant stays honest). At 8K the combined
+effect of both commits is:
+
+| tokens | cache | total (s) | encode (s) | decode (s) | rest (s) |
+|---:|---|---:|---:|---:|---:|
+| 2048 | fp16 | 0.61 | -- | -- | 0.61 |
+| 2048 | block4 (after) | 1.43 | 0.37 | 0.27 | 0.79 |
+| 8192 | fp16 | 2.51 | -- | -- | 2.51 |
+| 8192 | block4 (after) | 5.97 | 1.66 | 1.14 | 3.18 |
+
+Block4 total at 8K went **17.79 s -> 5.97 s** end-to-end (2.98x), encode
+**11.34 s -> 1.66 s** (6.83x), decode **1.95 s -> 1.14 s** (1.71x). Block4
+vs fp16 (2.51 s) leaves 1.53 s of cache-side overhead at 8K -- of which
+~0.91 s is the residual cat in `update()` (one to extend the residual across
+chunks, one to build the returned `[stored || residual]` tensor) and the rest
+is the codec's fp16->fp32 upcast and the bucket bookkeeping. Both are
+structural to the transformers cache API: `update()` must return the full
+sequence, and removing the cats needs attention to consume the stored blocks
+directly without going through the model forward.
+
 **(g) First resident quantize-once cache measurement, and two bugs it had to
 fix.** The codec above is fake-quant (QDQ), so it cannot measure resident
 behavior at all. `BlockQuantCache` is the actual quantize-once implementation,
