@@ -87,6 +87,22 @@ def encode_uniform_cuda(data: torch.Tensor, bits: int = 4, group_size: int = 64)
     quantized = ((data_g - zero.unsqueeze(1)) / scale.unsqueeze(1)).round().clamp(0, qmax)
     quantized = quantized.to(torch.uint8).view(-1)  # [N]
 
+    # Fast path: bits == 4 packs two nibbles per byte, and the layout is forced:
+    # element 2j owns bits 0-3 of byte j and element 2j+1 owns bits 4-7, so
+    #     byte[j] = quant[2j] | (quant[2j+1] << 4)
+    # is one vectorized op. The generic loop below needs `bits` scatter_adds and
+    # rebuilds an arange(N) inside the loop, so it costs 8+ kernel launches per
+    # call regardless of size -- at the cache's real block size (114,688
+    # elements) that is 1.055 ms against 0.311 ms here, and the small-block case
+    # is barely cheaper (1.242 ms for 4,096 elements), i.e. it is launch-bound
+    # rather than bandwidth-bound. Verified bit-identical (packed, scales, zeros
+    # and the decode roundtrip all match; see
+    # C:\Users\koosh\agents\sandbox\tq-eval\encode_bench.py).
+    if bits == 4 and n % 2 == 0:
+        pairs = quantized.view(-1, 2).to(torch.int32)
+        packed = (pairs[:, 0] | (pairs[:, 1] << 4)).to(torch.uint8)
+        return packed, scale, zero
+
     # Pack bits LSB-first within each byte
     # We do this in PyTorch using shifts (slow but portable)
     n_packed = (n * bits + 7) // 8

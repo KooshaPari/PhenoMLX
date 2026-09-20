@@ -556,6 +556,47 @@ but the win is now ~1 ms per layer per step rather than the 8 ms it was before
 the nibble unpack -- a much smaller target. The priority for fused decode drops
 below the priority of shipping real benchmark numbers (MMLU/GPQA).
 
+**Prefill, not decode, is the real throughput cost.** The audit above is a
+*decode-step* measurement. Splitting a **chunked prefill** the same way (wrapping
+the four inner methods of `BlockQuantCache` and accumulating wall time under
+`torch.cuda.synchronize()`; `C:\Users\koosh\agents\sandbox\tq-eval\prefill_split.py`)
+says the opposite thing about where the money goes:
+
+| tokens | cache | total (s) | encode (s) | decode (s) | encode share of cache cost |
+|---:|---|---:|---:|---:|---:|
+| 2048 | fp16 | 0.53 | -- | -- | -- |
+| 2048 | block4 | 3.80 | 2.55 | 0.31 | 89.3% |
+| 8192 | fp16 | 2.49 | -- | -- | -- |
+| 8192 | block4 | 14.44 | 9.22 | 1.47 | 86.3% |
+
+("encode" = `_flush_k_block` + `_flush_v_block`; "decode" = `_k_tensor` +
+`_v_tensor`; the remainder is the model forward.) So block4 prefill costs
+**5.8x fp16 at 8K**, and ~86% of the cache's own share of that is the flush
+path, not the decode path the previous audit optimized. A 256-token chunk
+flushes 8 blocks x 36 layers = **288 separate `encode_uniform_cuda` calls per
+chunk**, i.e. 9,216 calls for an 8K prefill, each paying fixed per-call
+overhead.
+
+That is why the encode side now has the same vectorized fast path the decode
+side got. The generic bit packer does `bits` `scatter_add`s and rebuilds
+`torch.arange(N)` **inside** the bit loop, so it costs 8+ kernel launches per
+call regardless of size -- at the cache's real block size (114,688 elements)
+the small-block case is barely cheaper than the large one (1.242 ms for 4,096
+elements vs 1.055 ms for 114,688), which is the signature of launch-bound
+rather than bandwidth-bound code. For `bits=4` the layout is forced -- element
+`2j` owns bits 0-3 of byte `j`, element `2j+1` owns bits 4-7 -- so
+`byte[j] = quant[2j] | (quant[2j+1] << 4)` is a single vectorized op:
+
+| workload | generic packer | vectorized | speedup |
+|---|---:|---:|---:|
+| (3584, 32) = 114,688 elem (one cache block-flush) | 1.055 ms | 0.311 ms | 3.40x |
+| (128, 32) = 4,096 elem | 1.242 ms | 0.311 ms | 3.99x |
+
+Bit-identical: packed bytes, scales and zeros all compare equal and the decode
+roundtrip differs by 0.000000 (`C:\Users\koosh\agents\sandbox\tq-eval\encode_bench.py`).
+The `bits` in {2, 3} path is unchanged, because 3-bit straddles byte boundaries
+and 2-bit is only used for the exploratory quality rows.
+
 **(g) First resident quantize-once cache measurement, and two bugs it had to
 fix.** The codec above is fake-quant (QDQ), so it cannot measure resident
 behavior at all. `BlockQuantCache` is the actual quantize-once implementation,
