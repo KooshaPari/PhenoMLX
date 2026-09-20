@@ -67,8 +67,8 @@ class BlockQuantCache(cu.DynamicCache):
             zeros = zeros.to(self.meta_dtype)
         return packed, scales, zeros, rows.shape
 
-    def _decode_all(self, bucket, group, row_width, group_shape):
-        """Decode every stored block in ONE codec call.
+    def _decode_all(self, bucket, group, row_width, group_shape, from_block=0):
+        """Decode stored blocks [from_block:] in ONE codec call.
 
         Encoding happens per block, so the concatenated buffers are in block-major
         group order: block0's groups, then block1's, and so on. That order is
@@ -80,15 +80,18 @@ class BlockQuantCache(cu.DynamicCache):
         `row_width` is the number of values per row (the block size for K, the
         head dim for V); it is not always the group size, which is why it is a
         separate argument.
+
+        `from_block` skips the first N blocks: with the per-dtype decoded
+        tensor cached (see `_k_tensor`), only the tail needs decoding.
         """
-        packed = torch.cat(bucket["packed"])
-        scales = torch.cat(bucket["scales"]).to(torch.float32)
-        zeros = torch.cat(bucket["zeros"]).to(torch.float32)
-        blocks = bucket["blocks"]
+        packed = torch.cat(bucket["packed"][from_block:])
+        scales = torch.cat(bucket["scales"][from_block:]).to(torch.float32)
+        zeros = torch.cat(bucket["zeros"][from_block:]).to(torch.float32)
+        blocks = bucket["blocks"] - from_block
         rows = bucket["rows"]
         n = blocks * rows * row_width
         flat = decode_uniform_cuda(packed, scales, zeros, n, self.bits, group)
-        return flat.reshape(blocks, rows, *group_shape), blocks, rows
+        return flat.reshape(blocks, rows, *group_shape), blocks, from_block
 
     def _flush_k_block(self, bucket, k_block):
         """k_block [B,H,m*block,D] -> one group per channel, along the token axis.
@@ -144,44 +147,73 @@ class BlockQuantCache(cu.DynamicCache):
         g["rows"], g["blocks"], g["shape"] = rows, g["blocks"] + m, (b, h, self.block, d)
 
     def _k_tensor(self, bucket, dtype=torch.float16):
-        """Stored K blocks as [B,H,blocks*block,D], decoded in one codec call.
+        """Stored K blocks as [B,H,blocks*block,D], decoded incrementally.
 
-        Casts to `dtype` *before* the .permute()/.reshape() pair. The permute
-        makes the layout non-contiguous, so the final reshape is a real copy;
-        doing that copy in fp16 instead of fp32 halves its bandwidth. The
-        default is fp16 because that is what the model runs in; `update()`
-        passes the caller's dtype so a bf16 or fp32 model still concatenates.
+        Stored blocks are immutable once encoded, so the decoded tensor is
+        cached per dtype and only the NEW blocks are decoded each call (delta
+        decode); the full re-decode every chunk made prefill O(n^2) in codec
+        work -- 4,224 block-decodes per layer over an 8K prefill against 256
+        encodes. The cache is invalidated if `blocks` shrinks (never happens
+        in the cache lifecycle, but keeps the invariant honest).
         """
         g = bucket["k"]
         if g["blocks"] == 0:
             return None
         b, h, s, d = g["shape"]
-        groups, blocks, _rows = self._decode_all(g, s, s, (s,))
-        return (
-            groups.to(dtype).reshape(blocks, b, h, d, s)
-            .permute(1, 2, 0, 4, 3)
-            .reshape(b, h, blocks * s, d)
-        )
+        cached = bucket.get("decoded_k")
+        start = cached["blocks"] if cached is not None and cached["dtype"] == dtype else 0
+        if start == 0 or cached["blocks"] > g["blocks"]:
+            cached = {"tensor": None, "blocks": 0, "dtype": dtype}
+            bucket["decoded_k"] = cached
+            start = 0
+        if start < g["blocks"]:
+            groups, blocks, _rows = self._decode_all(
+                g, s, s, (s,), from_block=start
+            )
+            new = (
+                groups.to(dtype).reshape(blocks, b, h, d, s)
+                .permute(1, 2, 0, 4, 3)
+                .reshape(b, h, blocks * s, d)
+            )
+            cached["tensor"] = (
+                new if cached["tensor"] is None
+                else torch.cat([cached["tensor"], new], dim=-2)
+            )
+            cached["blocks"] = start + blocks
+        return cached["tensor"]
 
     def _v_tensor(self, bucket, dtype=torch.float16):
-        """Stored V blocks as [B,H,blocks*block,D], decoded in one codec call.
+        """Stored V blocks as [B,H,blocks*block,D], decoded incrementally.
 
-        Casts to `dtype` before the permute, same reason as `_k_tensor`.
+        Same delta-decode strategy as `_k_tensor`.
         """
         g = bucket["v"]
         if g["blocks"] == 0:
             return None
         b, h, s, d = g["shape"]
         per_row = d // self.v_group
-        groups, blocks, _rows = self._decode_all(
-            g, self.v_group, d, (per_row, self.v_group)
-        )
-        return (
-            groups.to(dtype).reshape(blocks, b, h, s, per_row, self.v_group)
-            .reshape(blocks, b, h, s, d)
-            .permute(1, 2, 0, 3, 4)
-            .reshape(b, h, blocks * s, d)
-        )
+        cached = bucket.get("decoded_v")
+        start = cached["blocks"] if cached is not None and cached["dtype"] == dtype else 0
+        if start == 0 or cached["blocks"] > g["blocks"]:
+            cached = {"tensor": None, "blocks": 0, "dtype": dtype}
+            bucket["decoded_v"] = cached
+            start = 0
+        if start < g["blocks"]:
+            groups, blocks, _rows = self._decode_all(
+                g, self.v_group, d, (per_row, self.v_group), from_block=start
+            )
+            new = (
+                groups.to(dtype).reshape(blocks, b, h, s, per_row, self.v_group)
+                .reshape(blocks, b, h, s, d)
+                .permute(1, 2, 0, 3, 4)
+                .reshape(b, h, blocks * s, d)
+            )
+            cached["tensor"] = (
+                new if cached["tensor"] is None
+                else torch.cat([cached["tensor"], new], dim=-2)
+            )
+            cached["blocks"] = start + blocks
+        return cached["tensor"]
 
     # -- cache API --------------------------------------------------------
     def update(self, key_states, value_states, layer_idx, cache_kwargs=None):
