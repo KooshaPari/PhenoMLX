@@ -155,18 +155,22 @@ class BlockQuantCache(cu.DynamicCache):
         work -- 4,224 block-decodes per layer over an 8K prefill against 256
         encodes. The cache is invalidated if `blocks` shrinks (never happens
         in the cache lifecycle, but keeps the invariant honest).
+
+        The buffer grows geometrically: each new decode only copies the
+        newly-decoded tail into the buffer (no full-prefix cat), so the
+        per-call cost stays constant instead of growing with prefix length.
         """
         g = bucket["k"]
         if g["blocks"] == 0:
             return None
         b, h, s, d = g["shape"]
         cached = bucket.get("decoded_k")
-        start = cached["blocks"] if cached is not None and cached["dtype"] == dtype else 0
-        if start == 0 or cached["blocks"] > g["blocks"]:
-            cached = {"tensor": None, "blocks": 0, "dtype": dtype}
+        if cached is None or cached["dtype"] != dtype or cached["blocks"] > g["blocks"]:
+            cached = {"buffer": None, "blocks": 0, "capacity_blocks": 0, "dtype": dtype}
             bucket["decoded_k"] = cached
-            start = 0
+        start = cached["blocks"]
         if start < g["blocks"]:
+            # Decode new tail into a temporary
             groups, blocks, _rows = self._decode_all(
                 g, s, s, (s,), from_block=start
             )
@@ -175,17 +179,29 @@ class BlockQuantCache(cu.DynamicCache):
                 .permute(1, 2, 0, 4, 3)
                 .reshape(b, h, blocks * s, d)
             )
-            cached["tensor"] = (
-                new if cached["tensor"] is None
-                else torch.cat([cached["tensor"], new], dim=-2)
-            )
-            cached["blocks"] = start + blocks
-        return cached["tensor"]
+            # Grow buffer geometrically if needed
+            new_total_blocks = start + blocks
+            cap = cached["capacity_blocks"]
+            while cap < new_total_blocks:
+                cap = cap * 2 if cap > 0 else blocks
+            if cached["buffer"] is None or cached["capacity_blocks"] < cap:
+                new_buf = torch.empty(b, h, cap * s, d, dtype=dtype,
+                                       device=new.device)
+                if cached["buffer"] is not None:
+                    new_buf[:, :, :start * s, :].copy_(
+                        cached["buffer"][:, :, :start * s, :])
+                cached["buffer"] = new_buf
+                cached["capacity_blocks"] = cap
+            # Write new tail
+            cached["buffer"][:, :, start * s:new_total_blocks * s, :].copy_(new)
+            cached["blocks"] = new_total_blocks
+        return cached["buffer"][:, :, :cached["blocks"] * s, :]
 
     def _v_tensor(self, bucket, dtype=torch.float16):
         """Stored V blocks as [B,H,blocks*block,D], decoded incrementally.
 
-        Same delta-decode strategy as `_k_tensor`.
+        Same delta-decode strategy as `_k_tensor`, with the same growing
+        buffer so the per-call cost stays constant.
         """
         g = bucket["v"]
         if g["blocks"] == 0:
@@ -193,11 +209,10 @@ class BlockQuantCache(cu.DynamicCache):
         b, h, s, d = g["shape"]
         per_row = d // self.v_group
         cached = bucket.get("decoded_v")
-        start = cached["blocks"] if cached is not None and cached["dtype"] == dtype else 0
-        if start == 0 or cached["blocks"] > g["blocks"]:
-            cached = {"tensor": None, "blocks": 0, "dtype": dtype}
+        if cached is None or cached["dtype"] != dtype or cached["blocks"] > g["blocks"]:
+            cached = {"buffer": None, "blocks": 0, "capacity_blocks": 0, "dtype": dtype}
             bucket["decoded_v"] = cached
-            start = 0
+        start = cached["blocks"]
         if start < g["blocks"]:
             groups, blocks, _rows = self._decode_all(
                 g, self.v_group, d, (per_row, self.v_group), from_block=start
@@ -208,12 +223,23 @@ class BlockQuantCache(cu.DynamicCache):
                 .permute(1, 2, 0, 3, 4)
                 .reshape(b, h, blocks * s, d)
             )
-            cached["tensor"] = (
-                new if cached["tensor"] is None
-                else torch.cat([cached["tensor"], new], dim=-2)
-            )
-            cached["blocks"] = start + blocks
-        return cached["tensor"]
+            new_total_blocks = start + blocks
+            cap = cached["capacity_blocks"]
+            while cap < new_total_blocks:
+                cap = cap * 2 if cap > 0 else blocks
+            if cached["buffer"] is None or cached["capacity_blocks"] < cap:
+                new_buf = torch.empty(b, h, cap * s, d, dtype=dtype,
+                                       device=new.device)
+                if cached["buffer"] is not None:
+                    new_buf[:, :, :start * s, :].copy_(
+                        cached["buffer"][:, :, :start * s, :])
+                cached["buffer"] = new_buf
+                cached["capacity_blocks"] = cap
+            cached["buffer"][:, :, start * s:new_total_blocks * s, :].copy_(new)
+            cached["blocks"] = new_total_blocks
+        return cached["buffer"][:, :, :cached["blocks"] * s, :]
+
+    # -- cache API --------------------------------------------------------
 
     # -- cache API --------------------------------------------------------
     def update(self, key_states, value_states, layer_idx, cache_kwargs=None):
