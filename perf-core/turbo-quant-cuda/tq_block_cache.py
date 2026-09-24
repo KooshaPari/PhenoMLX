@@ -240,8 +240,6 @@ class BlockQuantCache(cu.DynamicCache):
         return cached["buffer"][:, :, :cached["blocks"] * s, :]
 
     # -- cache API --------------------------------------------------------
-
-    # -- cache API --------------------------------------------------------
     def update(self, key_states, value_states, layer_idx, cache_kwargs=None):
         bucket = self._bucket(layer_idx)
         res = self._residual[layer_idx]
