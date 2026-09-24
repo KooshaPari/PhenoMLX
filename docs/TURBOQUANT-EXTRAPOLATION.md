@@ -671,6 +671,41 @@ closing the remaining gap requires a custom fused attention kernel that
 reads packed quantized storage + FP16 residual directly (Option B in the
 cat-bypass spike; multi-week project).
 
+**(preallocated buffer, commit `dc9f2e37`)** The post-cat-skip profile
+(`prefill_split_kv.py`: 5.48 s at 8K split into k_enc 0.69 / v_enc 0.63 /
+k_dec 0.52 / v_dec 0.49 / rest 3.15) showed the **0.5 s "residual cat"
+estimate above was wrong** -- the actual cat cost in `_k_tensor` was
+~30 us per call against ~5 us for `copy_` into a preallocated buffer,
+but the bigger win was elsewhere: the cat was producing a fresh tensor
+allocation + memory write every call, which interacts badly with the
+GPU's stream of decode work. Replacing it with a single growing buffer
+(doubling capacity on overflow; writes the new tail via `copy_`; returns
+a contiguous slice) makes per-call decode cost constant in cache size
+instead of growing with the prefix. Bit-identical
+(`C:\Users\koosh\agents\sandbox\tq-eval\prealloc_equivalence.py`: 1, 2,
+4, 8, 16, 32 chunks + 17, 24 + 4-layer 32-chunk + invalidation case --
+all IDENTITY; `catskip_equivalence.py` and `batched_flush_equivalence.py`
+still pass; `tq_block_cache_shipped_check.py` PASS, worst rel diff
+0.0144). New ladder at best-of-3:
+
+| tokens | fp16 (s) | block4 (s) | overhead (s) | ratio |
+|---:|---:|---:|---:|---:|
+| 2048 | 0.58 | 0.85 | 0.28 | 1.48x |
+| 4096 | 1.25 | 1.81 | 0.56 | 1.45x |
+| 8192 | 2.76 | **3.58** | 0.82 | 1.30x |
+| 16384 | 6.98 | 8.36 | 1.37 | 1.20x |
+| 32768 | 20.34 | 22.30 | 1.96 | 1.10x |
+
+Block4 went **5.97 s -> 3.58 s** at 8K end-to-end (40% cumulative since
+the codec landed, 4.97x). The ratio keeps improving with context -- 1.10x
+at 32K is essentially parity with fp16, so the remaining gap at the
+short-context end is the fixed per-chunk codec cost. Quality continues
+to improve with context (the +0.46% at 49K is a corpus artefact, not a
+trend; on `corpus_long.txt` it's +0.93% at 49K and +0.40% at 56K -- see
+`C:\Users\koosh\agents\sandbox\tq-eval\block_cache_56k.log`: fp16 PPL
+1.7118, block4 PPL 1.7186, peak 22.96 GiB reserved; 65K OOMs on this
+24 GB card).
+
 **(g) First resident quantize-once cache measurement, and two bugs it had to
 fix.** The codec above is fake-quant (QDQ), so it cannot measure resident
 behavior at all. `BlockQuantCache` is the actual quantize-once implementation,
