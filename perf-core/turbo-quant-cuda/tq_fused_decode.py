@@ -33,8 +33,17 @@ Two constraints make this safe rather than merely fast. Both are enforced by
    and `add.rn.f32`, which round their own results and reproduce the shipped
    arithmetic exactly, so the output is bit-identical.
 
-Usage: `install_triton_kernels(BlockQuantCache)` to opt in, or
-`uninstall_triton_kernels(BlockQuantCache)` to restore the shipped path.
+Usage: construct `BlockQuantCache(fused_decode=True)`, which routes `_k_tensor`
+and `_v_tensor` through these functions and falls back per call.
+
+How much this is worth
+----------------------
+The speedup is real but small in context. In the cache-isolated streaming
+harness this is ~2.2x at 12K-32K. In a full model forward it is roughly
+parity, because the cache's decode is only ~0.1% of a streaming chunk's CUDA
+kernel time (measured at both 8K and 32K; attention is ~80% of the chunk).
+Enable it because it is free and bit-identical, not because it will show up
+as a model-level speedup.
 """
 
 import torch
@@ -286,45 +295,25 @@ def _fused_decode(cache, bucket, kind, dtype):
 
 
 def fused_k_tensor(self, bucket, dtype=torch.float16):
-    """Fused drop-in for `BlockQuantCache._k_tensor`, with a per-call fallback."""
+    """Fused decode for K, with a per-call fallback to the shipped path.
+
+    Falls back for any call the kernels do not cover: non-4-bit layouts (2 and
+    3 bit pack differently, and 3-bit straddles byte boundaries), CPU tensors,
+    or a dtype the kernel has no cast target for. The shipped path is correct
+    for all of those, so the fallback is per call rather than per cache.
+    """
     if not _supported(self, bucket, dtype):
-        return self._shipped_k_tensor(bucket, dtype)
+        return self._k_tensor_shipped(bucket, dtype)
     return _fused_decode(self, bucket, "k", dtype)
 
 
 def fused_v_tensor(self, bucket, dtype=torch.float16):
-    """Fused drop-in for `BlockQuantCache._v_tensor`, with a per-call fallback."""
+    """Fused decode for V, with the same per-call fallback as `fused_k_tensor`."""
     if not _supported(self, bucket, dtype):
-        return self._shipped_v_tensor(bucket, dtype)
+        return self._v_tensor_shipped(bucket, dtype)
     return _fused_decode(self, bucket, "v", dtype)
 
 
 def fused_decode_available():
     """True when the fused decode can run on this build."""
     return TRITON_FUSED_AVAILABLE and torch.cuda.is_available()
-
-
-def install_triton_kernels(cache_cls):
-    """Opt in: make `cache_cls` decode through the fused kernels.
-
-    The shipped methods are kept as `_shipped_k_tensor` / `_shipped_v_tensor` so
-    the fused wrappers can fall back to them for any geometry the kernels do not
-    cover, and so `uninstall_triton_kernels` can restore the original path
-    exactly rather than reloading the module.
-    """
-    if "_shipped_k_tensor" not in cache_cls.__dict__:
-        cache_cls._shipped_k_tensor = cache_cls._k_tensor
-    if "_shipped_v_tensor" not in cache_cls.__dict__:
-        cache_cls._shipped_v_tensor = cache_cls._v_tensor
-    cache_cls._k_tensor = fused_k_tensor
-    cache_cls._v_tensor = fused_v_tensor
-
-
-def uninstall_triton_kernels(cache_cls):
-    """Opt out: restore the shipped decode path."""
-    if "_shipped_k_tensor" in cache_cls.__dict__:
-        cache_cls._k_tensor = cache_cls._shipped_k_tensor
-        del cache_cls._shipped_k_tensor
-    if "_shipped_v_tensor" in cache_cls.__dict__:
-        cache_cls._v_tensor = cache_cls._shipped_v_tensor
-        del cache_cls._shipped_v_tensor

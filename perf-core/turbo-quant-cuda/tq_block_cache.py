@@ -37,7 +37,8 @@ from turbo_quant_cuda import decode_uniform_cuda, encode_uniform_cuda  # noqa: E
 class BlockQuantCache(cu.DynamicCache):
     """Quantize-once KV cache with per-channel K and per-token V."""
 
-    def __init__(self, block=32, bits=4, v_group=32, meta_dtype=torch.float32):
+    def __init__(self, block=32, bits=4, v_group=32, meta_dtype=torch.float32,
+                 fused_decode=False):
         super().__init__()
         self.block = block
         self.bits = bits
@@ -45,6 +46,16 @@ class BlockQuantCache(cu.DynamicCache):
         self.meta_dtype = meta_dtype
         self._stored = {}  # layer -> dict with 'k' and 'v' block lists
         self._residual = {}  # layer -> (k_res, v_res)
+        # Opt in to the Triton fused decode (tq_fused_decode). This is an
+        # INSTANCE attribute, not a class-level install: patching the class
+        # would make the first opt-in silently change every other cache in the
+        # process, including the reference caches the equivalence tests compare
+        # against. Output is bit-identical to the shipped path. It is ~2.2x
+        # faster on the cache's own delta decode, but that decode is only ~0.1%
+        # of a streaming chunk's CUDA time, so expect roughly parity end to end
+        # rather than a visible model-level speedup. Worth enabling because it
+        # costs nothing and the resident set is the cache's real purpose.
+        self.fused_decode = bool(fused_decode)
 
     # -- internal helpers -------------------------------------------------
     def _bucket(self, layer_idx):
@@ -149,6 +160,21 @@ class BlockQuantCache(cu.DynamicCache):
     def _k_tensor(self, bucket, dtype=torch.float16):
         """Stored K blocks as [B,H,blocks*block,D], decoded incrementally.
 
+        Dispatch to the Triton fused decode when this cache opted in. The
+        import is local and the flag is per instance, so a process that never
+        constructs `fused_decode=True` never imports Triton and never changes
+        behavior. The fused path falls back to `_k_tensor_shipped` for any
+        geometry it does not cover (non-4-bit, CPU tensors, exotic dtypes).
+        """
+        if self.fused_decode:
+            from tq_fused_decode import fused_k_tensor
+
+            return fused_k_tensor(self, bucket, dtype)
+        return self._k_tensor_shipped(bucket, dtype)
+
+    def _k_tensor_shipped(self, bucket, dtype=torch.float16):
+        """Stored K blocks as [B,H,blocks*block,D], decoded incrementally.
+
         Stored blocks are immutable once encoded, so the decoded tensor is
         cached per dtype and only the NEW blocks are decoded each call (delta
         decode); the full re-decode every chunk made prefill O(n^2) in codec
@@ -198,6 +224,14 @@ class BlockQuantCache(cu.DynamicCache):
         return cached["buffer"][:, :, :cached["blocks"] * s, :]
 
     def _v_tensor(self, bucket, dtype=torch.float16):
+        """Stored V blocks, dispatched like `_k_tensor` above."""
+        if self.fused_decode:
+            from tq_fused_decode import fused_v_tensor
+
+            return fused_v_tensor(self, bucket, dtype)
+        return self._v_tensor_shipped(bucket, dtype)
+
+    def _v_tensor_shipped(self, bucket, dtype=torch.float16):
         """Stored V blocks as [B,H,blocks*block,D], decoded incrementally.
 
         Same delta-decode strategy as `_k_tensor`, with the same growing

@@ -41,11 +41,7 @@ from tq_fused_decode import (  # noqa: E402
     TRITON_FUSED_AVAILABLE,
     fused_decode_available,
     fused_k_kernel,
-    fused_k_tensor,
     fused_v_kernel,
-    fused_v_tensor,
-    install_triton_kernels,
-    uninstall_triton_kernels,
 )
 
 failures = []
@@ -85,22 +81,16 @@ def variant_count(kernel):
 class FusedCache(BlockQuantCache):
     """A cache whose decode goes through the fused kernels.
 
-    A subclass rather than a monkey-patch on `BlockQuantCache`, so installing
-    the fused path on one instance can never change the reference cache used to
-    produce the expected bytes. The fallback binds the *shipped* methods
-    directly; if it went through `install_triton_kernels` on this class it
-    would save its own overridden methods and recurse forever on any call the
-    kernels do not cover.
+    A subclass rather than a monkey-patch on `BlockQuantCache`, so enabling the
+    fused path on one instance can never change the reference cache used to
+    produce the expected bytes. `BlockQuantCache` dispatches to the fused
+    kernels itself when `fused_decode=True`, so there is no method override
+    here and no risk of saving an overridden method as its own fallback.
     """
 
-    _shipped_k_tensor = BlockQuantCache._k_tensor
-    _shipped_v_tensor = BlockQuantCache._v_tensor
-
-    def _k_tensor(self, bucket, dtype=torch.float16):
-        return fused_k_tensor(self, bucket, dtype)
-
-    def _v_tensor(self, bucket, dtype=torch.float16):
-        return fused_v_tensor(self, bucket, dtype)
+    def __init__(self, *args, **kwargs):
+        kwargs["fused_decode"] = True
+        super().__init__(*args, **kwargs)
 
 
 def payloads(n_chunks, chunk, dtype=torch.float16, seed=0, batch=B):
@@ -289,29 +279,25 @@ def main():
     check("32 chunks did NOT produce 32 K variants (the old bug)", after_k < 32,
           f"{after_k} variants for 32 chunks")
 
-    # ---- install / uninstall are exact inverses ----
-    print("\n=== install / uninstall round-trip ===")
-    original_k = BlockQuantCache._k_tensor
-    original_v = BlockQuantCache._v_tensor
-    install_triton_kernels(BlockQuantCache)
-    check("install swaps in the fused methods",
-          BlockQuantCache._k_tensor is fused_k_tensor
-          and BlockQuantCache._v_tensor is fused_v_tensor)
-    uninstall_triton_kernels(BlockQuantCache)
-    check("uninstall restores the exact original methods",
-          BlockQuantCache._k_tensor is original_k
-          and BlockQuantCache._v_tensor is original_v)
-    check("uninstall removed its bookkeeping attributes",
+    # ---- opt-in is per instance, never per class ----
+    # The old API patched the class, so a single opt-in leaked into every other
+    # cache in the process, including the reference cache an equivalence test is
+    # comparing against. There is nothing to install and nothing to uninstall
+    # now, so the check is that constructing a fused cache leaves the class and
+    # every other instance alone.
+    print("\n=== opt-in isolation ===")
+    before = (BlockQuantCache._k_tensor, BlockQuantCache._v_tensor)
+    fused = FusedCache()
+    default = BlockQuantCache()
+    check("opt-in does not patch the class",
+          (BlockQuantCache._k_tensor, BlockQuantCache._v_tensor) == before)
+    check("default cache stays on the shipped path", default.fused_decode is False)
+    check("fused cache records the flag", fused.fused_decode is True)
+    check("enabling one cache does not enable another",
+          default.fused_decode is False and fused.fused_decode is True)
+    check("no leftover monkey-patch bookkeeping",
           not hasattr(BlockQuantCache, "_shipped_k_tensor")
           and not hasattr(BlockQuantCache, "_shipped_v_tensor"))
-    # Idempotence: installing twice must not wrap the fused path in itself.
-    install_triton_kernels(BlockQuantCache)
-    install_triton_kernels(BlockQuantCache)
-    check("double install does not wrap the fused path in itself",
-          BlockQuantCache._k_tensor is fused_k_tensor)
-    uninstall_triton_kernels(BlockQuantCache)
-    check("uninstall after double install restores cleanly",
-          BlockQuantCache._k_tensor is original_k)
 
     # ---- device correctness: never hardcode a device ----
     print("\n=== device correctness ===")
