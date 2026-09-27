@@ -2,7 +2,16 @@
 
 **Date:** 2026-09-17 (memory accounting corrected 2026-09-27, see the warning below)
 **Source:** PhenoMLX turbo_quant code at `python/omlx_research/backends/mlx_backend.py`
-**Status:** Mathematical extrapolation (desktop GPU validation pending)
+**Status:** HISTORICAL. All measurements on this page are Qwen2.5, which the
+operator policy (2026-09-27) forbids going forward. Retained as the record of
+what was measured and why the conclusions were reached. See "Qwen3.5" at the
+bottom for the replacement geometry.
+
+> **Model policy, 2026-09-27.** Qwen 3, 2.5 and older are banned for all
+> benchmarking, testing and evaluation. Qwen3.5 or newer only, with no
+> exceptions: not "just this once", not "the only weights cached locally", not to
+> reproduce a historical row. If a task needs a Qwen model and no 3.5+ weights
+> are present, that is a blocker to report, not a reason to fall back.
 
 > **Correction, 2026-09-27.** Every memory figure on this page that was derived
 > from a packed representation was counting the packed half only. The
@@ -28,6 +37,12 @@
 > constraint" below. This closes the line: the codec and the cache are correct
 > and measured, and neither is worth enabling until a long-context model whose
 > weights actually fit is available.
+>
+> **Superseded, same day, by Qwen3.5.** The conclusion above is specific to a
+> 32,768 position ceiling. Every Qwen3.5 checkpoint declares
+> `max_position_embeddings: 262144`, which moves the analysis: of 35 card/model
+> cells, 2 are memory-bound and a packed cache buys real context there. See
+> "Qwen3.5: the replacement geometry" at the bottom of this page.
 
 ## What TurboQuant+ Does
 
@@ -1157,3 +1172,89 @@ designed to confirm.**
 - `python/omlx_research/backends/mlx_backend.py:295-360` — Main `generate_with_turbo_cache` impl
 - `python/omlx_research/backends/mlx_backend.py:101-211` — Rust SIMD codec bindings
 - `perf-core/turbo-quant/` — Rust workspace (separate cargo package)
+
+## Qwen3.5: the replacement geometry
+
+Everything above was measured on Qwen2.5, which the 2026-09-27 model policy
+bans going forward. This section records what changes on the family that is
+allowed, and it is the first time the whole analysis should be re-read from,
+because the Qwen2.5 conclusions do not transfer.
+
+**The family** (configs fetched live from the Hub, not assumed):
+
+| model | pos limit | layers | full attn | kv heads | head dim | dtype |
+|---|---:|---:|---:|---:|---:|---|
+| Qwen3.5-0.8B | 262,144 | 24 | 6 | 2 | 256 | bf16 |
+| Qwen3.5-2B | 262,144 | 24 | 6 | 2 | 256 | bf16 |
+| Qwen3.5-4B | 262,144 | 32 | 8 | 4 | 256 | bf16 |
+| Qwen3.5-9B | 262,144 | 32 | 8 | 4 | 256 | bf16 |
+| Qwen3.5-27B | 262,144 | 64 | 16 | 4 | 256 | bf16 |
+| Qwen3.5-35B-A3B | 262,144 | 40 | 10 | 2 | 256 | bf16 |
+| Qwen3.5-122B-A10B | 262,144 | 48 | 12 | 2 | 256 | bf16 |
+
+Three structural changes from Qwen2.5, and they do not cancel:
+
+1. **The position ceiling is 262,144**, 8x the 32,768 that made the whole
+   Qwen2.5 analysis collapse. This is the change that matters.
+2. **The stack is hybrid.** `layer_types` marks most layers `linear_attention`,
+   which carries a fixed-size recurrent state rather than a growing KV cache;
+   only every fourth layer is `full_attention`. KV bytes scale with the
+   full-attention count, so the cache is ~4x smaller per token than a dense
+   model of the same name would be.
+3. **`head_dim` is 256, not 128**, while `num_key_value_heads` is 4 rather than
+   2. That is 4x wider per full-attention layer, which offsets (2) and leaves
+   bytes-per-token roughly flat.
+
+(2) and (3) roughly cancel on bytes, but not on work: with 8 of 32 layers
+holding KV, a fused dequant kernel has 4x less surface to get right, and the KV
+represents a smaller share of the card. Both point the same way.
+
+**The binding-constraint analysis, rerun** over 5 cards x 7 models = 35 cells:
+
+| binding constraint | cells |
+|---|---:|
+| position ceiling (262,144) | 22 |
+| weights do not fit | 11 |
+| **memory binds below the ceiling** | **2** |
+
+The two live cells are Qwen3.5-9B on a 24 GB card (3090 Ti and 4090, identical
+arithmetic): 199,432 usable fp16 tokens against a 262,144 ceiling, and packing
+reaches the ceiling for **1.31x** more context. That is a real cell, in
+contrast with 0 of 20 on Qwen2.5. The 9B is the smallest Qwen3.5 whose weights
+(16.8 GiB bf16) are heavy enough to crowd out KV on a 24 GB card.
+
+Note the gain is 1.31x rather than 2.67x: the 9B's bf16 baseline is larger
+relative to its fp16 one, and its position ceiling is high enough that the
+packed path only has 1.31x of headroom to recover. The 2.67x is still the codec's
+ratio; the *achievable* win is capped by how far below the ceiling the fp16 path
+already sits.
+
+**What has to happen before any of this is measurable.** The installed
+transformers is 4.57.1, which has no `qwen3_5` config type at all:
+
+    qwen3* config types in 4.57.1:
+      qwen3, qwen3_moe, qwen3_next, qwen3_omni_moe,
+      qwen3_vl, qwen3_vl_moe, qwen3_vl_moe_text, qwen3_vl_text
+
+`models/qwen3_5/` first appears in **transformers v5.17.0** (present on `main`,
+404 on v5.0.0 and v4.58.0), and the checkpoints declare
+`architectures: [Qwen3_5ForConditionalGeneration]` with
+`model_type: qwen3_5`, so `from_pretrained` fails before any weight loads. The
+ordered steps are therefore: upgrade transformers to 5.17.0, then download
+Qwen3.5-9B (4 safetensors shards, 17.98 GiB), then re-run the breakdown and
+head-to-head against the new baseline. C: has 276.5 GiB free, so the download is
+not the constraint; the transformers upgrade is, because a major bump can move
+the `DynamicCache` surface `BlockQuantCache` subclasses. The signatures it
+touches today are `update(self, key_states, value_states, layer_idx,
+cache_kwargs=None)` plus `get_seq_length` and `get_mask_sizes`, all of which
+exist in 4.57.1, so any breakage is a mechanical fix rather than a redesign.
+
+**The cache does not attach to a hybrid stack as written.** `BlockQuantCache`
+subclasses `DynamicCache` and returns a full dequantized sequence from
+`update()`, which assumes every layer is full attention. A linear-attention layer
+keeps a recurrent state instead, and transformers routes those through
+`HybridCache` (present in 4.57.1 alongside `HybridChunkedCache` and
+`OffloadedHybridCache`). A fused dequant kernel would therefore target the 8
+full-attention layers of 32 and leave the recurrent ones alone, which is a
+narrower and correspondingly more tractable change than the Qwen2.5 framing
+implied.
