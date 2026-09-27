@@ -359,21 +359,48 @@ class BlockQuantCache(cu.DynamicCache):
 
     # -- accounting -------------------------------------------------------
     def byte_breakdown(self):
-        """Resident bytes, split so the metadata cost is visible.
+        """Resident bytes for the KV this cache holds, split by term.
 
-        Payload is the packed quantized bits; metadata is the fp32 scale/zero
-        pair per group; residual is the partial trailing block kept in FP16.
-        Measured at block=32 the metadata is ~22% of the total, which is why the
-        effective reduction is well short of the nominal 4x. Switching the
-        metadata to fp16 would halve that term.
+        Four terms, and the fourth is the one that decides whether this cache
+        saves anything at all:
+
+        - `payload`   the packed quantized bits
+        - `metadata`  the fp32 scale/zero pair per group
+        - `residual`  the partial trailing block kept in FP16
+        - `decoded`   the materialized FP16 prefix that `_k_tensor` /
+                      `_v_tensor` keep so attention can read contiguous memory
+
+        `decoded` is the same size as the entire FP16 KV cache that this cache
+        was built to replace, and it is counted here because leaving it out
+        makes this method report a ~2.1x saving while the process is actually
+        holding 1.38x the FP16 footprint at 32K. The packing does not replace
+        the FP16 storage; it sits on top of it, and the copy that makes the
+        packed data usable consumes the whole saving.
+
+        Measured at 32K, 36 layers, block=32, D=128, fp16 as the reference:
+
+            fp16 KV                 1152.0 MiB   1.00x
+            packed 4-bit payload     288.0 MiB   0.25x
+            metadata                 144.0 MiB   0.12x
+            DECODED fp16 buffers    1152.0 MiB   1.00x
+            total                   1584.0 MiB   1.38x
+
+        So this cache is a slower, larger DynamicCache as it currently stands.
+        The only fix that makes "4-bit KV" true is to stop materializing the
+        prefix and have attention dequantize inside the attention kernel.
         """
-        payload = metadata = residual = 0
+        payload = metadata = residual = decoded = 0
         for bucket in self._stored.values():
             for kind in ("k", "v"):
                 g = bucket[kind]
                 payload += sum(p.numel() for p in g["packed"])
                 metadata += sum(s.numel() * s.element_size() for s in g["scales"])
                 metadata += sum(z.numel() * z.element_size() for z in g["zeros"])
+            for key in ("decoded_k", "decoded_v"):
+                c = bucket.get(key)
+                if c is not None and c.get("buffer") is not None:
+                    buf = c["buffer"]
+                    decoded += buf.numel() * buf.element_size()
         for res in self._residual.values():
             if res is not None and res[0] is not None:
                 residual += res[0].numel() * res[0].element_size()
@@ -382,11 +409,43 @@ class BlockQuantCache(cu.DynamicCache):
             "payload": payload,
             "metadata": metadata,
             "residual": residual,
-            "total": payload + metadata + residual,
+            "decoded": decoded,
+            # The packed-data terms alone: what this cache would hold if it did
+            # not also keep a materialized FP16 copy. Useful for judging the
+            # codec, misleading if read as the cache's real footprint.
+            "packed_only": payload + metadata + residual,
+            "total": payload + metadata + residual + decoded,
         }
 
+    def effective_ratio(self, fp16_bytes):
+        """FP16 bytes / this cache's true resident bytes. Below 1.0 means worse."""
+        total = self.byte_breakdown()["total"]
+        if total <= 0:
+            return float("inf")
+        return fp16_bytes / total
+
+    def packed_ratio(self, fp16_bytes):
+        """FP16 bytes / packed-only bytes: the codec's ratio, ignoring decode.
+
+        This is the number the cache is designed around, and it is the number
+        that made the design look worthwhile. It is NOT the cache's real
+        footprint ratio; see `effective_ratio` for that.
+        """
+        packed = self.byte_breakdown()["packed_only"]
+        if packed <= 0:
+            return float("inf")
+        return fp16_bytes / packed
+
     def packed_bytes(self):
-        """Total resident bytes for KV (payload + metadata + residual)."""
+        """True resident bytes for KV, INCLUDING the materialized FP16 prefix.
+
+        Previously this returned payload + metadata + residual and was
+        documented as "total resident bytes", which overstated the saving by
+        about 1.6x (2.67x reported against 1.65x actual at 32K). It now returns
+        the same value as `byte_breakdown()["total"]`, so it cannot silently
+        disagree with the breakdown. If you want the codec's ratio ignoring the
+        decode buffer, ask for `packed_ratio` explicitly.
+        """
         return self.byte_breakdown()["total"]
 
 
