@@ -17,6 +17,17 @@
 > "What TurboQuant+ Does" and "Where TurboQuant+ Shines" has been left in place
 > as a statement of the design intent it was written to express, and is flagged
 > rather than silently deleted.
+>
+> **Follow-up, same day: the fused kernel is also not worth building.** A memory
+> saving only pays when the memory limit binds below the model's own
+> `max_position_embeddings`. Across 5 cards and 4 Qwen2.5 sizes, that is 0 of 20
+> cells -- 15 are already at the 32,768 position ceiling and 5 run out of
+> *weights* before any KV is allocated. So the 2.67x is worth nothing on this
+> hardware even if the implementation were perfect, which is a stronger
+> statement than the 1.375x measurement. See "memory is not the binding
+> constraint" below. This closes the line: the codec and the cache are correct
+> and measured, and neither is worth enabling until a long-context model whose
+> weights actually fit is available.
 
 ## What TurboQuant+ Does
 
@@ -1016,6 +1027,44 @@ Three observations the table supports.
   that no FP16 copy of the prefix ever exists. Only then does the 2.67x become a
   real footprint. Until that exists, this cache is slower and larger than the
   baseline it replaces, and should stay off by default.
+
+- **...and that next design is not worth building, because memory is not the
+  binding constraint for any model anyone runs on these cards.** The reasoning
+  above prices the win as "2.67x more context fits", and the first attempt to
+  make that concrete produced a number large enough to justify a fused kernel
+  on its own: 497,911 fp16 tokens of headroom for the 3B on a 3090 Ti, against
+  32,768 actually used. The formula was checked against the measured breakdown
+  first (36,864 fp16 bytes/token predicts 1,152 MiB at 32K; measured 1,152 MiB,
+  1.0000x agreement) and the result is insensitive to the activation allowance
+  (2.67x at every allowance from 0 to 2 GiB), so neither term is doing the work.
+
+  The problem is that a context *memory* limit is not a context the model will
+  *use*. Qwen2.5-3B declares `max_position_embeddings: 32768`, read from the
+  local snapshot's `config.json`, and the family shares that ceiling. Usable
+  context is the smaller of the two limits, so across 5 cards and 4 model sizes
+  (20 cells, 3090 Ti / 4090 / A6000 / H100 / B200 by 3B / 7B / 14B / 32B):
+
+  | binding constraint | cells | effect of a fused dequant kernel |
+  |---|---:|---|
+  | position limit (32,768) | 15 | none: usable context is already capped at 32,768 and KV memory at that length is 1.1 GiB of a 23.6 GiB card |
+  | weights do not fit at all | 5 | none: 14B/32B exceed a 24 GB card before any KV is allocated, and a smaller cache does not change the weights |
+  | memory binds *below* the position limit | 0 | **a fused kernel lengthens no usable context in any cell** |
+
+  The zero in the last row is the finding, and it is a stronger result than
+  "1.375x is worse than 1.0x": the 2.67x is not merely unrealized by the current
+  implementation, it is worth nothing on this hardware for these models even if
+  the implementation were perfect. The 24 GB cells are already at their
+  position ceiling, and the cells that do run out of memory run out of *weights*,
+  which no KV representation can address. A 32K-context deployment that is
+  memory-bound needs a model whose weights fit, and at that point its KV is a
+  small fraction of the card.
+
+  What would change the conclusion: a model or build whose position ceiling
+  exceeds its memory limit, which is what long-context work actually uses --
+  Qwen2.5-1M, YaRN-extended Qwen2.5, or Llama-3.1-405B. Those are the cells
+  where 2.67x is worth a fused kernel, and none of them has weights in the local
+  HF cache. Until one does, the honest status is: codec works, cache is
+  correct, and neither is worth enabling on a stock Qwen2.5 at 32K.
 
 - **Chunk size does not have to be block-aligned.** Every ladder row above
   steps in multiples of the 32-token block, which leaves the fp16 residual
