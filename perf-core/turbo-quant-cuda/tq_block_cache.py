@@ -440,11 +440,15 @@ class BlockQuantCache(cu.DynamicCache):
         """True resident bytes for KV, INCLUDING the materialized FP16 prefix.
 
         Previously this returned payload + metadata + residual and was
-        documented as "total resident bytes", which overstated the saving by
-        about 1.6x (2.67x reported against 1.65x actual at 32K). It now returns
-        the same value as `byte_breakdown()["total"]`, so it cannot silently
-        disagree with the breakdown. If you want the codec's ratio ignoring the
-        decode buffer, ask for `packed_ratio` explicitly.
+        documented as "total resident bytes", which hid the decode buffer
+        entirely. It did not overstate the saving by 1.65x -- it understated the
+        cost. At 32K the old value was 432 MiB (0.375x fp16) while the true
+        resident total is 1584 MiB (1.375x fp16), so the cache is 1.38x LARGER
+        than the fp16 KV it replaces and every ratio derived from the old value
+        was wrong by that factor. This now returns the same value as
+        `byte_breakdown()["total"]`, so it cannot silently disagree with the
+        breakdown. If you want the codec's ratio ignoring the decode buffer, ask
+        for `packed_ratio` explicitly, and do not report it as a memory saving.
         """
         return self.byte_breakdown()["total"]
 

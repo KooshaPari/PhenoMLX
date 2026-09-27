@@ -1,8 +1,22 @@
 # TurboQuant+ Production Extrapolation
 
-**Date:** 2026-09-17
+**Date:** 2026-09-17 (memory accounting corrected 2026-09-27, see the warning below)
 **Source:** PhenoMLX turbo_quant code at `python/omlx_research/backends/mlx_backend.py`
 **Status:** Mathematical extrapolation (desktop GPU validation pending)
+
+> **Correction, 2026-09-27.** Every memory figure on this page that was derived
+> from a packed representation was counting the packed half only. The
+> `BlockQuantCache` implementation materializes an FP16 copy of the prefix for
+> attention, so its resident footprint is **1.375x** the FP16 KV it replaces,
+> not 0.375x. It is also slower end-to-end (0.84x at 32K) and costs +0.64% PPL.
+> The 4x figures below remain correct as a statement about the *stored
+> representation*; they are not correct as a statement about what a caller saves
+> by enabling the cache today, and the cache should stay off by default until
+> dequantization is fused into attention. The measured evidence is in
+> "What the resident cache is actually made of" below; the extrapolation in
+> "What TurboQuant+ Does" and "Where TurboQuant+ Shines" has been left in place
+> as a statement of the design intent it was written to express, and is flagged
+> rather than silently deleted.
 
 ## What TurboQuant+ Does
 
@@ -12,12 +26,16 @@ TurboQuant+ compresses the **KV cache** (not weights) to fewer bits after prefil
 - 2-bit = ~87% reduction
 - Keys optionally kept at FP16 (set `turbo_key_bits=0`) for quality-sensitive workloads
 
+> Stated for the stored representation. As implemented in `BlockQuantCache` the
+> resident footprint is 1.375x FP16 because a decoded copy is kept alongside;
+> see the correction note at the top of this page.
+
 KV cache memory formula:
 ```
 kv_bytes = 2 * num_layers * num_kv_heads * head_dim * seq_len * bytes_per_element
 ```
 
-The 75% KV savings ratio is **constant** regardless of model size. The absolute memory saved scales linearly with model + context + concurrency.
+The 75% KV savings ratio is **constant** regardless of model size. The absolute memory saved scales linearly with model + context + concurrency. Constant, and also unreachable in the current implementation -- see the correction note at the top of this page.
 
 ## Lab Validation
 
@@ -94,6 +112,12 @@ Saved% column = (saved bytes) / (weights + FP16 KV). For prod-density models whe
 ## Where TurboQuant+ Shines: Long Context + Concurrency
 
 When KV dominates memory (long context, high concurrency), savings exceed weights themselves.
+
+> This holds only for a cache that never materializes FP16 KV. The current
+> `BlockQuantCache` does materialize it, so at 100 concurrent users this
+> projection inverts rather than degrades. The projection is retained below
+> because it correctly describes the design target -- see the correction note
+> at the top of this page.
 
 **Example: 35B-A3B MoE at 100 concurrent users, 32K context:**
 - KV per user (FP16): 8.59 GB
@@ -790,12 +814,18 @@ Three observations the table supports.
   delta and the saturation-aware step rel diff, so a failure mode in either
   shows up in the report. The exclusion (`abs(loss) < 0.05` nats) is fixed in
   `tq_block_cache_eval_long.py`.
-- **Cache VRAM savings grow with context.** 0.167 GiB at 8K is small, but
-  0.538 GiB at 32K -- 7% of the 7.244 GiB fp16 footprint -- is the start of a
-  real win and the trajectory is linear in stored blocks. The cache holds
-  less VRAM than fp16 because its resident total is a flat 0.375x fp16 KV:
-  payload 0.250 (4 of 16 bits) plus a 0.125 fp32 scale/zero term, both
-  measured below rather than assumed.
+- **Measured peak VRAM is lower, but not for the reason this section used to
+  claim.** 0.167 GiB at 8K grows to 0.538 GiB at 32K, and the trajectory is
+  linear in stored blocks, so the peak number is real and reproducible. It is
+  *not* explained by the cache being smaller: the resident total is a flat
+  **1.375x** fp16 KV, not 0.375x, because the cache holds a materialized FP16
+  copy of the prefix alongside the packed blocks. The win comes from the peak
+  being a transient, and `DynamicCache` reaching roughly 2x the prefix in FP16
+  during the `torch.cat` in `update()` while the quantized path's re-decode
+  transient is smaller than that. Quantified, with the two derivations, in
+  "What the resident cache is actually made of" below. The same measurement
+  also shows the end-to-end cost: at 32K the block4 arm peaked at 7.67 GiB
+  against FP16's 7.24 GiB in the paired head-to-head and ran at 0.84x the speed.
 - **Decode-step memory has no ceiling inside the tested window.**
   `tq_block_cache_decode_oom_probe.py` isolates the decode cost: prefill N
   tokens, run 4 decode steps, report peak allocated and reserved VRAM per
@@ -853,40 +883,70 @@ Three observations the table supports.
 - **What the resident cache is actually made of, and what that implies.**
   `tq_block_cache_breakdown_probe.py` feeds the same chunked path and reads
   `byte_breakdown()` at each length, against `fp16_kv_bytes()` for the same
-  shape (`pilot/results/block_cache_breakdown.json`):
+  shape (`pilot/results/block_cache_breakdown.json`). `total` is the whole
+  resident footprint, which includes the materialized FP16 prefix that
+  `DynamicCache` would otherwise be the sole owner of, so the ratio below is the
+  honest one:
 
-  | Context | payload (MiB) | fp32 metadata (MiB) | residual (MiB) | total (MiB) | fp16 KV (MiB) | total / fp16 |
-  |---:|---:|---:|---:|---:|---:|---:|
-  |  2K | 18 | 9 | 0 | 27 | 72 | 0.375 |
-  |  8K | 72 | 36 | 0 | 108 | 288 | 0.375 |
-  | 16K | 144 | 72 | 0 | 216 | 576 | 0.375 |
-  | 32K | 288 | 144 | 0 | 432 | 1152 | 0.375 |
+  | Context | payload (MiB) | fp32 metadata (MiB) | residual (MiB) | decoded FP16 (MiB) | total (MiB) | fp16 KV (MiB) | total / fp16 |
+  |---:|---:|---:|---:|---:|---:|---:|---:|
+  |  2K | 18 | 9 | 0 | 72 | 99 | 72 | 1.375 |
+  |  8K | 72 | 36 | 0 | 288 | 396 | 288 | 1.375 |
+  | 16K | 144 | 72 | 0 | 576 | 792 | 576 | 1.375 |
+  | 32K | 288 | 144 | 0 | 1152 | 1584 | 1152 | 1.375 |
 
-  The ratio is exactly flat, and it is exactly what the bit budget says: the
-  payload is 0.250 of fp16 KV (4 of 16 bits) and the fp32 scale/zero pair is
-  another 0.125, so *3 of the nominal 4x are real and half of the nominal
-  saving is spent on metadata*. `tq_block_cache_selftest.py` asserts both
-  terms exactly rather than observing them, so this is a checkable claim. The
-  residual is 0 at every rung because the ladder steps in multiples of the
-  32-token block; it is the term that grows when it does not.
+  **The cache is 1.375x larger than the FP16 KV it replaces, and it is exactly
+  that at every context length.** The ratio is flat because the decode buffer
+  is the FP16 KV, verbatim: the cache stores the prefix twice, once packed at
+  0.375x and once unpacked at 1.0x, so the total is 1.375x by construction and
+  no amount of context changes it. This inverts the earlier reading of this
+  table, which counted only the packed half and reported 0.375x.
 
-  That resident number then explains the peak-VRAM saving measured by the
-  eval, and the part it does not explain is the interesting part:
+  What the bit budget still says holds, because it describes the *packed* half
+  rather than the footprint: the payload is 0.250 of FP16 KV (4 of 16 bits) and
+  the fp32 scale/zero pair is another 0.125, so 3 of the nominal 4x are real and
+  half of the nominal saving is spent on metadata.
+  `tq_block_cache_selftest.py` asserts both terms exactly rather than observing
+  them, so this is a checkable claim. The residual is 0 at every rung because the
+  ladder steps in multiples of the 32-token block; it is the term that grows
+  when it does not.
 
-  | Context | resident saving (GiB) | measured peak saving (GiB) | shortfall (GiB) |
+  Two decompositions of the same 1152 MiB at 32K, and they should not be
+  confused:
+
+  | view | bytes | ratio to FP16 |
+  |---|---:|---:|
+  | packed + metadata only (the codec's ceiling) | 432 MiB | 0.375x, i.e. 2.67x smaller |
+  | resident total, including the decode buffer | 1584 MiB | 1.375x, i.e. 1.38x larger |
+
+  The 2.67x is what the design was aiming at. It is the right number for
+  "how small can the stored prefix be", which is the question the codec answers.
+  It is the wrong number for "how much memory does using this cache cost",
+  which is the question a caller asks, and the second row is the answer.
+
+  The resident number also inverts the peak-VRAM reading. Because the resident
+  total is *larger*, the quantized cache should peak higher than `DynamicCache`,
+  and the eval's measured saving is not explained by resident bytes at all:
+
+  | Context | resident cost vs FP16 (GiB) | measured peak saving (GiB) | unexplained (GiB) |
   |---:|---:|---:|---:|
-  |  8K | 0.176 | 0.167 | 0.009 |
-  | 16K | 0.352 | 0.343 | 0.009 |
-  | 24K | 0.527 | 0.492 | 0.035 |
-  | 32K | 0.703 | 0.538 | 0.165 |
+  |  8K | -0.105 | 0.167 | -0.272 |
+  | 16K | -0.211 | 0.343 | -0.554 |
+  | 24K | -0.396 | 0.492 | -0.888 |
+  | 32K | -0.422 | 0.538 | -0.960 |
 
-  Through 16K the measured peak win *is* the resident win, to within 9 MiB,
-  which is allocator noise. The shortfall appears only at 24K and 32K and
-  grows there, and that is the re-decode transient showing up: the cache pays
-  a workspace that `DynamicCache` never does, and above ~16K it becomes
-  visible in the peak. It does not yet reverse the result. Over 8K to 32K the
-  resident advantage accrues 0.527 GiB while the shortfall takes back 0.156
-  GiB, roughly 30%, so the measured saving still grows (0.167 to 0.538 GiB).
+  The sign flip is the finding. The measured 0.538 GiB peak saving at 32K is real
+  and reproducible, but it is *not* the quantized cache being smaller. It comes
+  from a transient: `DynamicCache` allocates FP16 KV and then the `torch.cat`
+  in `update()` allocates a second full-size copy before freeing the first, so at
+  peak it holds roughly 2x the prefix in FP16, while the quantized path's
+  re-decode transient is smaller than that. In other words the cache wins the
+  peak by beating a transient inefficiency in the baseline, and the two
+  regressions agree with that: at 32K the block4 arm peaked at 7.67 GiB against
+  FP16's 7.24 GiB, and ran 19.80 s against 16.62 s, i.e. 0.84x the speed, for
+  +0.64% PPL. A 0.84x speedup is not a win regardless of how the peak is
+  labelled.
+
 - **Bit width has a cliff at 3 bits, and a floor from the metadata.** Same
   driver, same corpus, `block=32`, only `--bits` varies
   (`pilot/results/block_cache_b3_8k.json`, `block_cache_b3_16k.json`,
@@ -906,50 +966,56 @@ Three observations the table supports.
   per-step unsaturated rel diff agrees: 0.88% at 4 bits, 3.69% mean / 22.19%
   worst at 3 bits, 27.24% mean at 2 bits.
 
-  Dropping a bit buys almost no memory. At 8K the measured peak saving over
-  fp16 is 0.167 GiB at 4 bits, 0.185 GiB at 3 bits and 0.202 GiB at 2 bits,
-  so 4 -> 3 bits is worth *18 MiB* while costing 5x the quality. The reason
-  is visible in the resident breakdown at the same 8K prefill
-  (`pilot/results/block_cache_breakdown_b3_8k.json`,
-  `pilot/results/block_cache_breakdown_b2_8k.json`):
+  Dropping a bit buys almost no resident memory and no speed. The payload
+  scales with the bit width exactly as advertised and the metadata does not
+  move at all, so the metadata sets a hard floor on the *packed* half: at
+  `block=32` with fp32 scales and zeros the packed reduction cannot exceed **8x**
+  no matter how few bits the payload uses, because the floor is `288/36`. That
+  ceiling argument is unchanged by this correction, but it is a statement about
+  the packed representation, not about the cache a caller instantiates, and the
+  measured peak numbers cannot be attributed to it either way.
 
-  | bits | payload (MiB) | fp32 metadata (MiB) | residual | total (MiB) | metadata share | vs fp16 KV |
+  | bits | payload (MiB) | fp32 metadata (MiB) | residual | packed + meta (MiB) | packed vs fp16 KV | quality |
   |---:|---:|---:|---:|---:|---:|---:|
-  | 4 | 72 | 36 | 0 | 108 | 0.333 | 2.67x |
-  | 3 | 54 | 36 | 0 | 90 | 0.400 | 3.20x |
-  | 2 | 36 | 36 | 0 | 72 | 0.500 | 4.00x |
+  | 4 | 72 | 36 | 0 | 108 | 2.67x | +0.97% |
+  | 3 | 54 | 36 | 0 | 90 | 3.20x | +5.53% |
+  | 2 | 36 | 36 | 0 | 72 | 4.00x | +54.54% |
 
-  The payload scales with the bit width exactly as advertised and the metadata
-  does not move at all, so the metadata sets a hard floor: at `block=32` with
-  fp32 scales and zeros the resident reduction cannot exceed **8x** no matter
-  how few bits the payload uses, because the floor is `288/36`. Getting past
-  that is a metadata change (fp16 scales/zeros would double the ceiling to
-  16x), not a bit-width change, which is why 3 bits is not a useful operating
-  point: it pays 5x the quality for 18 MiB and moves the ceiling not at all.
+  The 8K measured peak saving over FP16 moves 0.167 -> 0.185 -> 0.202 GiB from
+  4 to 3 to 2 bits, so 4 -> 3 bits is worth *18 MiB* while costing 5x the
+  quality. Getting past the metadata floor is a metadata change (fp16
+  scales/zeros would double the packed ceiling from 8x to 16x), not a bit-width
+  change, which is why 3 bits is not a useful operating point.
 
-  **The metadata precision itself is also a knob.** Same driver, same corpus,
-  same `block=32 bits=4`, only the metadata precision changes from fp32 to
-  fp16 (`pilot/results/block_cache_breakdown_meta16_8k.json`,
+  **The metadata precision itself is also a knob, for the packed half only.**
+  Same driver, same corpus, same `block=32 bits=4`, only the metadata precision
+  changes from fp32 to fp16 (`pilot/results/block_cache_breakdown_meta16_8k.json`,
   `block_cache_b4_meta16_8k.json`, `block_cache_b4_meta16_16k.json`):
 
-  | Context | fp16 metadata (MiB) | total (MiB) | metadata share | vs fp16 KV | fp16 PPL | block4 PPL | delta PPL | saved alloc (GiB) |
+  | Context | fp16 metadata (MiB) | packed + meta (MiB) | packed metadata share | packed vs fp16 KV | fp16 PPL | block4 PPL | delta PPL | measured peak saved (GiB) |
   |---:|---:|---:|---:|---:|---:|---:|---:|---:|
   |  8K | 18 | 90 | 0.200 | 3.20x | 6.0228 | 6.0862 | +1.05% | 0.185 |
   | 16K | 36 | 180 | 0.200 | 3.20x | 4.6279 | 4.6629 | +0.75% | 0.378 |
 
   Halving the metadata precision at 8K is exactly the prediction: 36 MiB -> 18 MiB,
-  2.67x -> 3.20x resident reduction, **with no measurable quality cost** (8K delta
+  2.67x -> 3.20x packed reduction, **with no measurable quality cost** (8K delta
   drifts from +0.97% to +1.05%, within per-step noise; 16K delta *improves* from
   +0.93% to +0.75%, also within noise). Because `BlockQuantCache.__init__`
   already takes `meta_dtype`, this is a one-argument change at call sites; the
   cached-everywhere fp32 path stays the default so callers don't opt into a
   precision they did not ask for. The `mean unsat rel diff` for fp16 metadata is
   0.86% (8K, 32/32 steps) and 0.90% (16K, 64/64), still consistent with the fp32
-  numbers in the long-context table. So fp16 metadata is the cheapest way to
-  break the 8x ceiling from 2.67x to 3.20x resident reduction at 4 bits, and
-  it carries no quality penalty at the resolution of the per-step metric.
-  Pushing past 3.20x resident reduction at 4 bits is a different problem
-  entirely (bits 4->3 or 4->2 buys 18 MiB at 5x quality, see the previous table).
+  numbers in the long-context table. So fp16 metadata halves the stored
+  representation, and none of that reaches a caller who enables the cache as it
+  stands today, because the decode buffer dominates the total.
+
+  The consequence for the roadmap is that the next design cannot be a better
+  codec. Codec quality is settled: 4 bits is +0.97% PPL and fp16 metadata is
+  free. The next design has to stop materializing FP16 KV -- attention reads the
+  packed blocks directly, with dequantization fused into the attention kernel, so
+  that no FP16 copy of the prefix ever exists. Only then does the 2.67x become a
+  real footprint. Until that exists, this cache is slower and larger than the
+  baseline it replaces, and should stay off by default.
 
 - **Chunk size does not have to be block-aligned.** Every ladder row above
   steps in multiples of the 32-token block, which leaves the fp16 residual
@@ -1013,12 +1079,12 @@ designed to confirm.**
 
 ### Future Work
 1. ~~Port turbo_quant codec to CUDA via libtorch~~ DONE 2026-09-17 (`perf-core/turbo-quant-cuda/turbo_quant_cuda.py`, 4/3/2-bit roundtrip tests pass)
-2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B. **Largely done** via `BlockQuantCache` (`perf-core/turbo-quant-cuda/tq_block_cache.py`); the 3B 8K streamed PPL is +0.97% vs fp16 with peak VRAM slightly lower than fp16 itself (item (g)). The remaining work is the throughput claim (item (a)'s fused decode) and the 7B / 15B re-runs.
+2. Real packed-KV residency: replace Python QDQ hooks with a resident packed cache (cache-layout surgery or Rust FFI), then re-run the 3B/7B A/B. **Largely done** via `BlockQuantCache` (`perf-core/turbo-quant-cuda/tq_block_cache.py`); the 3B 8K streamed PPL is +0.97% vs fp16 (item (g)). **Corrected 2026-09-27:** measured peak VRAM is lower than fp16, but the resident footprint is **1.375x** larger, not smaller, because the cache keeps a decoded FP16 copy of the prefix next to the packed blocks; the peak win comes from `DynamicCache`'s `torch.cat` transient, and the paired 32K head-to-head runs at 0.84x the speed of fp16 for +0.64% PPL. The remaining work is stopping that decode buffer from existing (fuse dequantize into attention) and the 7B / 15B re-runs.
 3. Re-run 7B/15B benchmarks on desktop with TurboQuant+ packed-KV active. **Blocked on weights, 2026-09-19:** `tq_block_cache_eval_long.py` now takes `--model Qwen/Qwen2.5-7B-Instruct` and the 3B methodology carries over unchanged, but the local HF cache at `C:\Users\koosh\.cache\huggingface\hub\models--Qwen--Qwen2.5-7B-Instruct` holds only `config.json` + tokenizer files -- the largest blob is 7 MB, so there are no weights and the run dies in `from_pretrained` with `AttributeError: 'NoneType' object has no attribute 'endswith'`. The 7B numbers already on this page were produced when the weights were present. Needs a ~15 GB download (the runs are otherwise offline) or an alternate path to the checkpoint.
 4. Measure actual quality preservation with MMLU/GPQA subsets. **Blocked by policy, 2026-09-19:** neither MMLU nor GPQA is in the local HF cache, `lm_eval` is not installed, and the eval runs are offline (`HF_HUB_OFFLINE=1`), so the standard harness cannot run without a dataset download or a network-enabled run. **Substituted by needle-in-haystack retrieval** (`tq_block_cache_needle_probe.py`, results in the observation list above): retrieval stays at 100% and the digit margin moves by under 0.8 nats at 4K and under 0.1 nat at 16K, so the fact-bearing content of the quantized cache survives. That is a narrower metric than MMLU, but it targets the failure mode quantization actually causes in a long-context cache; MMLU/GPQA remains open as a broader check if the datasets become available.
 5. Concurrency and long-context sweep: 2048-token windows at 3B are done (item (d), where the codec's deficit grows to +61.8% while per-channel K holds at +1.45%). **8192-token at 3B is done** via `BlockQuantCache` (item (g), +0.97% vs fp16), and **16K/24K/32K at 3B are done too** (`tq_block_cache_eval_long.py`, +0.93% / +0.77% / +0.64%, same table). **Batch > 1 verified** at batch=2 and batch=4 (`C:\Users\koosh\agents\sandbox\tq-eval\batch_check.py`, same prompt duplicated across the batch dim): both batches give identical argmax under fp16 and block4 (token 2090), and logit relative L2 diff is 0.0533 (batch=2) / 0.0576 (batch=4) -- the same per-element quantization noise we see at single-batch, with no batch-specific penalty. The cache packs `(b*h*d, group_size)` per block so batch becomes one more index on the row dim, no separate code path needed. The cache's host-side decode grows linearly with stored blocks; after the vectorized nibble-unpack and the dtype-cast reorder it measures **1.21 ms per layer per decode step at 4K tokens** (was 8.47 ms before those two passes -- see the decode-overhead audit below the table). The 24 GiB 3090 Ti decode ceiling has been probed up through 24K prefill (768 blocks) on `corpus_long.txt`: every rung from 1K to 24K clears 4 decode steps without OOM, with step-0 reserved rising 5.88 GiB (1024 tokens, 32 blocks) to 7.12 GiB (24576 tokens, 768 blocks). The next rung (32K) needs a longer corpus than `corpus_long.txt` can supply; the eval-long driver's 32K row already prefills and decodes at 7.59 / 6.94 GiB so the ladder is bounded from above by that measurement even without a 32K probe rung.
 6. PPL gate: adopt perplexity, with a high-bit control run, as the quality gate before any further quantization claim
-7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both. ~~**The decode must be fused:** a host-side packed cache is measured non-viable (3.3 s per update at 4K tokens for one layer, against 0.18 ms for FP16), so the block layout has to be paired with an in-attention dequantize.~~ **Corrected 2026-09-19:** that 3.3 s figure was the *per-block* codec call path, which the cache no longer uses. The resident cache decodes all stored blocks in one call, and after the vectorized nibble-unpack and the dtype-cast reorder the whole update costs **1.21 ms per layer per decode step at 4K tokens** (7x less than the 8.47 ms first measured). Host-side decode is therefore *usable*, not non-viable; fusing the dequantize into attention would remove the remaining ~1 ms per layer (the reshape/permute reorder) but is an optimization, not a precondition. **The fp16 metadata experiment is now measured** (table just above): with fp16 scales and zeros the resident reduction goes from 2.67x to 3.20x at 4 bits and the deficit stays flat at +1.05% (8K) / +0.75% (16K). The metadata is no longer an open question at 3B; the remaining unknown is whether the same holds at 7B and 15B once the cached weights are available (item 3).
+7. Per-channel K grouping: implement in the codec and re-run the 3B/7B A/B; it is the only measured configuration that holds near baseline. **Confirmed at 3B (+0.6%) and 7B (+0.04%)** -- see 'Codec fidelity' items (b) and (c). This is a *call-site layout* change, not a codec rewrite: `encode_uniform` already groups along a flat slice, so per-channel K only requires each channel's values to be contiguous (transpose K to `[channels, tokens]`, encode, decode, transpose back). The work belongs in the cache path, which is the same surgery that item 2 needs, so doing item 2 first pays for both. ~~**The decode must be fused:** a host-side packed cache is measured non-viable (3.3 s per update at 4K tokens for one layer, against 0.18 ms for FP16), so the block layout has to be paired with an in-attention dequantize.~~ **Corrected 2026-09-19:** that 3.3 s figure was the *per-block* codec call path, which the cache no longer uses. The resident cache decodes all stored blocks in one call, and after the vectorized nibble-unpack and the dtype-cast reorder the whole update costs **1.21 ms per layer per decode step at 4K tokens** (7x less than the 8.47 ms first measured). Host-side decode is therefore *usable*, not non-viable; fusing the dequantize into attention would remove the remaining ~1 ms per layer (the reshape/permute reorder) but is an optimization, not a precondition. **The fp16 metadata experiment is now measured** (table just above): with fp16 scales and zeros the packed reduction goes from 2.67x to 3.20x at 4 bits and the deficit stays flat at +1.05% (8K) / +0.75% (16K). This halves the stored representation only; the resident total does not move, because the FP16 decode buffer dominates it. The metadata is no longer an open question at 3B; the remaining unknown is whether the same holds at 7B and 15B once the cached weights are available (item 3).
 
    Verified rather than asserted: `tq_codec_eval_shipped_check.py` round-trips real
    3B K/V through the **shipped** CUDA port (`turbo_quant_cuda.py`) in both
