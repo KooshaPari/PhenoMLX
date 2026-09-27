@@ -50,12 +50,17 @@ DOC_META = "fp32"
 
 # The resident-attribution table in the same docs section, from
 # pilot/results/block_cache_breakdown.json:
-# context -> (payload MiB, metadata MiB, residual MiB, total MiB, fp16 KV MiB)
+# file -> (label, expected payload/metadata/residual/DECODED/total/packed_only/
+# fp16-KV MiB) at 8K. `decoded` is the materialized FP16 prefix and it is as
+# large as the whole fp16 cache, so `total` now comes out ABOVE fp16. These
+# numbers used to read (72, 36, 0, 108, 288), i.e. a 2.67x "reduction", which
+# was `total` computed without the decode buffer. The reduction is real only
+# for `packed_only`; see byte_breakdown's docstring.
 DOC_BREAKDOWN = {
-    2048: (18, 9, 0, 27, 72),
-    8192: (72, 36, 0, 108, 288),
-    16384: (144, 72, 0, 216, 576),
-    32768: (288, 144, 0, 432, 1152),
+    2048: (18, 9, 0, 72, 99, 27, 72),
+    8192: (72, 36, 0, 288, 396, 108, 288),
+    16384: (144, 72, 0, 576, 792, 216, 576),
+    32768: (288, 144, 0, 1152, 1584, 432, 1152),
 }
 MIB_TOL = 0.006
 
@@ -64,10 +69,12 @@ MIB_TOL = 0.006
 # payload/metadata/residual/total/fp16-KV MiB). The payload should scale with
 # the bit width; the fp32 scale/zero term should not, which is what makes it a
 # floor, and halving it should be the cheapest way to raise the floor.
+# `decoded` is the fp16 prefix and does NOT depend on the codec at all: it is
+# the same 288 MiB for every row here, because it is the un-packed copy.
 DOC_BREAKDOWN_VARIANTS = {
-    "block_cache_breakdown_b3_8k.json": ("bits=3", (54, 36, 0, 90, 288)),
-    "block_cache_breakdown_b2_8k.json": ("bits=2", (36, 36, 0, 72, 288)),
-    "block_cache_breakdown_meta16_8k.json": ("bits=4 meta=fp16", (72, 18, 0, 90, 288)),
+    "block_cache_breakdown_b3_8k.json": ("bits=3", (54, 36, 0, 288, 378, 90, 288)),
+    "block_cache_breakdown_b2_8k.json": ("bits=2", (36, 36, 0, 288, 360, 72, 288)),
+    "block_cache_breakdown_meta16_8k.json": ("bits=4 meta=fp16", (72, 18, 0, 288, 378, 90, 288)),
 }
 
 # The bit-width and chunking rows documented alongside the main table, keyed by
@@ -249,13 +256,17 @@ def main():
     if breakdown:
         print("\nresident attribution (MiB)")
         print(
-            "  context     payload  metadata  residual     total      fp16  reduction"
+            "  context     payload  metadata  residual    decoded     total"
+            "      fp16  ratio  verdict"
         )
         for ctx, row in sorted(breakdown.items()):
+            ratio = row["reduction_vs_fp16"]
+            verdict = "smaller" if (ratio or 0) > 1.0 else "LARGER"
             print(
                 f"  {ctx:>7}  {row['payload_mib']:10.2f} {row['metadata_mib']:9.2f} "
-                f"{row['residual_mib']:9.2f} {row['total_mib']:9.2f} "
-                f"{row['fp16_kv_mib']:9.2f} {row['reduction_vs_fp16']:11.3f}"
+                f"{row['residual_mib']:9.2f} {row.get('decoded_mib', 0.0):9.2f} "
+                f"{row['total_mib']:9.2f} "
+                f"{row['fp16_kv_mib']:9.2f} {ratio:7.3f}  {verdict}"
             )
             want = DOC_BREAKDOWN.get(ctx)
             if want is None:
@@ -264,11 +275,15 @@ def main():
                 row["payload_mib"],
                 row["metadata_mib"],
                 row["residual_mib"],
+                row.get("decoded_mib", 0.0),
                 row["total_mib"],
+                row.get("packed_only_mib", row["total_mib"]),
                 row["fp16_kv_mib"],
             )
             for label, g, e in zip(
-                ("payload", "metadata", "residual", "total", "fp16"), got, want
+                ("payload", "metadata", "residual", "decoded", "total",
+                 "packed_only", "fp16"),
+                got, want,
             ):
                 if abs(g - e) > MIB_TOL:
                     failures.append(
@@ -279,6 +294,7 @@ def main():
         fp16_peak = {ctx: v[3] for ctx, v in DOC_TABLE.items()}
         bk_peak = {ctx: v[4] for ctx, v in DOC_TABLE.items()}
         for ctx in sorted(set(breakdown) & set(fp16_peak)):
+            # Negative means the cache costs MORE resident memory than fp16.
             resident = (
                 breakdown[ctx]["fp16_kv_mib"] - breakdown[ctx]["total_mib"]
             ) / 1024
@@ -301,14 +317,19 @@ def main():
     if breakdown_variants:
         print("\nresident attribution by bit width (8K prefill, MiB)")
         print(
-            "   config                payload  metadata  residual     total  meta share"
+            "   config                payload  metadata  residual    decoded"
+            "     total   packed  ratio  meta share"
         )
         for (bits, ctx, meta), (name, row, label) in sorted(breakdown_variants.items()):
             total = row["total_mib"]
             share = row["metadata_mib"] / total if total else 0.0
+            decoded = row.get("decoded_mib", 0.0)
+            packed_only = row.get("packed_only_mib", total)
+            ratio = row["fp16_kv_mib"] / total if total else 0.0
             print(
                 f"  {label:<20} {row['payload_mib']:10.2f} {row['metadata_mib']:9.2f} "
-                f"{row['residual_mib']:9.2f} {total:9.2f} {share:11.3f}"
+                f"{row['residual_mib']:9.2f} {decoded:9.2f} {total:9.2f} "
+                f"{packed_only:9.2f} {ratio:7.3f} {share:11.3f}"
             )
             want = DOC_BREAKDOWN_VARIANTS.get(name)
             if want is None:
@@ -318,11 +339,15 @@ def main():
                 row["payload_mib"],
                 row["metadata_mib"],
                 row["residual_mib"],
-                row["total_mib"],
+                decoded,
+                total,
+                packed_only,
                 row["fp16_kv_mib"],
             )
             for label_field, g, e in zip(
-                ("payload", "metadata", "residual", "total", "fp16"), got, want_tuple
+                ("payload", "metadata", "residual", "decoded", "total",
+                 "packed_only", "fp16"),
+                got, want_tuple,
             ):
                 if abs(g - e) > MIB_TOL:
                     failures.append(

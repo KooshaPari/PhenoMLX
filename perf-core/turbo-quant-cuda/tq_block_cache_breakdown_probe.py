@@ -140,6 +140,10 @@ def main():
             * cfg.num_hidden_layers
         )
         total = bd["total"]
+        # `decoded` is the materialized FP16 prefix. It is counted in `total`,
+        # so `reduction_vs_fp16` can come out below 1.0 -- in which case the
+        # cache is LARGER than fp16 and the wording must not say "smaller".
+        ratio = f16 / total if total else None
         row = {
             "requested_tokens": want,
             "fed_tokens": fed,
@@ -149,22 +153,32 @@ def main():
             "payload_mib": round(bd["payload"] / MIB, 3),
             "metadata_mib": round(bd["metadata"] / MIB, 3),
             "residual_mib": round(bd["residual"] / MIB, 3),
+            "decoded_mib": round(bd["decoded"] / MIB, 3),
             "total_mib": round(total / MIB, 3),
+            "packed_only_mib": round(bd["packed_only"] / MIB, 3),
             "payload_share": round(bd["payload"] / total, 4) if total else None,
             "metadata_share": round(bd["metadata"] / total, 4) if total else None,
             "residual_share": round(bd["residual"] / total, 4) if total else None,
+            "decoded_share": round(bd["decoded"] / total, 4) if total else None,
             "fp16_kv_mib": round(f16 / MIB, 3),
-            "reduction_vs_fp16": round(f16 / total, 4) if total else None,
+            "reduction_vs_fp16": round(ratio, 4) if ratio else None,
+            # The codec's ratio, which is what the design was aiming at. It is
+            # NOT the cache's footprint; the decode buffer is the difference.
+            "packed_ratio_vs_fp16": (
+                round(f16 / bd["packed_only"], 4) if bd["packed_only"] else None
+            ),
             "mib_per_block": round(total / MIB / blocks, 4) if blocks else None,
             "wall_clock_s": round(wall, 1),
         }
         rows[want] = row
+        verdict = "smaller" if (ratio or 0) > 1.0 else "LARGER"
         print(
             f"  {want:>6} tokens: seq={seq} blocks={blocks} "
             f"payload={row['payload_mib']:9.2f} metadata={row['metadata_mib']:9.2f} "
-            f"residual={row['residual_mib']:6.2f} MiB | total={row['total_mib']:9.2f} "
-            f"MiB vs fp16 {row['fp16_kv_mib']:9.2f} MiB = "
-            f"{row['reduction_vs_fp16']:.3f}x smaller "
+            f"residual={row['residual_mib']:6.2f} decoded={row['decoded_mib']:9.2f} "
+            f"MiB | total={row['total_mib']:9.2f} MiB vs fp16 "
+            f"{row['fp16_kv_mib']:9.2f} MiB = {ratio:.3f}x {verdict} "
+            f"(packed-only would be {row['packed_ratio_vs_fp16']:.3f}x) "
             f"| {row['mib_per_block']:.3f} MiB/block | {wall:.1f}s",
             flush=True,
         )
