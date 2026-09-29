@@ -507,20 +507,17 @@ class BlockQuantCache(cu.Cache):
             self.layers.append(self._new_layer())
         return self.layers[layer_idx].update(key_states, value_states, *args, **kwargs)
 
-    def get_seq_length(self, layer_idx=None):
-        """Cached tokens, including the FP16 residual.
+    # NOTE: `get_seq_length` is deliberately not overridden here.
+    # `cu.Cache.get_seq_length` is already hybrid-aware: when the requested index
+    # is not a `CacheLayerMixin` it redirects to the first attention layer (for
+    # the default index 0) and raises for an explicit non-attention index. An
+    # earlier override indexed `self.layers[layer_idx]` directly, which called
+    # `get_seq_length` on a stock `LinearAttentionLayer` -- a class that has no
+    # such method in 5.17, only `get_max_length`. Every masked forward pass
+    # through a hybrid stack died in `create_causal_mask` before reaching a
+    # single matmul. The base implementation already returns the same value for
+    # the pure-attention case this cache was written against.
 
-        Defaults to the first attention layer, matching the base class: the
-        model calls this with no argument to size its causal mask, and a lookup
-        that missed and reported 0 produced correct attention values over a
-        garbage mask at every context length.
-        """
-        if layer_idx is None:
-            layer_idx = next((i for i, l in enumerate(self.layers)
-                              if isinstance(l, cu.CacheLayerMixin)), 0)
-        if layer_idx >= len(self.layers):
-            return 0
-        return self.layers[layer_idx].get_seq_length()
 
     @classmethod
     def from_config(cls, config, block=32, bits=4, v_group=32,
