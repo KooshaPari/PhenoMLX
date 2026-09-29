@@ -640,6 +640,28 @@ class BlockQuantCache(cu.Cache):
         the linear layers' fixed-size recurrent state is not KV and is not
         counted, so the FP16 reference for comparison should also be the
         full-attention layers only.
+
+        Measured on Qwen3.5-9B (32 layers, 8 full attention at indices
+        3, 7, ..., 31, 24 linear; kv_heads 4, head_dim 256, bf16 weights;
+        transformers 5.17, torch 2.9.1, RTX 3090 Ti), block=32, bits=4:
+
+            context   bf16 kv    packed    decoded     total    total/bf16
+              1024     32.0 MiB  12.0 MiB  32.0 MiB   44.0 MiB      1.375x
+              2048     64.0 MiB  24.0 MiB  64.0 MiB   88.0 MiB      1.375x
+              4096    128.0 MiB  48.0 MiB 128.0 MiB  176.0 MiB      1.375x
+              8192    256.0 MiB  96.0 MiB 256.0 MiB  352.0 MiB      1.375x
+
+        1.375x, not a saving, and the ratio is flat in context because the
+        decoded term is exactly the bf16 KV and the packed term is a fixed
+        0.375x of it. The packing does not displace the prefix it compresses.
+
+        Quality is fine, so this is a memory/latency result, not a correctness
+        one: over 16 streaming chunks of 256 tokens the worst per-chunk relative
+        loss difference against bf16 was 0.0164, under the 0.05 gate.
+
+        Per-token decode was 0.92x-1.03x of bf16 across the same contexts, i.e.
+        no speedup either. The codec work is negligible next to the extra
+        dequantize-and-copy that materializing the prefix costs.
         """
         total = {"payload": 0, "metadata": 0, "residual": 0, "decoded": 0}
         for layer in self.quant_layers():
