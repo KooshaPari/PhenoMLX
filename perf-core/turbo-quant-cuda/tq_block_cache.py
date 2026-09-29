@@ -19,8 +19,22 @@ for the first time, grouped the way the hook experiments say it should be:
   both: a partial trailing block stays in FP16, and stored blocks are only ever
         decoded, never re-encoded
 
-Interface: subclasses `DynamicCache` and returns the full dequantized sequence
-from `update`, so attention is unaffected.
+Interface
+---------
+transformers 5.17.0 removed `HybridCache` and made `Cache` a list of per-layer
+objects, so quantization cannot live on the cache any more: the cache no longer
+owns the state, the layer list does. The quantized state therefore lives in
+`BlockQuantLayer`, a `DynamicLayer` that overrides `update()` and returns the
+full dequantized sequence, so attention is unaffected. `BlockQuantCache` is now
+a thin builder that assembles a layer list from the model config and aggregates
+reporting across it.
+
+For a hybrid model (Qwen3.5), only the full-attention layers get a
+`BlockQuantLayer`; the linear-attention layers are left as transformers built
+them, because their recurrent state is a fixed-size tensor that has nothing to do
+with context length. `Cache.get_seq_length` / `get_mask_sizes` dispatch on
+`isinstance(layer, CacheLayerMixin)`, which `BlockQuantLayer` satisfies by
+inheritance, so no transformers logic needs patching.
 """
 
 import os
@@ -34,18 +48,47 @@ import transformers.cache_utils as cu  # noqa: E402
 from turbo_quant_cuda import decode_uniform_cuda, encode_uniform_cuda  # noqa: E402
 
 
-class BlockQuantCache(cu.DynamicCache):
-    """Quantize-once KV cache with per-channel K and per-token V."""
+def _layer_types_and_kwargs(config):
+    """`(layer_types, layer_kwargs)` for `config`, on transformers 4.x and 5.x.
+
+    5.17.0 exports `get_layer_types_and_kwargs`; 4.57.1 does not, and derives the
+    same thing inside `DynamicCache.__init__` with no public entry point. Only the
+    count matters here, and the count is `num_hidden_layers` in both versions, so
+    prefer the config field and fall back to the 5.x helper for anything that
+    needs the per-type dispatch.
+    """
+    decoder_config = config.get_text_config(decoder=True)
+    helper = getattr(cu, "get_layer_types_and_kwargs", None)
+    if helper is not None:
+        return helper(decoder_config)
+    # 4.x: no layer_types field on plain full-attention models, which is the
+    # only case `__init__` has to handle (a hybrid model needs `from_config`,
+    # which requires 5.x anyway).
+    return ["full_attention"] * decoder_config.num_hidden_layers, {}
+
+
+class BlockQuantLayer(cu.DynamicLayer):
+    """Quantize-once KV state for one full-attention layer.
+
+    The codec, block/flush policy and decode paths are unchanged from the
+    single-bucket cache this was extracted from; only the ownership changed.
+    Each layer owns its state outright, so there is no layer index and no dict
+    keyed by one. That also makes the decoded-buffer cache per layer: the old
+    design shared one decode buffer across every layer, which was only correct
+    because each `update` call rewrote it. Here the buffer belongs to the layer
+    that decodes into it, which is both correct and the reason peak memory scales
+    with the number of quantizable layers rather than being paid once.
+    """
 
     def __init__(self, block=32, bits=4, v_group=32, meta_dtype=torch.float32,
-                 fused_decode=False):
-        super().__init__()
+                 fused_decode=False, **kwargs):
+        super().__init__(**kwargs)
         self.block = block
         self.bits = bits
         self.v_group = v_group
         self.meta_dtype = meta_dtype
-        self._stored = {}  # layer -> dict with 'k' and 'v' block lists
-        self._residual = {}  # layer -> (k_res, v_res)
+        self._bucket_data = None
+        self._res_data = None
         # Opt in to the Triton fused decode (tq_fused_decode). This is an
         # INSTANCE attribute, not a class-level install: patching the class
         # would make the first opt-in silently change every other cache in the
@@ -58,14 +101,14 @@ class BlockQuantCache(cu.DynamicCache):
         self.fused_decode = bool(fused_decode)
 
     # -- internal helpers -------------------------------------------------
-    def _bucket(self, layer_idx):
-        if layer_idx not in self._stored:
-            self._stored[layer_idx] = {
+    def _bucket(self):
+        if self._bucket_data is None:
+            self._bucket_data = {
                 "k": {"packed": [], "scales": [], "zeros": [], "rows": 0, "blocks": 0},
                 "v": {"packed": [], "scales": [], "zeros": [], "rows": 0, "blocks": 0},
             }
-            self._residual[layer_idx] = None
-        return self._stored[layer_idx]
+            self._res_data = None
+        return self._bucket_data
 
     def _encode(self, tensor_rows, group):
         # The CUDA codec works in float32; the model hands us fp16.
@@ -160,7 +203,7 @@ class BlockQuantCache(cu.DynamicCache):
     def _k_tensor(self, bucket, dtype=torch.float16):
         """Stored K blocks as [B,H,blocks*block,D], decoded incrementally.
 
-        Dispatch to the Triton fused decode when this cache opted in. The
+        Dispatch to the Triton fused decode when this layer opted in. The
         import is local and the flag is per instance, so a process that never
         constructs `fused_decode=True` never imports Triton and never changes
         behavior. The fused path falls back to `_k_tensor_shipped` for any
@@ -274,9 +317,9 @@ class BlockQuantCache(cu.DynamicCache):
         return cached["buffer"][:, :, :cached["blocks"] * s, :]
 
     # -- cache API --------------------------------------------------------
-    def update(self, key_states, value_states, layer_idx, cache_kwargs=None):
-        bucket = self._bucket(layer_idx)
-        res = self._residual[layer_idx]
+    def update(self, key_states, value_states, *args, **kwargs):
+        bucket = self._bucket()
+        res = self._res_data
         if res is None:
             k_res, v_res = key_states, value_states
         else:
@@ -294,7 +337,13 @@ class BlockQuantCache(cu.DynamicCache):
             self._flush_v_block(bucket, v_res[..., :m, :])
             k_res = k_res[..., m:, :]
             v_res = v_res[..., m:, :]
-        self._residual[layer_idx] = (k_res, v_res)
+        self._res_data = (k_res, v_res)
+        # Record the trailing FP16 residual as this layer's `keys`/`values`, so
+        # the base class and anything that reads them sees real tensors. The
+        # packed state, not these, is the resident copy of the prefix.
+        self.keys = k_res
+        self.values = v_res
+        self.is_initialized = True
 
         # One decode call per layer for all stored blocks, instead of one per
         # block. _k_tensor / _v_tensor decode in fp32 and cast to the caller's
@@ -325,39 +374,240 @@ class BlockQuantCache(cu.DynamicCache):
     def get_seq_length(self, layer_idx=None):
         """Tokens currently cached, including the FP16 residual.
 
-        Must default the same way the parent does: the model calls this with no
-        argument to size its causal mask. Defaulting to None made the lookup miss
-        and report 0, so the mask assumed an empty prefix while attention received
-        the full cached K/V -- correct values, garbage output, at every context
-        length. Any layer's cache has the same length, so 0 is a safe default.
+        The layer-level signature takes no index: the state is per instance, and
+        `Cache.get_seq_length` calls the layer with none.
         """
-        if layer_idx is None:
-            layer_idx = 0
-        bucket = self._stored.get(layer_idx)
+        bucket = self._bucket_data
         total = 0
         if bucket:
             total = bucket["k"]["blocks"] * bucket["k"]["shape"][2]
-        res = self._residual.get(layer_idx)
+        res = self._res_data
         if res is not None and res[0] is not None:
             total += res[0].shape[-2]
         return total
 
-    def get_mask_sizes(self, cache_position, layer_idx=None):
-        """Override so the model builds the causal mask for the right KV length.
+    def get_mask_sizes(self, query_length, layer_idx=None):
+        """So the model builds the causal mask for the right KV length.
 
-        The parent's version asks `self.self_attention_cache` for the length,
-        but `update` here never appends to that field (we return our own K/V
-        directly). Without this override the mask is sized for an empty prefix
-        even when the cache holds thousands of tokens, which is the second half
-        of the "garbage at every context length" failure -- the first half is
-        `get_seq_length` returning 0.
+        `update` returns the full dequantized sequence, so the mask must be
+        sized for the whole prefix. Without this the mask assumes an empty
+        prefix even when the cache holds thousands of tokens: correct values,
+        garbage output, at every context length.
+
+        `query_length` arrives as a `cache_position` TENSOR on transformers
+        4.5x and as a plain int on 5.x, and the two versions disagree about
+        whether the first positional argument is a tensor at all. Accepting
+        both, by shape when it is a tensor, is what lets one implementation
+        serve both: 4.x passes `cache_position` and 5.x passes the already
+        unwrapped query length, and both want `(cache + query, 0)`.
         """
-        if layer_idx is None:
-            layer_idx = 0
-        query_length = cache_position.shape[0]
-        return self.get_seq_length(layer_idx) + query_length, 0
+        if isinstance(query_length, torch.Tensor):
+            query_length = query_length.shape[0]
+        return self.get_seq_length() + query_length, 0
+
+    def lazy_initialization(self, key_states, value_states):
+        """DynamicLayer's hook. The packed state is dtype/device independent,
+        so this only records what the base class records. Kept so a base-class
+        call (e.g. `crop`) still finds the layer initialized after an update.
+        """
+        self.dtype = key_states.dtype
+        self.device = key_states.device
 
     # -- accounting -------------------------------------------------------
+    def byte_breakdown(self):
+        """Resident bytes for this layer's KV, split by term.
+
+        See `BlockQuantCache.byte_breakdown` for what each term means. The
+        `decoded` term is the one that decides whether the packing saves
+        anything: it is the materialized FP16 prefix, and it is as large as the
+        FP16 cache this replaces.
+        """
+        payload = metadata = residual = decoded = 0
+        bucket = self._bucket_data
+        if bucket is not None:
+            for kind in ("k", "v"):
+                g = bucket[kind]
+                payload += sum(p.numel() for p in g["packed"])
+                metadata += sum(s.numel() * s.element_size() for s in g["scales"])
+                metadata += sum(z.numel() * z.element_size() for z in g["zeros"])
+            for key in ("decoded_k", "decoded_v"):
+                c = bucket.get(key)
+                if c is not None and c.get("buffer") is not None:
+                    buf = c["buffer"]
+                    decoded += buf.numel() * buf.element_size()
+        res = self._res_data
+        if res is not None and res[0] is not None:
+            residual += res[0].numel() * res[0].element_size()
+            residual += res[1].numel() * res[1].element_size()
+        return {
+            "payload": payload,
+            "metadata": metadata,
+            "residual": residual,
+            "decoded": decoded,
+            "packed_only": payload + metadata + residual,
+            "total": payload + metadata + residual + decoded,
+        }
+
+
+class BlockQuantCache(cu.Cache):
+    """A `Cache` whose full-attention layers hold packed quantized KV.
+
+    Construct directly for a plain full-attention model (every layer becomes a
+    `BlockQuantLayer`). For a hybrid model use `from_config`, which mirrors what
+    `DynamicCache(config=...)` does -- build the layer list from
+    `config.layer_types` and substitute only the full-attention entries, leaving
+    the linear-attention recurrent state as transformers built it.
+
+    `update` keeps the old `(k, v, layer_idx)` signature and delegates to the
+    layer. `get_seq_length` / `get_mask_sizes` keep their `layer_idx=None`
+    default for the same reason they had one before: the model calls them with
+    no argument to size its causal mask, and defaulting to a missing key
+    reported 0, which produced correct attention values over a garbage mask at
+    every context length. For a hybrid stack the default resolves to the first
+    attention layer, which is what the base class does.
+    """
+
+    def __init__(self, block=32, bits=4, v_group=32, meta_dtype=torch.float32,
+                 fused_decode=False, num_layers=None, config=None, **kwargs):
+        self.block = block
+        self.bits = bits
+        self.v_group = v_group
+        self.meta_dtype = meta_dtype
+        self.fused_decode = bool(fused_decode)
+        # How many layers to build up front. `config` is the reliable way to
+        # know, but it is optional: a cache handed a `layer_idx` it has never
+        # seen grows to fit (see `update`). That keeps every existing caller
+        # working whether or not it passes a config, which matters because a
+        # cache that must be told the model up front turns a one-line
+        # construction into a per-call-site change.
+        if num_layers is None:
+            if config is not None:
+                num_layers = len(_layer_types_and_kwargs(config)[0])
+            else:
+                num_layers = 1
+        self._layer_kwargs = {}
+        layers = [self._new_layer() for _ in range(num_layers)]
+        super().__init__(layers=layers, **kwargs)
+
+    def _new_layer(self):
+        return BlockQuantLayer(block=self.block, bits=self.bits, v_group=self.v_group,
+                               meta_dtype=self.meta_dtype, fused_decode=self.fused_decode,
+                               **self._layer_kwargs)
+
+    def update(self, key_states, value_states, layer_idx, *args, **kwargs):
+        """Delegate to the owning layer, growing the list if it is short.
+
+        transformers 4.x indexes `self.layers[layer_idx]` directly, so a cache
+        built without a config and then asked for layer 3 would raise
+        `IndexError`. Growing here keeps the old construction valid: the extra
+        layers are never touched until their index arrives, so they cost
+        nothing until used.
+        """
+        while len(self.layers) <= layer_idx:
+            self.layers.append(self._new_layer())
+        return self.layers[layer_idx].update(key_states, value_states, *args, **kwargs)
+
+    def get_seq_length(self, layer_idx=None):
+        """Cached tokens, including the FP16 residual.
+
+        Defaults to the first attention layer, matching the base class: the
+        model calls this with no argument to size its causal mask, and a lookup
+        that missed and reported 0 produced correct attention values over a
+        garbage mask at every context length.
+        """
+        if layer_idx is None:
+            layer_idx = next((i for i, l in enumerate(self.layers)
+                              if isinstance(l, cu.CacheLayerMixin)), 0)
+        if layer_idx >= len(self.layers):
+            return 0
+        return self.layers[layer_idx].get_seq_length()
+
+    @classmethod
+    def from_config(cls, config, block=32, bits=4, v_group=32,
+                    meta_dtype=torch.float32, fused_decode=False):
+        """Build a cache for `config`'s actual layer mix.
+
+        Mirrors `DynamicCache.__init__`: get the layer types and kwargs, then
+        substitute a `BlockQuantLayer` for every entry whose mapped class is an
+        attention layer (`CacheLayerMixin`). Linear/recurrent entries are kept
+        as-is, because their state does not grow with context length and is not
+        what this cache quantizes.
+        """
+        layer_types, layer_kwargs = _layer_types_and_kwargs(config)
+        layers = []
+        for layer_type in layer_types:
+            cls_for_type = cu.DYNAMIC_LAYER_TYPE_MAPPING[layer_type]
+            if issubclass(cls_for_type, cu.CacheLayerMixin):
+                layers.append(BlockQuantLayer(block=block, bits=bits, v_group=v_group,
+                                              meta_dtype=meta_dtype,
+                                              fused_decode=fused_decode,
+                                              **layer_kwargs))
+            else:
+                layers.append(cls_for_type(**layer_kwargs))
+        self = cls(block=block, bits=bits, v_group=v_group,
+                   meta_dtype=meta_dtype, fused_decode=fused_decode,
+                   num_layers=0)
+        # Keep the model's layer kwargs so `update` grows a replacement layer
+        # with the same settings if a layer index ever exceeds the list. A
+        # hybrid stack's layer count comes from the config, so this should not
+        # happen, but a grown layer that silently differed would be a nasty,
+        # hard-to-spot difference.
+        self._layer_kwargs = layer_kwargs
+        cu.Cache.__init__(self, layers=layers)
+        return self
+
+    # -- reporting --------------------------------------------------------
+    def quant_layers(self):
+        """The `BlockQuantLayer`s in this cache, in layer order."""
+        return [layer for layer in self.layers if isinstance(layer, BlockQuantLayer)]
+
+    @property
+    def _stored(self):
+        """Legacy view: {layer_idx: bucket}, read-only by convention.
+
+        The state used to live in a dict on the cache keyed by layer index, and
+        the self-tests and the chunked probe read it to assert block counts and
+        bit-stability. Keying by index is no longer how anything is stored, so
+        this maps the same names onto the layer objects. It exists so the
+        existing checks keep working against the ported cache rather than being
+        rewritten to match it -- a test that has to change every time ownership
+        moves is a test that stops testing.
+        """
+        return {i: layer._bucket_data
+                for i, layer in enumerate(self.layers)
+                if isinstance(layer, BlockQuantLayer)}
+
+    @property
+    def _residual(self):
+        """Legacy view: {layer_idx: (k_res, v_res)} or None. See `_stored`."""
+        return {i: layer._res_data
+                for i, layer in enumerate(self.layers)
+                if isinstance(layer, BlockQuantLayer)}
+
+    def _first_quant_layer(self):
+        """The first quantized layer, for the legacy single-layer helpers below."""
+        quant = self.quant_layers()
+        if not quant:
+            raise AttributeError("no BlockQuantLayer in this cache yet")
+        return quant[0]
+
+    def _k_tensor(self, bucket=None, dtype=torch.float16):
+        """Legacy: decode stored K. Delegates to the first quantized layer.
+
+        The decode methods moved onto the layer with the state. These wrappers
+        keep the fused-decode equivalence check working against a cache handle,
+        which is how that check is written and how it is worth keeping written:
+        it compares the shipped codec against the Triton kernel at the level
+        where the two can differ.
+        """
+        layer = self._first_quant_layer()
+        return layer._k_tensor(bucket if bucket is not None else layer._bucket_data, dtype)
+
+    def _v_tensor(self, bucket=None, dtype=torch.float16):
+        """Legacy: decode stored V. See `_k_tensor`."""
+        layer = self._first_quant_layer()
+        return layer._v_tensor(bucket if bucket is not None else layer._bucket_data, dtype)
+
     def byte_breakdown(self):
         """Resident bytes for the KV this cache holds, split by term.
 
@@ -388,34 +638,20 @@ class BlockQuantCache(cu.DynamicCache):
         So this cache is a slower, larger DynamicCache as it currently stands.
         The only fix that makes "4-bit KV" true is to stop materializing the
         prefix and have attention dequantize inside the attention kernel.
+
+        On a hybrid model this aggregates over the full-attention layers only;
+        the linear layers' fixed-size recurrent state is not KV and is not
+        counted, so the FP16 reference for comparison should also be the
+        full-attention layers only.
         """
-        payload = metadata = residual = decoded = 0
-        for bucket in self._stored.values():
-            for kind in ("k", "v"):
-                g = bucket[kind]
-                payload += sum(p.numel() for p in g["packed"])
-                metadata += sum(s.numel() * s.element_size() for s in g["scales"])
-                metadata += sum(z.numel() * z.element_size() for z in g["zeros"])
-            for key in ("decoded_k", "decoded_v"):
-                c = bucket.get(key)
-                if c is not None and c.get("buffer") is not None:
-                    buf = c["buffer"]
-                    decoded += buf.numel() * buf.element_size()
-        for res in self._residual.values():
-            if res is not None and res[0] is not None:
-                residual += res[0].numel() * res[0].element_size()
-                residual += res[1].numel() * res[1].element_size()
-        return {
-            "payload": payload,
-            "metadata": metadata,
-            "residual": residual,
-            "decoded": decoded,
-            # The packed-data terms alone: what this cache would hold if it did
-            # not also keep a materialized FP16 copy. Useful for judging the
-            # codec, misleading if read as the cache's real footprint.
-            "packed_only": payload + metadata + residual,
-            "total": payload + metadata + residual + decoded,
-        }
+        total = {"payload": 0, "metadata": 0, "residual": 0, "decoded": 0}
+        for layer in self.quant_layers():
+            for k, v in layer.byte_breakdown().items():
+                if k in total:
+                    total[k] = total[k] + v
+        total["packed_only"] = total["payload"] + total["metadata"] + total["residual"]
+        total["total"] = total["packed_only"] + total["decoded"]
+        return total
 
     def effective_ratio(self, fp16_bytes):
         """FP16 bytes / this cache's true resident bytes. Below 1.0 means worse."""
