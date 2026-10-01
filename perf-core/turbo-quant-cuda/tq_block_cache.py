@@ -813,6 +813,41 @@ class BlockQuantCache(cu.Cache):
         for these measurements, reserve already exceeds the device at 8K, so
         that constraint is real here and not hypothetical.
 
+        Why this cache could never have paid for itself on this model, measured
+        rather than assumed. The decode step of Qwen3.5-9B on this card spends
+        almost none of its time moving bytes, so no change to bytes, dtype,
+        layout or cache format can help. Three measurements, in order.
+
+        1. The decoder layers are 99% of the step. Per-layer CUDA events over
+           36 steady-state steps put the 32 layers at 58.78 ms against a
+           59.45 ms wall clock, a 1% gap. There is no hidden cost in the
+           bookends, the cache update, or the host.
+
+        2. They are nowhere near the memory bus. The layers read 13.84 GB in
+           58.78 ms, which is 235 GB/s against a 1792 GB/s peak, so 13% of peak
+           and 7.6x off their own 7.72 ms floor. Split by type at ctx=4096,
+           linear_attention is 49.89 ms over 10.48 GB at 11.7% of peak and
+           full_attention is 17.24 ms over 3.36 GB at 10.9%. Neither type is
+           bandwidth-bound. And growing context 16x, from 8 MiB of KV at 256
+           tokens to 128 MiB at 4096, costs only 1.27x and 1.33x respectively,
+           so the prefix is not the driver either.
+
+        3. The step is launch-bound. Measured on an uncontended card with the
+           model deliberately not loaded, a single layernorm on a [1,1,4096]
+           bf16 tensor costs 86.1 us drained, a tiny 16-element elementwise op
+           costs 58.8 us, and a decode-shaped GEMV reaches only 244 GB/s, 13.6%
+           of peak. Thirty-two layernorms, a conservative stand-in for one
+           step's norm work, cost 0.94 ms with 91% of that being host issue
+           time rather than GPU work. In-model input_layernorm was attributed
+           538 us for the same shape, about six times the isolated cost.
+
+        So the ceiling measured above is the right ceiling: deleting the
+        prefix would cut memory about 3.7x and leave a step that is dominated
+        by how fast the host can issue hundreds of tiny kernels. On this card,
+        for this model, the remedies are CUDA graphs or a compiled graph
+        capture, not quantization. And with only 8 of 32 layers carrying KV at
+        all, the nominal saving was capped well below 4x in the first place.
+
         Two measurement traps, because both produced confident wrong numbers
         before the numbers above were confirmed:
 
