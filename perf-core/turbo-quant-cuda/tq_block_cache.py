@@ -747,10 +747,44 @@ class BlockQuantCache(cu.Cache):
 
         So the decoded term drops from 2.000x to 1.004x-1.062x and the total
         from ~2.375x to ~1.38x-1.44x, converging on the 1.375x prefill figure
-        as context grows because the 2-block slack becomes negligible. The 16K
-        row completed once the run was detached from the shell tool's command
-        cap; at ~500 ms/token a single decode step on a 9.41B model dominates
-        the whole harness budget.
+        as context grows because the 2-block slack becomes negligible.
+
+        The 16K decode timings in that sweep are NOT a cache result and should
+        not be quoted as one. At 16K the bf16 reference and block4 degrade
+        together -- 492.7 versus 490.7 ms/token -- while allocator reserve
+        reaches 59.59 GiB on a 23.99 GiB card (17.53 GiB of that is weights).
+        The step is spilling to system memory, so both arms are paying the same
+        host round-trip and the ratio is meaningless. Reserve tracks the KV
+        directly from 1024 up: 18.48, 22.97, 29.33, 59.59 GiB at 1K/4K/8K/16K,
+        exceeding device capacity at 8K. Treat anything past 4K on a 24 GiB card
+        as unmeasurable for decode latency on this setup, and prefer the 1K-4K
+        rows where reserve still fits. The memory ratios above are unaffected,
+        since byte_breakdown reports tensor sizes rather than timing.
+
+        That is block=32, bits=4. The verdict does not depend on that choice:
+        sweeping block in (16, 32, 64, 128) and bits in (4, 2) at 4096+24 tokens
+        puts every configuration above bf16, because the total is packed plus a
+        decoded prefix that is ~1.0x of the bf16 KV by construction.
+
+            block  bits    packed   decoded    total
+               16     4    0.439x    1.002x   1.441x
+               32     4    0.379x    1.010x   1.388x
+               64     4    0.348x    1.025x   1.373x
+              128     4    0.332x    1.056x   1.388x
+               16     2    0.314x    1.002x   1.316x
+               32     2    0.254x    1.010x   1.264x
+               64     2    0.223x    1.025x   1.249x
+              128     2    0.208x    1.056x   1.264x
+
+        The best configuration is block=64 at 1.373x, and it is still larger
+        than the cache it replaces. Larger blocks shrink the packed term
+        (0.439x -> 0.332x at 4 bits) because the per-group scale and zero
+        metadata amortizes over more data, but the decoded prefix stays ~1.0x
+        and then grows slightly with the block, so the total barely moves. The
+        2-bit rows are shown for completeness and are disqualified anyway: 2-bit
+        KV measured 0.0881x worst relative loss against a 0.05 gate, and it is
+        still 1.249x or worse on memory. There is no block size that removes a
+        prefix which exists because attention consumes it.
 
         Two measurement traps, because both produced confident wrong numbers
         before the numbers above were confirmed:
