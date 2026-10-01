@@ -786,6 +786,33 @@ class BlockQuantCache(cu.Cache):
         still 1.249x or worse on memory. There is no block size that removes a
         prefix which exists because attention consumes it.
 
+        What a fused dequantize-inside-attention kernel could buy, measured
+        before writing one, so the project is not started blind. Two ceilings,
+        and only one of them is worth chasing.
+
+        Memory: deleting the materialized prefix leaves the packed term alone,
+        which is 0.375x of the bf16 KV at block=32 and 0.348x at block=64.
+        Verified directly -- packed_only / bf16 kv is 0.375x at 1024, 2048 and
+        4096. So a perfect kernel would report 0.375x against the current
+        1.379x-1.441x. That is a real 3.7x reduction and the whole reason to
+        consider the work.
+
+        Latency: essentially nothing. Growing the prefix 16x, from 8.0 MiB at
+        256 tokens to 128.0 MiB at 4096, moves a decode step from 73.4 to
+        81.6 ms -- a delta of 8.2 ms, and not even monotonic (1024 measured
+        FASTER at 69.9 ms than 256 did). The step is dominated by fixed work:
+        the 24 linear-attention layers, whose recurrent state does not grow
+        with context, plus 17.53 GiB of weight reads. The KV traffic this kernel
+        would eliminate is a small fraction of the step. So the fused kernel
+        would cut resident memory about 3.7x and leave decode latency at parity,
+        the same parity the shipped and fused-decode paths already show.
+
+        That reframes the remaining work honestly: it is a memory project, not a
+        speed project, and the reason to attempt it is capacity on a card where
+        a 1.4x cache does not fit and 0.375x might. On the 24 GiB 3090 Ti used
+        for these measurements, reserve already exceeds the device at 8K, so
+        that constraint is real here and not hypothetical.
+
         Two measurement traps, because both produced confident wrong numbers
         before the numbers above were confirmed:
 
