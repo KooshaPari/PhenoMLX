@@ -1,18 +1,25 @@
-# PhenoMLX — mature-first recovery, pass 1
+# Mature recovery — canonical index
 
-**INCOMPLETE. No accepted mature baseline, runtime qualification or superiority claim.**
-Effort `REC-20260929-PHENOMLX`; observation date 2026-09-29.
+This directory is intentionally evidence-rich and contains superseded archaeology. **Do not read chronologically to infer current product intent.**
 
-| Identity | Frozen source |
-|---|---|
-| KooshaPari/PhenoMLX, GitHub ID 1214745478 | `1ab4ed250e6b3a1ed9025a674d4814339d32fcd3` |
-| PhenoRegistry | `85d7cd00cf59c379c05b740e8130a85b0d5bd31b` |
-| PhenoShared, reference only | `d24b13edbb76741b8063f4f7f3369d1b7310ca5b` |
+Start:
+1. CANONICAL-RUNTIME-HANDOFF-INDEX.md
+2. NONEXEC-FINAL-STATUS-V1.md
+3. PROVISIONAL-MATURE-BASELINE-VNEXT.md
+4. VNEXT-CAPABILITY-DELTA-V0.md
+5. FRESH-FALSIFICATION-REVIEW-RESULT-V1.md
+6. trace/execution-gate-state.json
+7. relevant DEVELOPER-WORK-UNIT-*.
 
-Specification branch: `spec/mature-recovery-20260929`. An implementation candidate is a separate identity; this branch only adds recovery documents. Registry companion: KooshaPari/PhenoRegistry branch `research/mature-recovery-trio-20260929`, session `docs/sessions/20260929-mature-recovery/`.
+## Document classes
+- **NORMATIVE CURRENT:** vNext baseline, vNext capability delta, fresh-review repairs/v1 schemas, infra-vs-product gate, product experiment contracts, execution work units.
+- **SUPPORTING CURRENT:** SOTA closure/gap ledgers, implementation maps, quality/statistical doctrine, journey/oracle documents not conflicting with normative current.
+- **HISTORICAL/SUPERSEDED:** earlier semantic baselines, mature-contract v0.x, VS-01/VS-02 naming where superseded by INFRA/product gates, earlier ontology/trace versions.
+- **EVIDENCE/ARCHAEOLOGY:** pass notes, source ledgers, branch/history findings, historical implementation reports.
 
-The authorized product targets are Portage, PhenoMLX and PhenoLab. Supporting source reads do not start another product program. No archived predecessor was revived, no production code was changed and no model, shared environment, native app or cloud resource was installed or invoked.
+Historical files are retained deliberately for provenance. Their existence does not give them normative authority.
 
-Read SOURCE-COVERAGE-LEDGER, SEMANTIC-FINDINGS, MATURE-CONTRACT-DRAFT, ORACLE-AND-EXPERIMENT-DESIGN and CURRENT-STATE in this folder. These preserve a repo-local draft contract; Registry indexes rather than replaces it. Prior accepted requirements, measured failures, experimental kernels and history are retained. This pass supplies no catalogue eligible for grading and no quota-derived requirement count.
+## Status
+NONEXEC_FINAL_RUNTIME_BLOCKED.
 
-AgilePlus registration has not been executed. The effort ID above is local, not a fabricated accepted AgilePlus record.
+Do not expand specification without a reopen trigger from CANONICAL-RUNTIME-HANDOFF-INDEX.md.
