@@ -482,6 +482,19 @@ START_SLACK_BLOCKS = 2
 class BlockQuantCache(cu.Cache):
     """A `Cache` whose full-attention layers hold packed quantized KV.
 
+    DEPRECATED as a serving cache, as of 2026-10. Measured on Qwen3.5-9B it
+    holds ~1.38x-1.44x the bf16 KV of the same full-attention layers and decodes
+    at parity, so it buys nothing while costing memory. Do not wire this into a
+    new serving path expecting a 4-bit KV saving; you will get a larger cache.
+    The class is kept because it is the working reference implementation and
+    because retiring it means deleting the measurements that justify the
+    retirement. The codec underneath it is fine on its own -- `BlockQuantLayer`
+    and the `tq_codec_eval*` harness round-trip 4-bit KV at ~0.21x of fp16 with a
+    0.0164 worst-case relative loss difference -- so the salvageable part is the
+    codec, not the cache. To actually make 4-bit KV resident, attention has to
+    dequantize inside the kernel instead of receiving a materialized prefix; see
+    the module docstring for why nothing cheaper can do it.
+
     Construct directly for a plain full-attention model (every layer becomes a
     `BlockQuantLayer`). For a hybrid model use `from_config`, which mirrors what
     `DynamicCache(config=...)` does -- build the layer list from
@@ -662,9 +675,35 @@ class BlockQuantCache(cu.Cache):
             DECODED fp16 buffers    1152.0 MiB   1.00x
             total                   1584.0 MiB   1.38x
 
-        So this cache is a slower, larger DynamicCache as it currently stands.
-        The only fix that makes "4-bit KV" true is to stop materializing the
-        prefix and have attention dequantize inside the attention kernel.
+        So this cache is a LARGER DynamicCache as it currently stands: the packed
+        state is additive, not a replacement. The only fix that makes "4-bit
+        KV" true is to stop materializing the prefix and have attention
+        dequantize inside the attention kernel.
+
+        On latency it is parity, not a regression or a speedup. Measured with
+        paired ABBA trials (5 trials of bf16/block4/block4/bf16, 8 untimed
+        warm-up steps per block, 16 timed steps, median of per-trial ratios):
+
+            context   bf16 med   block4 med   ratio med   spread   verdict
+              1024     82.67 ms    87.57 ms      1.015x    16.2%    parity
+              2048     77.66 ms    80.46 ms      1.006x    20.0%    parity
+              4096     83.16 ms    85.37 ms      0.927x    11.9%    parity
+              8192     83.62 ms    86.27 ms      0.952x    13.8%    parity
+
+        Every spread exceeds 10%, so no ratio separates from noise and the
+        honest statement is parity. An earlier single-sample harness reported
+        0.907x-1.270x over the same contexts, including an apparent 1.270x
+        speedup at 4096; that was an artifact. Its own bf16 baseline ran
+        101.6, 107.3, 101.5 and 75.8 ms for identical 24-token decode work at
+        1K/2K/4K/8K, i.e. faster at 8x the context, which cannot be a real
+        scaling property -- it measured drift. Under the controlled design the
+        bf16 baseline is flat at 77.7-83.6 ms across that same 8x range, which
+        is what a memory-bandwidth-bound decode step should look like, and the
+        1.270x disappears.
+
+        Treat a ratio whose within-context spread exceeds ~10% as parity rather
+        than as a result, and do not report single-sample decode ratios from a
+        harness that runs the baseline condition first every time.
 
         On a hybrid model this aggregates over the full-attention layers only;
         the linear layers' fixed-size recurrent state is not KV and is not
