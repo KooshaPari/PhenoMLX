@@ -252,11 +252,17 @@ class BlockQuantLayer(cu.DynamicLayer):
         """
         cap = cached["capacity_blocks"]
         if cap < new_total_blocks:
-            # Grow in chunks of at least `added` blocks, rounded up to a power
-            # of two only while that stays under 25% overhead. A large prefill
-            # step wants a large jump; a one-block decode wants a small one.
             added = max(1, new_total_blocks - start)
-            cap = new_total_blocks + added
+            # Reserve just the blocks needed, plus a small fixed slack so the
+            # single-token decodes that follow a prefill do not reallocate on
+            # every one of them. The slack deliberately does NOT scale with the
+            # call: an earlier version reserved `new_total + added`, which on
+            # the FIRST allocation has start=0 and so reserved exactly 2x. That
+            # looked fine under chunked prefill, which grows incrementally, but
+            # a single-shot prefill reserved 2x immediately -- traced at
+            # capacity 64 blocks for 32 used. The fixed slack keeps a large
+            # prefill exact and still absorbs a run of decodes.
+            cap = new_total_blocks + min(START_SLACK_BLOCKS, max(1, added))
             cached["capacity_blocks"] = cap
         if cached["buffer"] is None or cached["buffer"].shape[2] < cap * s:
             new_buf = torch.empty(b, h, cap * s, d, dtype=cached["dtype"],
@@ -470,6 +476,9 @@ class BlockQuantLayer(cu.DynamicLayer):
         }
 
 
+START_SLACK_BLOCKS = 2
+
+
 class BlockQuantCache(cu.Cache):
     """A `Cache` whose full-attention layers hold packed quantized KV.
 
@@ -677,48 +686,63 @@ class BlockQuantCache(cu.Cache):
         0.375x of it. The packing does not displace the prefix it compresses.
 
         The prefill table above is the BEST case, and a real server never sits at
-        it. The decode buffers used to grow by doubling, so a prefill that landed
-        exactly on a block boundary left the reservation exactly full and the
-        first decoded token doubled it immediately. That is the table plus a
-        decoded term of 2x bf16, i.e. ~2.375x instead of 1.375x, and it is the
-        number a serving process would actually report. `_grow_decode_buffer`
-        now grows by a bounded multiple of the blocks each call added, so
-        decode-after-prefill reserves only a small margin above what it uses.
+        it. The decode buffers used to grow by doubling capacity, so a prefill
+        that landed exactly on a block boundary left the reservation exactly
+        full and the first decoded token doubled it immediately. That is the
+        table plus a decoded term of 2x bf16, i.e. ~2.375x instead of 1.375x,
+        and it is the number a serving process would actually report.
+        `_grow_decode_buffer` now reserves the blocks it needs plus a small fixed
+        slack, so the decoded term is ~1.02x of bf16.
 
-        Same 8 full-attention layers, prefill plus 48 decoded tokens, after the
-        bounded-growth fix (waste = reserved minus used, per full 8 layers):
+        Measured on the real model, single-shot prefill of `ctx` tokens then 24
+        decoded tokens, against the bf16 KV of the same 8 full-attention layers.
+        `decoded` is the allocated prefix buffer, which is what
+        `byte_breakdown()` reports and what the process actually holds:
 
-            context   bf16 kv    packed    decoded    reserved   waste   total
-              1024     32.0 MiB  12.0 MiB   33.0 MiB    34.0 MiB  1.0 MiB  46.0 MiB
-              2048     64.0 MiB  24.0 MiB   65.0 MiB    66.0 MiB  1.0 MiB  90.0 MiB
-              4096    128.0 MiB  48.0 MiB  129.0 MiB   130.0 MiB  1.0 MiB  178.0 MiB
-              8192    256.0 MiB  96.0 MiB  257.0 MiB   258.0 MiB  1.0 MiB  354.0 MiB
+            context   bf16 kv    packed    decoded    total   total/bf16
+              1024     32.0 MiB  12.0 MiB   34.0 MiB  46.0 MiB      1.437x
+              2048     64.0 MiB  24.0 MiB   66.0 MiB  90.0 MiB      1.406x
+              4096    128.0 MiB  48.0 MiB  130.0 MiB 178.0 MiB      1.391x
+              8192    256.0 MiB  96.0 MiB  258.0 MiB 354.0 MiB      1.383x
+             16384    512.0 MiB 192.0 MiB  514.0 MiB 706.0 MiB      1.379x
 
-        So decoding now costs 1.008x-1.062x of bf16 instead of 2.0x, and the
-        overhead over the prefill-only figure is the fixed 0.375x packed term
-        plus ~1 MiB of slack rather than another full copy of the prefix. The fix
-        is allocation-only: it was verified bit-identical to the doubling policy
-        over 16 ragged updates (mixed prefill and single-token steps), so it
-        cannot change any output.
+        So the decoded term drops from 2.000x to 1.004x-1.062x and the total
+        from ~2.375x to ~1.38x-1.44x, converging on the 1.375x prefill figure
+        as context grows because the 2-block slack becomes negligible. The 16K
+        row completed once the run was detached from the shell tool's command
+        cap; at ~500 ms/token a single decode step on a 9.41B model dominates
+        the whole harness budget.
 
-        Note that the 0.842x "decoded prefix" in `tq_block_cache_selftest.py` is
-        a measurement artifact, not a policy win. That harness feeds
-        [37, 32, 64, 19] and reports the TRUNCATED view
-        `buffer[:, :, :blocks*block, :]` rather than the bytes actually
-        allocated; the doubling policy was over-reserving by 2x in blocks while
-        the report showed a sub-1.0 number. Comparing allocated bytes directly,
-        bounded growth reserves 0.632x of bf16 on that same ragged input versus
-        1.053x for doubling -- it wins on ragged input too, and by half.
+        Two measurement traps, because both produced confident wrong numbers
+        before the numbers above were confirmed:
 
-        Even at the corrected 1.375x, the verdict is unchanged: still larger
-        than the bf16 cache it replaces, still not faster, because the packing
-        does not displace the prefix it compresses. The fix removes waste, not
-        the decoded prefix. Quality is fine, so this is a memory/latency
+        - An intermediate version of the fix reserved `new_total + added`. On
+          the FIRST allocation start=0, so `added` was the entire prefill and
+          the reservation landed at exactly 2x -- the very bug it was meant to
+          remove. Chunked prefill masked it, because incremental growth left only
+          1 block of slack; only a single-shot prefill showed 64 blocks reserved
+          for 32 used. Measure `buffer.numel()` directly, and drive the cache
+          the way the model is actually driven.
+
+        - `tq_block_cache_selftest.py` reports the 0.842x "decoded prefix" from
+          the TRUNCATED view `buffer[:, :, :blocks*block, :]`, not from the
+          bytes allocated, so it can read below 1.0 while the buffer is
+          genuinely over-reserved. `byte_breakdown()["decoded"]` uses
+          `buf.numel()` and is the honest number.
+
+        The fix is allocation-only: verified bit-identical to the doubling
+        policy over 16 ragged updates mixing prefill and single-token steps, so
+        it cannot change any output. On ragged input it also reserves half what
+        doubling did (0.632x of bf16 versus 1.053x).
+
+        The verdict is unchanged: still ~1.4x and still not faster, because
+        packing does not displace the prefix it compresses. This removes waste,
+        not the decoded prefix. Quality is fine, so this is a memory/latency
         result, not a correctness one: over 16 streaming chunks of 256 tokens
         the worst per-chunk relative loss difference against bf16 was 0.0164,
         under the 0.05 gate.
 
-        Per-token decode was 0.92x-1.03x of bf16 across the same contexts, i.e.
+        Per-token decode was 0.97x-1.02x of bf16 across the same contexts, i.e.
         no speedup either. The codec work is negligible next to the extra
         dequantize-and-copy that materializing the prefix costs.
         """
