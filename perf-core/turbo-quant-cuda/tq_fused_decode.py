@@ -230,12 +230,52 @@ def _supported(cache, bucket, dtype):
 def _fused_decode(cache, bucket, kind, dtype):
     """Decode stored blocks incrementally, fused, into the prealloc buffer.
 
-    The bookkeeping here is deliberately identical to the shipped
-    `_k_tensor` / `_v_tensor`: same per-dtype cache dict, same geometric buffer
-    growth, same invalidation when the block count shrinks. Only the body
-    differs -- where the shipped version calls the generic codec and then
-    copies the result into the buffer, this launches one kernel that writes the
-    new tail in place, so no intermediate tensor and no `.copy_()` exist.
+    Only the body differs from the shipped `_k_tensor` / `_v_tensor`: where the
+    shipped version calls the generic codec and then copies the result into the
+    buffer, this launches one kernel that writes the new tail in place, so no
+    intermediate tensor and no `.copy_()` exist. The per-dtype cache dict and
+    the invalidation on a shrinking block count match the shipped path.
+
+    The buffer growth does NOT match, and deliberately so. This keeps the
+    original `cap = cap * 2` loop while the shipped path moved to bounded
+    growth, because the two paths can see different block counts for the same
+    cache: the fused path is only entered on a call that reaches `_supported`,
+    and when a caller builds the cache without `fused_decode` the growth
+    differs anyway. On a single-shot prefill both land on an exact allocation
+    -- traced at 1024 tokens: capacity 32 blocks for 32 used, 0.500x of the
+    bf16 kv for one layer's K -- because `cap` seeds from 0 to `blocks` rather
+    than doubling. The doubling only appears once growth is needed on top of an
+    existing buffer. Re-check that case before assuming the two agree.
+
+    Measured on Qwen3.5-9B (transformers 5.17, torch 2.9.1, RTX 3090 Ti) with
+    the real model, 2048 tokens streamed in 8 chunks of 256 then 8 decoded,
+    against a bf16 DynamicCache reference:
+
+        variant               worst rel loss   ms/tok   resident MiB
+          shipped block4            0.0075x     60.8          90.4
+          fused   block4            0.0075x     62.5          88.4
+          fused   block2            0.0881x     63.6          82.4
+
+    So the path works end to end through `from_config` and the hybrid layer
+    list, is correct (bit-identical to the shipped path over 12 ragged updates,
+    and identical 0.0075x quality versus bf16), and saves 2 MiB of resident
+    bytes at 2048 tokens. But it is not faster: 62.5 versus 60.8 ms/token is
+    parity, and at the layer level it measured 0.849x of shipped. Fusing the
+    dequantize removes the intermediate tensor, not the prefix, so this does NOT
+    make 4-bit KV resident -- the cache is still ~1.4x bf16 either way. See
+    `BlockQuantCache`'s class docstring.
+
+    bits=2 is the control: `_supported` correctly declines it, the shipped codec
+    handles it, and its 0.0881x quality difference exceeds the 0.05 gate, which
+    is what a 2-bit KV cache should do. A passing gate here means the fallback
+    really ran rather than silently reusing the 4-bit kernels. Note that bits=8
+    is not a usable control at all: `encode_uniform_cuda` asserts bits in
+    (2, 3, 4).
+
+    Quality must be measured against bf16, never against another quantized
+    variant. An earlier version of this harness used bits=2 as the reference and
+    reported 0.0820x for block4, which looks like a cache failure but is just
+    2-bit quantization error measured against itself.
     """
     group = bucket[kind]
     b, h, s, d = group["shape"]
