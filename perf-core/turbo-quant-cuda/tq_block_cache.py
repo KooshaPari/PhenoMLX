@@ -848,6 +848,51 @@ class BlockQuantCache(cu.Cache):
         capture, not quantization. And with only 8 of 32 layers carrying KV at
         all, the nominal saving was capped well below 4x in the first place.
 
+        Point 3 predicted the graph win, so the prediction was tested. Manual
+        capture with `StaticCache` is bit-identical to eager and does help,
+        but the size of the win is context-dependent, and that changes what
+        the remedy buys, so it is measured here rather than asserted.
+
+        What a graph actually buys, ABBA-paired and warm-up aware, on the
+        allocator-checked card. Correctness is re-verified inside the timed
+        region, and the speed claim is suppressed if it fails:
+
+            ctx     eager    graph    ratio    vs 7.72 ms floor
+            1024    70.68    27.84    2.54x    3.6x
+            4096    62.93    29.91    2.10x    3.9x
+            16384  172.78   132.47    1.30x   17.2x
+
+        Relative logit difference was exactly 0.0 at all three contexts, so
+        the numbers are usable. Two caveats keep this from being read as a
+        2.5x speedup for the model:
+
+        - The win SHRINKS as context grows, from 2.54x at 1024 to 1.30x at
+          16384. That is the signature of a host-side fix. Graphs remove host
+          issue overhead, and by 16K there is enough real GPU work that the
+          overhead removed was a smaller share of the step. A lone 2.5x
+          headline would have been measured at ctx=1024 and would have been
+          wrong as a general claim. At 16K the step is 22.4x the bandwidth
+          floor even eagerly, so it is not launch-bound there at all, and
+          1.30x is all a graph offers in that regime.
+        - Capture cost is excluded, as it should be for steady state, but a
+          graph holds a private memory pool and the decode shape is fixed at
+          capture. The position must be written into a static buffer and
+          filled in place, which is why the harness refills a tensor in place
+          instead of passing a fresh position each step.
+
+        So graphs are necessary on this card and they are not sufficient. They
+        recover the launch overhead measured in point 3, and at short context
+        that is most of the gap, but the graph step is still 3.6x the
+        weight-read floor, so nothing here makes the step bandwidth-bound.
+        Fusion on top would, and is currently unavailable here:
+        `torch.compile(mode="reduce-overhead")` dies after several minutes in
+        the Inductor static launcher on this Windows build with
+        `OverflowError: Python int too large to convert to C long` at
+        `torch/_inductor/runtime/static_cuda_launcher.py:244`. It is not a
+        path-length problem, the generated module path is 113 characters. It
+        is not a Triton problem either: a hand-written Triton decode kernel in
+        this same environment compiles and runs. So graph capture works here
+        today and inductor fusion does not.
         Two measurement traps, because both produced confident wrong numbers
         before the numbers above were confirmed:
 
