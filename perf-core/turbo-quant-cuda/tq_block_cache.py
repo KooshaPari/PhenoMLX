@@ -991,6 +991,25 @@ class BlockQuantCache(cu.Cache):
         reported 0.0, which was true and useless because both sides run the
         same fused kernels and their drift cancels.
 
+        Two harness defects cost one otherwise-fine attempt at this and are
+        worth avoiding, because both are silent. First, a driver that
+        captures the benchmark's stdout and prints it only at the end loses
+        the entire run when its own wrapper times out: the child keeps
+        running to completion with its output going to a dead pipe, so the
+        work is unrecoverable even though it finished. Stream and tee the
+        output instead, and kill the child in a finally block so an orphan
+        cannot sit on 23.7 GiB of GPU or leave a stale lock behind. Second,
+        waiting for a quiet host by taking a single CPU-load sample does not
+        work, because a foreign pytest suite cycles between roughly 15 and
+        99 percent load and a lone sample catches either regime: it commits
+        a 10-25 minute GPU run while the suite is merely between test cases,
+        and the run then crawls. Require several CONSECUTIVE samples under
+        the threshold before committing. On this host that wait was paired
+        with a free-physical-memory check, since the attempt that crawled
+        showed 0.98 of 63.9 GiB free and a failed run is exactly what
+        page-file exhaustion looks like, the same failure already documented
+        for ctx 4096 below.
+
         `torch.compile(mode="reduce-overhead")` does fail here, with
         `OverflowError: Python int too large to convert to C long` at
         `torch/_inductor/runtime/static_cuda_launcher.py:244`. That diagnosis
