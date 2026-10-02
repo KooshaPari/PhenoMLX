@@ -1018,6 +1018,34 @@ class BlockQuantCache(cu.Cache):
         is the variable worth sampling, and the spread is the real
         acceptance test.
 
+        A post-gate confirmation run at ctx 1024 could NOT be obtained, and
+        the reason is worth stating plainly rather than leaving as a to-do.
+        A 30-second trace over ten minutes while the foreign suite ran and
+        no model was resident showed load oscillating between 29 and 100
+        percent, never four consecutive samples under 25, and load pinned at
+        exactly 100 for stretches of 119 seconds and more. This host simply
+        does not offer a sustained quiet window any more, so a gate of four
+        consecutive samples at or below 25 percent never opened and no
+        post-gate latency number was taken. The two quiet numbers recorded
+        above remain the only trusted latency evidence, and they predate
+        the gate change. That is acceptable because the gate is exit-code
+        only: it does not touch the timed path, and its correctness half was
+        itself confirmed post-change at worst d 6.977e-03 with `gate: PASS`
+        and exit 0, plus the 9.709e-03 worst case from a contended run.
+        Do not relax the quiet gate until a run passes to make the number
+        look obtained; the honest position is that the latency figure is
+        unchanged and the correctness figure is verified.
+
+        On what to gate on, note that the benchmark already carries the
+        better test and it does not depend on host load at all: it takes the
+        median of interleaved ABBA rounds and calls the speedup credible
+        only when the eager and fused sample sets do NOT overlap, printing
+        `OVERLAPPING, not credible` otherwise. A pre-emptive CPU-load gate
+        can only ever be a proxy that wastes GPU time on runs this test
+        would already have rejected or accepted, so prefer the non-overlap
+        verdict and treat CPU load as a way to avoid obviously wasted runs,
+        not as the acceptance criterion.
+
         `torch.compile(mode="reduce-overhead")` does fail here, with
         `OverflowError: Python int too large to convert to C long` at
         `torch/_inductor/runtime/static_cuda_launcher.py:244`. That diagnosis
