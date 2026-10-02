@@ -88,6 +88,99 @@ def run_child(hold, tag):
     return p, verdict, tag
 
 
+# An INDEPENDENT contender, deliberately not calling claim_single_instance().
+#
+# This exists because a self-test whose contender is the code under test
+# cannot detect a wrong-OFFSET defect. Both processes then compute the same
+# wrong byte and stay symmetric, so they contend perfectly and the test goes
+# green on a broken lock. Measured: with `open(path, "a+b")` on a 10-byte
+# file, both sides position at byte 10 and both acquire, and a third party
+# using read+seek(0) on byte 0 also acquires alongside the incumbent. Only
+# a contender that locks a KNOWN byte can see the difference.
+CHALLENGER = """
+import msvcrt, sys, time
+path = sys.argv[1]
+fh = open(path, "r+b")
+fh.seek(0)                      # the one byte every correct implementation uses
+try:
+    msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+    print("ACQUIRED", flush=True)
+except OSError:
+    print("REFUSED", flush=True)
+time.sleep(4)
+""".strip()
+
+
+def run_independent_challenger(path):
+    """Attempt the lock from code that does not use claim_single_instance.
+
+    Returns True if the contender was correctly refused.
+    """
+    src = CHALLENGER.replace("sys.argv[1]", repr(path))
+    p = subprocess.Popen([sys.executable, "-c", src],
+                         stdout=subprocess.PIPE, text=True)
+    verdict = ""
+    for _ in range(4):
+        ln = p.stdout.readline().strip()
+        if "ACQUIRED" in ln or "REFUSED" in ln:
+            verdict = "ACQUIRED" if "ACQUIRED" in ln else "REFUSED"
+            break
+    p.wait()
+    return verdict == "REFUSED", verdict
+
+
+def check_contention_on_a_populated_lock_file():
+    """Require contention when the lock file already has content in it.
+
+    This is the check that distinguishes a real lock from an accidental one.
+    msvcrt.locking contends only on the exact byte range being locked, and
+    `open(path, "a+b")` positions at EOF. On a fresh, empty lock file EOF is
+    byte 0, so append mode and an explicit seek(0) coincidentally agree and
+    the lock works by accident. The moment the file holds anything -- and it
+    always does, because the holder writes its PID into it -- EOF moves, and
+    a challenger positioning at EOF locks a byte nobody holds, so both
+    processes acquire and neither is protected.
+
+    Measured directly: two children locking byte 0 of a 10-byte file give
+    ACQUIRED then REFUSED, while byte 0 versus byte 10 (EOF) gives ACQUIRED
+    twice. That difference is the whole bug, and testing only against a
+    deleted lock file cannot see it.
+
+    So this case deliberately does NOT delete the lock file first.
+    """
+    if os.path.exists(LOCK):
+        os.remove(LOCK)
+    # Populate it the way the benchmark itself does, with a PID in it.
+    with open(LOCK, "wb") as fh:
+        fh.write(b"999999\n")
+    size = os.path.getsize(LOCK)
+    print(f"  lock file pre-populated to {size} bytes so EOF != 0")
+
+    holder, holder_line, _ = run_child(30, "holder-populated")
+    acquired = "ACQUIRED" in holder_line
+    # Run the same-code contender FIRST and wait for it, then the independent
+    # one. The independent contender sleeps only a few seconds, so if it ran
+    # first it could let the holder exit before the second contender ever
+    # started, and that contender would acquire against a free lock and look
+    # like a failure of the lock rather than of the ordering.
+    second, second_line, _ = run_child(0, "second-populated")
+    second.wait()
+    refused = "REFUSED" in second_line
+    # Independent contender: locks byte 0 explicitly instead of going
+    # through claim_single_instance(). If the holder locked some other byte,
+    # such as EOF, this acquires alongside it and the lock is proven broken.
+    ind_refused, ind_line = run_independent_challenger(LOCK)
+    holder.kill()
+    holder.wait()
+    if os.path.exists(LOCK):
+        os.remove(LOCK)
+    print(f"  contention on a populated lock file: "
+          f"holder={holder_line!r} same-code second={second_line!r} "
+          f"independent={ind_line!r} -> "
+          f"{'ok' if (acquired and refused and ind_refused) else 'BROKEN'}")
+    return acquired and refused and ind_refused
+
+
 def check_real_benchmark_refuses():
     """Run the real benchmark with the real lock held and require refusal.
 
@@ -175,13 +268,20 @@ def main():
     if os.path.exists(LOCK):
         os.remove(LOCK)
 
+    # The offset defect is only visible once the lock file has content, so
+    # this must run against a populated file rather than a fresh one.
+    populated_ok = check_contention_on_a_populated_lock_file()
+
     # The final and most important check: the real benchmark entry point.
     real_ok = check_real_benchmark_refuses()
 
-    ok = refused and released and recorded_ok and real_ok
+    ok = refused and released and recorded_ok and populated_ok and real_ok
     print("OK" if ok else "FAIL")
     return 0 if ok else 1
 
 
 if __name__ == "__main__":
+    # sys.exit(main()) alone would still report success on an uncaught
+    # exception path in some shells, so the verdict is echoed on the last
+    # line and can be grepped.
     sys.exit(main())
