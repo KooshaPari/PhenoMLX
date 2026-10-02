@@ -37,16 +37,31 @@ import os
 import subprocess
 import sys
 
+def find_repo_root(start):
+    """Walk up from `start` until a directory containing .git is found.
+
+    Hardcoding a number of levels up is fragile: this file has already moved
+    once, and a wrong REPO makes `git checkout` fail silently, which would
+    leave a mutated lock implementation on disk. A wrong depth is therefore
+    checked rather than assumed.
+    """
+    p = start
+    while True:
+        if os.path.isdir(os.path.join(p, ".git")):
+            return p
+        parent = os.path.dirname(p)
+        if parent == p:
+            return None
+        p = parent
+
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 BENCH = os.path.join(HERE, "tq_fusion_graph_abba_bench.py")
 SELFTEST = os.path.join(HERE, "tq_lock_selftest.py")
-# This file lives at <repo>/perf-core/turbo-quant-cuda/, so the repository
-# root is four levels up, not three. Assert on it, because a wrong REPO makes
-# `git checkout` silently fail and the mutation would then be left in place.
-REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
+REPO = find_repo_root(HERE)
 PY = sys.executable
-if not os.path.isdir(os.path.join(REPO, ".git")):
-    sys.exit(f"REPO does not look like a git checkout: {REPO}")
+if REPO is None:
+    sys.exit(f"no git checkout found above {HERE}")
 
 DEFECTS = [
     (
