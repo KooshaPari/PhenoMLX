@@ -219,6 +219,84 @@ def captured_graph(model, cache, inp, pos):
     return g, out
 
 
+def assert_histories_match(a, b, tol=0.0):
+    """Raise unless two caches hold the same history.
+
+    `match_priming` fixes a ONE-step offset, which is the mistake that actually
+    happened here. It does not fix a cache that was handed a completely
+    different history, and that mistake is just as easy to make and just as
+    expensive: building the reference with a fresh cache and forgetting to
+    prefill it produces a relative logit difference of 6.9e-1, which reads as a
+    broken graph and is not one at all.
+
+    THE FIRST VERSION OF THIS FUNCTION WAS WORSE THAN NOTHING, and the way it
+    failed is worth stating. It walked `tensor_census(b)`, so on a cache that
+    has never run a forward pass it saw only 8 tensors, the cumulative-length
+    scalars, because `keys` and `values` are `None` until first use. Every
+    comparison was then skipped by an `isinstance` guard, `worst_d` stayed at
+    its -1.0 initialiser, the loop found nothing above tolerance, and the
+    function reported the two caches IDENTICAL. A never-prefilled reference was
+    accepted with a clean bill of health, and a guard that does that is more
+    dangerous than no guard, because it converts a loud failure into a silent
+    wrong answer.
+
+    So the comparison is driven by `tensor_census(a)`, the cache that HAS
+    state, and each path is resolved on BOTH caches. A path present in one and
+    absent, or `None`, in the other is a mismatch in its own right and is
+    reported as such, with the path named.
+
+    The check compares full-attention KV by max absolute difference and the
+    linear-attention recurrent state by the same, and reports the worst
+    offender by path so a mismatch is diagnosable rather than merely fatal.
+
+    Raises ValueError naming the worst path and its magnitude.
+    """
+    import torch
+    # Driven by the fuller census, never by the emptier one, so a cache with no
+    # state cannot reduce the set of things that must be compared.
+    ca = tensor_census(a)
+    missing, worst_p, worst_d = [], None, 0.0
+    n_compared = 0
+    for p in ca:
+        ta, tb = _get(a, p), _get(b, p)
+        if not isinstance(ta, torch.Tensor):
+            continue
+        if not isinstance(tb, torch.Tensor):
+            missing.append(p)
+            worst_d = max(worst_d, float("inf"))
+            if worst_p is None:
+                worst_p = p
+            continue
+        d = (ta.float() - tb.float()).abs().max().item()
+        n_compared += 1
+        if d > worst_d:
+            worst_p, worst_d = p, d
+    if missing:
+        shown = ", ".join(missing[:3])
+        raise ValueError(
+            f"the two caches do not hold the same history: {len(missing)} of "
+            f"{len(ca)} tensors present in the first cache are missing or None "
+            f"in the second, first at {shown}. A comparison here would measure "
+            f"an empty cache, not the kernel. Give the reference the identical "
+            f"prefill and warmup, or pass match_history=False if the divergence "
+            f"is the thing you are trying to measure.")
+    if n_compared == 0:
+        raise ValueError(
+            "assert_histories_match compared nothing and would have reported a "
+            "clean pass. Both caches appear to be empty, or neither exposes "
+            "KV tensors, so this check cannot vouch for the comparison. "
+            "Refusing rather than returning a vacuous 0.0.")
+    if worst_d > tol:
+        raise ValueError(
+            f"the two caches do not hold the same history: worst difference "
+            f"{worst_d:.3e} at {worst_p} over {n_compared} tensors. A "
+            f"comparison here would measure the mismatch, not the kernel. "
+            f"Give the reference the identical prefill and warmup, or pass "
+            f"match_history=False if the divergence is the thing you are "
+            f"trying to measure.")
+    return worst_d
+
+
 class GraphHarness:
     """A captured decode step that can be compared against an eager reference.
 
@@ -250,7 +328,8 @@ class GraphHarness:
     the position is the caller's job and must happen identically on both sides.
     """
 
-    def __init__(self, model, cache, inp, pos, reference_cache):
+    def __init__(self, model, cache, inp, pos, reference_cache,
+                 match_history=True):
         import torch
         self.model = model
         self.cache = cache
@@ -259,8 +338,10 @@ class GraphHarness:
         self.reference = reference_cache
         self.matched = False
         self.steps = 0
-        self.graph, self.out = captured_graph(model, cache, inp, pos)
         self.inp_snapshot = inp.clone()
+        if match_history:
+            assert_histories_match(self.cache, self.reference)
+        self.graph, self.out = captured_graph(model, cache, inp, pos)
 
     def match_priming(self, token):
         """Advance the reference by the one step that priming consumed.
