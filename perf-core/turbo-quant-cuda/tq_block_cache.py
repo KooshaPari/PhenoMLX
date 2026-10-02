@@ -937,18 +937,29 @@ class BlockQuantCache(cu.Cache):
 
         Two caveats on quoting the 1024 fusion number. It is the only context
         where fusion+graph was timed end to end. At 4096 the run does not
-        fail fast, it simply never becomes affordable: the fused prefill of a
-        4096-token sequence drives Inductor into recompiling across many
-        dynamic shapes, and after 40 minutes it had not yet printed the first
-        measurement line, having burned one full core continuously. A separate
-        attempt to run 4096 with a second copy of the harness alive exhausted
-        the Windows page file instead (`OSError: [WinError 1455]`) and failed
-        inside Triton heuristics. Both are host resource limits on
-        max-autotune, not properties of the model or of CUDA graphs, and
-        neither is a result. So 4096 and 16384 fusion numbers do not exist
-        and must not be inferred from the 1024 one. The harness now refuses
-        to start a second concurrent copy, because that is what produced the
-        page-file failure.
+        fail fast, it simply never becomes affordable: after 40 minutes it had
+        not printed the first measurement line, having burned one full core
+        continuously. A separate attempt to run 4096 with a second copy of the
+        harness alive exhausted the Windows page file instead (`OSError:
+        [WinError 1455]`) and failed inside Triton heuristics. Both are host
+        resource limits on max-autotune, not properties of the model or of CUDA
+        graphs, and neither is a result. So 4096 and 16384 fusion numbers do not
+        exist and must not be inferred from the 1024 one. The harness now
+        refuses to start a second concurrent copy, because that is what produced
+        the page-file failure.
+
+        The obvious explanation was tested and is wrong, so do not repeat it.
+        The natural guess is that 4096 recompiles across many dynamic shapes,
+        so `automatic_dynamic_shapes = False`, `assume_static_by_default = True`
+        and a raised `cache_size_limit` should collapse the compile time. Under
+        exactly that configuration a bounded 600-second run at ctx 4096 still
+        emitted no measurement line, with the working set climbing 4.32 GB to
+        5.85 GB and a compile worker growing, which is active compilation rather
+        than a deadlock. The cost is host max-autotune itself at this sequence
+        length, not Dynamo recompilation, so pinning shapes does not make 4096
+        affordable. There is also no inductor cache to reuse between runs
+        (`torchinductor_root` does not exist under the temp dir), so every
+        attempt pays the full compile again.
 
         And correctness is always measured against EAGER here. An earlier
         revision compared the fused cache against the GRAPH cache and
