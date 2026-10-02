@@ -1004,11 +1004,19 @@ class BlockQuantCache(cu.Cache):
         99 percent load and a lone sample catches either regime: it commits
         a 10-25 minute GPU run while the suite is merely between test cases,
         and the run then crawls. Require several CONSECUTIVE samples under
-        the threshold before committing. On this host that wait was paired
-        with a free-physical-memory check, since the attempt that crawled
-        showed 0.98 of 63.9 GiB free and a failed run is exactly what
-        page-file exhaustion looks like, the same failure already documented
-        for ctx 4096 below.
+        the threshold before committing. Note that free physical memory is
+        NOT a usable gate on this host: a 30-second trace taken while the
+        foreign suite was running and no model was resident showed free
+        physical memory oscillating between 1.34 and 4.03 GiB, so the
+        0.98 GiB observed during the crawling run was roughly this host's
+        normal contended range rather than evidence of page-file
+        exhaustion. That earlier reading was initially misattributed to
+        page-file exhaustion because it resembled the ctx 4096 signature
+        below; the trace refutes it. The likelier cause of the crawl is
+        simply that host contention slowed the host max-autotune compile,
+        which is the same cost documented for ctx 4096. Load, not memory,
+        is the variable worth sampling, and the spread is the real
+        acceptance test.
 
         `torch.compile(mode="reduce-overhead")` does fail here, with
         `OverflowError: Python int too large to convert to C long` at
