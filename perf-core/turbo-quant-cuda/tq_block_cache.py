@@ -937,16 +937,20 @@ class BlockQuantCache(cu.Cache):
 
         Two caveats on quoting the 1024 fusion number. It is the only context
         where fusion+graph was timed end to end. At 4096 the run does not
-        fail fast, it simply never becomes affordable: after 40 minutes it had
-        not printed the first measurement line, having burned one full core
-        continuously. A separate attempt to run 4096 with a second copy of the
-        harness alive exhausted the Windows page file instead (`OSError:
-        [WinError 1455]`) and failed inside Triton heuristics. Both are host
-        resource limits on max-autotune, not properties of the model or of CUDA
-        graphs, and neither is a result. So 4096 and 16384 fusion numbers do not
-        exist and must not be inferred from the 1024 one. The harness now
-        refuses to start a second concurrent copy, because that is what produced
-        the page-file failure.
+        fail fast, it simply never becomes affordable: a bounded 600-second
+        run had not printed the first measurement line, with the working set
+        climbing 4.32 GB to 5.85 GB and a compile worker still growing. An
+        earlier revision of this note said "after 40 minutes" and burned one
+        full core continuously; that was an overstatement of what was
+        actually bounded and measured, and the corrected figure is the
+        600-second bound above. A separate attempt to run 4096 with a second
+        copy of the harness alive exhausted the Windows page file instead
+        (`OSError: [WinError 1455]`) and failed inside Triton heuristics.
+        Both are host resource limits on max-autotune, not properties of the
+        model or of CUDA graphs, and neither is a result. So 4096 and 16384
+        fusion numbers do not exist and must not be inferred from the 1024
+        one. The harness now refuses to start a second concurrent copy,
+        because that is what produced the page-file failure.
 
         The obvious explanation was tested and is wrong, so do not repeat it.
         The natural guess is that 4096 recompiles across many dynamic shapes,
@@ -982,9 +986,16 @@ class BlockQuantCache(cu.Cache):
         is not comparable with the quiet runs and should be re-taken on an idle
         machine. Note that correctness is NOT sensitive to this: those three
         runs still passed the enforced gate at worst d 8.511e-03, 6.977e-03
-        and 9.709e-03, so the worst correctness seen on this model across five
-        runs is 9.709e-03, comfortably inside the 0.05 bound. Only the latency
-        half of a contended run is unusable.
+        and 9.709e-03. An earlier revision of this note claimed 9.709e-03
+        was the worst correctness seen across all five ctx-1024 runs, which
+        is wrong: the two quiet runs above measured 1.5e-02 and 9.4e-03,
+        which are both worse. The true worst across the five runs is the
+        1.5e-02 from the first quiet run, which is about 30 percent of the
+        0.05 bound. So contention does not move correctness far, but it is
+        not true that the quiet regime is the more accurate one either,
+        and the honest worst-case figure to quote for this configuration is
+        1.5e-02, not 9.709e-03. Only the latency half of a contended run
+        is unusable; its correctness half is merely not the worst case.
 
         And correctness is always measured against EAGER here. An earlier
         revision compared the fused cache against the GRAPH cache and
@@ -1031,10 +1042,16 @@ class BlockQuantCache(cu.Cache):
         the gate change. That is acceptable because the gate is exit-code
         only: it does not touch the timed path, and its correctness half was
         itself confirmed post-change at worst d 6.977e-03 with `gate: PASS`
-        and exit 0, plus the 9.709e-03 worst case from a contended run.
+        and exit 0, plus 9.709e-03 on a contended run. Be clear about what
+        those do and do not establish: they show the gate passes and does
+        not spuriously fail, not that post-gate correctness is better than
+        pre-gate, since the worst figure on record for this configuration
+        is still 1.5e-02 from a quiet pre-gate run.
         Do not relax the quiet gate until a run passes to make the number
         look obtained; the honest position is that the latency figure is
-        unchanged and the correctness figure is verified.
+        unchanged, the gate is confirmed to pass in-band and to reject
+        out-of-band values, and the worst correctness on record is
+        unchanged at 1.5e-02.
 
         On what to gate on, note that the benchmark already carries the
         better test and it does not depend on host load at all: it takes the

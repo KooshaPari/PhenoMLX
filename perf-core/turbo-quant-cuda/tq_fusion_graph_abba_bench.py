@@ -43,11 +43,16 @@ Usage:
     TQWEN35_DIR=/path/to/qwen35-9b python tq_fusion_graph_abba_bench.py
 
 Only context 1024 has completed end to end.  At 4096 the fused prefill of a
-4096-token sequence drives Inductor into recompiling across many dynamic
-shapes and does not become affordable on this host: after 40 minutes it had
-not printed the first measurement line while burning one core continuously.
-That is a max-autotune host cost, not a model or graph result, so no 4096 or
-16384 fusion number exists and none should be inferred.  Running two copies
+4096-token sequence does not become affordable on this host: a bounded
+600-second run printed no measurement line while the working set climbed
+4.32 GB to 5.85 GB and a compile worker kept growing, which is active
+compilation rather than a deadlock.  Recompilation across many dynamic
+shapes was the original guess and it is REFUTED: disabling automatic
+dynamic shapes, defaulting to static, and raising the cache limits still
+produced no measurement inside a bounded 600-second run, so the cost is
+host max-autotune itself and there is no inductor cache to reuse.  That is
+a host cost, not a model or graph result, so no 4096 or 16384 fusion
+number exists and none should be inferred.  Running two copies
 of this harness at once additionally exhausts the Windows page file inside
 Triton heuristics, which is why claim_single_instance() exists.
 

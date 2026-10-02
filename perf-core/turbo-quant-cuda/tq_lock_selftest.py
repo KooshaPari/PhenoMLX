@@ -26,7 +26,32 @@ running it rather than by reading it:
      which silently dropped the lock immediately after acquiring it.  Fixed by
      parking the handle in a module global.
 
-This file checks all three properties, in subprocesses, because none of them
+4. A fixed `time.sleep()` in the HOLDER, which is a defect in this TEST and
+     not in the lock.  The holder slept a fixed 6 seconds after acquiring,
+     while each contender first had to import torch, which takes ~25 seconds
+     on a loaded host.  So the holder could exit before the contender ever
+     reached its lock attempt, the contender acquired against a free lock,
+     and the test reported a FALSE FAILURE on `second live instance
+     refused`.  It passed on an idle host and failed at 100 percent CPU
+     load, which is the worst possible signature: a green run meant nothing.
+     An earlier revision of this test was also fixed by running the fast
+     contender first and merely narrowing the race.  The holder now waits on
+     a per-child release FILE until the parent has finished with it, which
+     removes the timing assumption entirely; `hold` remains only as a
+     ceiling so a crashed test cannot orphan a child.  Side effect: the
+     suite got FASTER, from about 130 seconds to about 29, because it no
+     longer waits out sleeps that the imports had already made pointless.
+
+     Two follow-on bugs came from that fix and are worth not repeating.
+     `release_child()` originally deleted the release file it had just
+     created, destroying the signal before the child could observe it.  And
+     the release path must travel as `sys.argv[1]`, not interpolated into
+     the `-c` source, because a repr-quoted Windows path inside a `-c`
+     argument is fragile once cmd.exe quoting is layered on and a mismatch
+     is silent.  Also note a child that ACQUIRES holds the lock and so must
+     be released too; only a REFUSED child exits on its own.
+
+This file checks those properties, in subprocesses, because none of them
 are observable within a single process:
 
   - a second live holder is refused,
@@ -45,7 +70,7 @@ distinguished from a genuine lock defect.
 
 It uses its OWN lock path for the subprocess checks, never the benchmark's,
 so it cannot steal the lock of a real measurement that is in flight.  It needs
-no GPU and no model, and takes about fifteen seconds.
+no GPU and no model, and takes about thirty seconds on a loaded host.
 
     python tq_lock_selftest.py
 """
@@ -119,27 +144,42 @@ def remove_lock(path, tries=40):
 # module pulls in torch at import time, which is slow but harmless here, and
 # this keeps the test runnable even if the benchmark's own imports are broken.
 CHILD = """
-import os, sys
+import os, sys, time
 sys.path.insert(0, {here!r})
 import tq_fusion_graph_abba_bench as b
+release = sys.argv[1]
 acquired = b.claim_single_instance({lock!r})
 print("CHILD_PID=%d" % os.getpid(), flush=True)
 print("ACQUIRED" if acquired else "REFUSED", flush=True)
 if acquired:
-    import time
-    time.sleep({hold:d})
+    # Hold until told to stop, rather than for a fixed time. A fixed sleep
+    # races with the contender: importing torch at import time can take
+    # longer than the sleep on a loaded host, so the holder can exit before
+    # the contender ever reaches its lock attempt and the test then reports
+    # a false ACQUIRED. Waiting on a release file removes the timing
+    # assumption entirely. hold is still honoured as a ceiling so a crashed
+    # test cannot leave this child alive forever.
+    deadline = time.time() + {hold_max:d}
+    while not os.path.exists(release):
+        if time.time() > deadline:
+            break
+        time.sleep(0.05)
 """.strip()
 
 
-def run_child(hold, tag):
+def run_child(hold, tag, release):
     """Start one child holding (or attempting) the lock, return its handle.
 
     The child's claim_single_instance() logs before printing, and log() stamps
     a timestamp, so the marker is matched as a substring of a line rather than
     by exact equality.
     """
-    src = CHILD.format(here=HERE, lock=LOCK, hold=hold)
-    p = subprocess.Popen([real_interpreter(), "-c", src],
+    src = CHILD.format(here=HERE, lock=LOCK, hold_max=hold)
+    # The release path goes through argv, not into the source text: a
+    # repr-quoted Windows path embedded in a -c argument is fragile once
+    # cmd.exe quoting is layered on, and a mismatch here is silent, the
+    # child simply waits for a file that never appears.
+    p = subprocess.Popen([real_interpreter(), "-c", src, release],
                          stdout=subprocess.PIPE, text=True)
     verdict = ""
     child_pid = None
@@ -159,6 +199,21 @@ def run_child(hold, tag):
             verdict = "ACQUIRED" if "ACQUIRED" in ln else "REFUSED"
             break
     return p, verdict, tag, child_pid
+
+
+def release_child(path):
+    """Tell a child holding the lock to exit.
+
+    Deliberately does NOT remove the file afterwards. An earlier revision
+    wrote the release file and then called remove_lock() on it, which deleted
+    the signal before the child could ever observe it, so the holder kept
+    polling for a file that no longer existed until its ceiling expired. The
+    file is a one-shot per run because every caller uses a distinct path, so
+    it is cleaned up by the caller at the end of the run instead.
+    """
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("go")
+    return True
 
 
 # An INDEPENDENT contender, deliberately not calling claim_single_instance().
@@ -229,20 +284,26 @@ def check_contention_on_a_populated_lock_file():
     size = os.path.getsize(LOCK)
     print(f"  lock file pre-populated to {size} bytes so EOF != 0")
 
-    holder, holder_line, _, _ = run_child(30, "holder-populated")
+    pop_rel = f"{LOCK}.release-pop-holder"
+    remove_lock(pop_rel)
+    holder, holder_line, _, _ = run_child(120, "holder-populated", pop_rel)
     acquired = "ACQUIRED" in holder_line
-    # Run the same-code contender FIRST and wait for it, then the independent
-    # one. The independent contender sleeps only a few seconds, so if it ran
-    # first it could let the holder exit before the second contender ever
-    # started, and that contender would acquire against a free lock and look
-    # like a failure of the lock rather than of the ordering.
-    second, second_line, _, _ = run_child(0, "second-populated")
-    second.wait()
+    # The holder waits for its release file, so it stays alive for both
+    # contenders regardless of how long either takes to import torch. An
+    # earlier revision relied on ORDERING instead, running the fast contender
+    # first because the independent one sleeps only seconds, which only
+    # narrowed the race rather than removing it.
+    second_rel = f"{LOCK}.release-pop-second"
+    remove_lock(second_rel)
+    second, second_line, _, _ = run_child(120, "second-populated", second_rel)
     refused = "REFUSED" in second_line
+    release_child(second_rel)
+    second.wait(timeout=90)
     # Independent contender: locks byte 0 explicitly instead of going
     # through claim_single_instance(). If the holder locked some other byte,
     # such as EOF, this acquires alongside it and the lock is proven broken.
     ind_refused, ind_line = run_independent_challenger(LOCK)
+    release_child(pop_rel)
     terminate(holder)
     remove_lock(LOCK)
     print(f"  contention on a populated lock file: "
@@ -300,8 +361,11 @@ def main():
         os.remove(LOCK)
     print(f"selftest lock path: {LOCK}")
 
-    # Hold the lock in a live child.
-    holder, first, _, holder_pid = run_child(6, "holder")
+    # Hold the lock in a live child. The holder waits for a release file, so
+    # it cannot exit before the contender has actually tried the lock.
+    holder_rel = f"{LOCK}.release-holder"
+    remove_lock(holder_rel)
+    holder, first, _, holder_pid = run_child(120, "holder", holder_rel)
     if "ACQUIRED" not in first:
         print(f"FAIL: could not acquire a free lock, got {first!r}")
         return 1
@@ -309,12 +373,21 @@ def main():
 
     # A second child must be refused while the first is alive. This is the
     # property that does not survive a naive implementation.
-    second, second_line, _, _ = run_child(0, "second")
-    second.wait()
+    second_rel = f"{LOCK}.release-second"
+    remove_lock(second_rel)
+    second, second_line, _, _ = run_child(120, "second", second_rel)
     refused = "REFUSED" in second_line
     print(f"  second live instance refused: {refused} ({second_line!r})")
+    # A refused child never holds the lock, but it still waits on its release
+    # path if it somehow acquired, so signal it and reap it.
+    release_child(second_rel)
+    second.wait(timeout=90)
 
-    holder.wait()
+    # The holder is still alive here by construction, since it waits for its
+    # release file and the contender never created one. Signal it to exit and
+    # wait for the process so the lock is genuinely free before the next check.
+    release_child(holder_rel)
+    holder.wait(timeout=90)
 
     # Only after the holder exits. While it is alive it holds a deny-write
     # lock over byte 0, and on Windows that makes even a plain read of the
@@ -328,16 +401,30 @@ def main():
 
     # After the holder exits the lock must be free again, or a crashed run
     # would make the benchmark permanently unrunnable.
-    third, third_line, _, _ = run_child(0, "third")
-    third.wait()
+    third_rel = f"{LOCK}.release-third"
+    remove_lock(third_rel)
+    third, third_line, _, _ = run_child(120, "third", third_rel)
     released = "ACQUIRED" in third_line
     print(f"  lock released after holder exit: {released} ({third_line!r})")
+    # The third child also holds once it has the lock, so it has to be
+    # released too. Waiting on it before signalling would simply hang.
+    release_child(third_rel)
+    third.wait(timeout=90)
 
     remove_lock(LOCK)
+
+    # The release files are no longer self-deleting (see release_child), so
+    # remove every one this run created.
+    for rel in (holder_rel, second_rel, third_rel,
+                f"{LOCK}.release-pop-holder", f"{LOCK}.release-pop-second"):
+        remove_lock(rel)
 
     # The offset defect is only visible once the lock file has content, so
     # this must run against a populated file rather than a fresh one.
     populated_ok = check_contention_on_a_populated_lock_file()
+
+    for rel in (f"{LOCK}.release-pop-holder", f"{LOCK}.release-pop-second"):
+        remove_lock(rel)
 
     # The final and most important check: the real benchmark entry point.
     real_ok = check_real_benchmark_refuses()
