@@ -101,7 +101,7 @@ def maxlen_for(ctx):
     return ctx + budget + MAXLEN_PAD
 
 
-def claim_single_instance():
+def claim_single_instance(path=None):
     """Refuse to start if another copy of this benchmark is already running.
 
     Two concurrent copies exhausted the Windows page file during Inductor
@@ -117,9 +117,17 @@ def claim_single_instance():
     python.exe processes; it was discarded because `$PID` inside
     `powershell -Command` is the *PowerShell* PID, not the caller's, so the
     script matched itself and aborted every launch.
+
+    `path` exists so `tq_lock_selftest.py` can prove the mutual exclusion
+    without stealing the lock of a real run that may be in flight.  It
+    defaults to the shared temp path that main() uses, overridable with
+    TQ_LOCK_PATH.
     """
     import msvcrt
-    path = os.path.join(tempfile.gettempdir(), "tq_fusion_abba.lock")
+    if path is None:
+        path = os.environ.get(
+            "TQ_LOCK_PATH",
+            os.path.join(tempfile.gettempdir(), "tq_fusion_abba.lock"))
     try:
         fh = open(path, "r+b")
     except FileNotFoundError:
