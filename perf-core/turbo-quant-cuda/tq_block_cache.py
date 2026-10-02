@@ -1002,6 +1002,14 @@ class BlockQuantCache(cu.Cache):
         Two measurement traps, because both produced confident wrong numbers
         before the numbers above were confirmed:
 
+        - Model scope is not interchangeable here. `tq_block_cache_decode_check.py`
+          drives Qwen2.5-3B-Instruct, NOT the 9B: prefill 1024 then 8 decode
+          steps, comparing BlockQuantCache against an fp16 `DynamicCache`. It
+          passes: the argmax token matches fp16 at every step and the worst
+          relative L2 is 0.103, under that script's 0.5 gate. That is a 3B
+          decode-path result and must not be quoted as 9B evidence. The 9B
+          numbers in this file all come from the scripts named next to them.
+
         - An intermediate version of the fix reserved `new_total + added`. On
           the FIRST allocation start=0, so `added` was the entire prefill and
           the reservation landed at exactly 2x -- the very bug it was meant to
