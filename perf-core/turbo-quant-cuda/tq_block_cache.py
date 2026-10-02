@@ -900,15 +900,50 @@ class BlockQuantCache(cu.Cache):
         So graphs are necessary on this card and they are not sufficient. They
         recover most of the launch overhead measured in point 3 at every
         context tested, but fusion on top would be required to reach the
-        floor, and is currently unavailable here:
-        `torch.compile(mode="reduce-overhead")` dies after several minutes in
-        the Inductor static launcher on this Windows build with
+        floor.
+
+        `torch.compile(mode="reduce-overhead")` does fail here, with
         `OverflowError: Python int too large to convert to C long` at
-        `torch/_inductor/runtime/static_cuda_launcher.py:244`. It is not a
-        path-length problem, the generated module path is 113 characters. It
-        is not a Triton problem either: a hand-written Triton decode kernel in
-        this same environment compiles and runs. So graph capture works here
-        today and inductor fusion does not.
+        `torch/_inductor/runtime/static_cuda_launcher.py:244`. That diagnosis
+        was previously left as "unavailable here" and it is now known. The
+        failing call forwards a CUDA stream HANDLE into a parameter pybind11
+        declares as a C `long`, and a C long is 32 bits on Windows:
+
+            grid_x 256  grid_y 1  grid_z 1  num_warps 4  shared 0
+            arg_tys 'OOi'
+            stream   550398715872   (0x802651e7e0)
+            function 550384860192   (0x80257e7c20)
+
+        Both the stream and the kernel function are 64-bit pointers and both
+        exceed 2**31. The C long is 4 bytes on this platform, which the test
+        prints, and only the stream is proved to be the refused argument; the
+        function handle goes into a `uint64_t` in the same binding, so it
+        being oversized is a hazard rather than the proven cause. The
+        reason this looks like anything but a width problem
+        is that the DEFAULT stream is 0, and 0 converts cleanly, so probing
+        the default stream exonerates the stream entirely. A cudagraph capture
+        runs on a side stream, so the failing call is never on stream 0. Forcing
+        the stream argument to 0 gets past argument conversion and fails later
+        inside the driver instead, which is what confirms the conversion was
+        the blocker.
+
+        Reduced-overhead is not a prerequisite for anything above, and the
+        scope of the bug is narrow: it is Inductor's OWN cudagraph integration
+        that is broken, not Inductor. On a three-layer MLP, 26 seconds to
+        compile:
+
+            mode=default                        OK  2.292e-07
+            mode=reduce-overhead                FAIL OverflowError
+            mode=max-autotune-no-cudagraphs     OK  3.437e-07
+            mode=max-autotune                   FAIL OverflowError
+
+        So `mode="max-autotune-no-cudagraphs"` gives full Inductor fusion with
+        the static launcher out of the path, and manual `torch.cuda.graph`
+        capture supplies the launch-overhead elimination that reduce-overhead
+        would have supplied. That combination is untested on the 9B here, so it
+        is a route to try, not a result. It is also not a Triton problem: a
+        hand-written Triton decode kernel in this same environment compiles and
+        runs.
         Two measurement traps, because both produced confident wrong numbers
         before the numbers above were confirmed:
 
