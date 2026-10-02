@@ -240,13 +240,24 @@ def main():
     # bound must not report success, however fast it was.
     within = [r for r in results if r["worst"] < LOGIT_TOL]
     measured = ", ".join("{:.3e}".format(r["worst"]) for r in results)
+    # An aborted context (run_ctx returned None because it exceeded the
+    # bound) is NOT a pass. It must not vanish from `results` and leave the
+    # gate reporting PASS for whatever contexts did survive, or a run with
+    # TQ_CONTEXTS=1024,4096 would exit 0 while 4096 was never measured at
+    # all. Every requested context has to produce a result.
+    requested = len(CONTEXTS)
+    measured_ctxs = len(results)
+    complete = measured_ctxs == requested
     log("")
     log(f"acceptance gate: worst d must be < {LOGIT_TOL}, measured "
-        f"{measured}")
+        f"{measured or '(nothing measured)'}")
     for r in results:
         verdict = "within" if r["worst"] < LOGIT_TOL else "OUT OF BOUNDS"
         log(f"  ctx {r['ctx']}: {r['worst']:.3e} {verdict}")
-    ok = bool(results) and len(within) == len(results)
+    if not complete:
+        log(f"  contexts requested {requested}, measured {measured_ctxs}: "
+            f"an aborted or unmeasured context is NOT a pass")
+    ok = bool(results) and complete and len(within) == len(results)
     log(f"gate: {'PASS' if ok else 'FAIL'}")
     return 0 if ok else 1
 
@@ -379,8 +390,13 @@ def run_ctx(model, compiled, cfg, dev, ctx):
         f"{LOCK_CHECKS} lockstep steps = {worst_cg:.3e}")
 
     worst = max(worst_fuse, worst_cg)
-    if worst >= 0.05:
-        log("  ABORT: above the 0.05 bound, refusing to publish a speedup")
+    # Uses LOGIT_TOL rather than a second literal 0.05. This check and the
+    # main() acceptance gate have to agree by construction: if the tolerance
+    # were ever changed in one place only, this would abort at a different
+    # value than the one reported, and the mismatch would be silent.
+    if worst >= LOGIT_TOL:
+        log(f"  ABORT: at or above the {LOGIT_TOL} bound, "
+            f"refusing to publish a speedup")
         del g, out, ref, fused, gcache
         torch.cuda.empty_cache()
         return None
