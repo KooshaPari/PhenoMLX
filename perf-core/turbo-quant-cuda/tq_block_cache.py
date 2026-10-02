@@ -961,6 +961,31 @@ class BlockQuantCache(cu.Cache):
         (`torchinductor_root` does not exist under the temp dir), so every
         attempt pays the full compile again.
 
+        The 0.05 bound above is now ENFORCED rather than only described:
+        `tq_fusion_graph_abba_bench.py` carries `LOGIT_TOL` and returns a
+        non-zero exit code if any context lands outside it, printing
+        `acceptance gate` and a per-context `within` / `OUT OF BOUNDS` line.
+        Before that, a run exceeding the bound still exited 0 and read as a
+        pass. Verified end to end at ctx 1024, where it printed
+        `measured 6.977e-03`, `gate: PASS`, exit 0, and separately failed as
+        designed for a value of exactly 0.05, for 0.061, for a set where one
+        context was good and another was not, and for an empty result set.
+
+        A contention caveat for anyone re-running the 1024 number. Three later
+        runs measured eager 77.062 ms (spread 0.216), 77.491 ms (spread 0.233)
+        and 78.402 ms (spread 0.259) against 71.295 and 71.454 ms (spread
+        0.042-0.088) on the two quiet runs. All three slower runs were taken
+        while another agent's pytest suite held the host at 54-57, 83 and then
+        99 percent CPU load, and all three are DISCARDED rather than averaged
+        in. The tell is the spread: a lazy host inflates the spread as well as
+        the mean, so a run whose spread exceeds roughly 0.10 on the eager side
+        is not comparable with the quiet runs and should be re-taken on an idle
+        machine. Note that correctness is NOT sensitive to this: those three
+        runs still passed the enforced gate at worst d 8.511e-03, 6.977e-03
+        and 9.709e-03, so the worst correctness seen on this model across five
+        runs is 9.709e-03, comfortably inside the 0.05 bound. Only the latency
+        half of a contended run is unusable.
+
         And correctness is always measured against EAGER here. An earlier
         revision compared the fused cache against the GRAPH cache and
         reported 0.0, which was true and useless because both sides run the

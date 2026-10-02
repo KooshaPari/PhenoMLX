@@ -80,6 +80,9 @@ CONTEXTS = tuple(int(c) for c in
 MAXLEN_PAD = 128
 LOCK_CHECKS = 4
 COMPILE_MODE = os.environ.get("TQ_COMPILE_MODE", "max-autotune-no-cudagraphs")
+# The acceptance bound on worst relative logit difference against eager, as
+# documented in tq_block_cache.py. A run outside it must not report success.
+LOGIT_TOL = 0.05
 
 
 def log(m):
@@ -225,7 +228,22 @@ def main():
         "which is the only reference here that fusion is not "
         "indistinguishable from.")
     log("A credible speedup requires the two sample sets not to overlap.")
-    return 0 if results else 1
+
+    # The 0.05 acceptance bound is documented in tq_block_cache.py but was
+    # only ever printed, never enforced, so a run that exceeded it still
+    # exited 0 and looked like a pass. Enforce it here: a result outside the
+    # bound must not report success, however fast it was.
+    within = [r for r in results if r["worst"] < LOGIT_TOL]
+    measured = ", ".join("{:.3e}".format(r["worst"]) for r in results)
+    log("")
+    log(f"acceptance gate: worst d must be < {LOGIT_TOL}, measured "
+        f"{measured}")
+    for r in results:
+        verdict = "within" if r["worst"] < LOGIT_TOL else "OUT OF BOUNDS"
+        log(f"  ctx {r['ctx']}: {r['worst']:.3e} {verdict}")
+    ok = bool(results) and len(within) == len(results)
+    log(f"gate: {'PASS' if ok else 'FAIL'}")
+    return 0 if ok else 1
 
 
 def rel_diff(a, b):
