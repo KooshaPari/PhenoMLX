@@ -1,0 +1,31 @@
+{
+  "schema": "recovery-pass/1",
+  "product": "KooshaPari/PhenoMLX",
+  "repository_id": 1214745478,
+  "effort_id": "REC-20260929-PHENOMLX",
+  "observed_on": "2026-09-29",
+  "source_snapshot": "1ab4ed250e6b3a1ed9025a674d4814339d32fcd3",
+  "registry_snapshot": "85d7cd00cf59c379c05b740e8130a85b0d5bd31b",
+  "specification_branch": "spec/mature-recovery-20260929",
+  "implementation_candidate": null,
+  "accepted_contract": null,
+  "generated_catalog_eligible_for_grading": false,
+  "status": "INCOMPLETE_BLOCKED",
+  "completion_percent": null,
+  "usable_product_percent": null,
+  "source_denominator": {"state": "OPEN", "file_inventory_complete": false, "history_exhausted": false, "semantic_resolution_complete": false},
+  "evidence": {"native_tests": "NOT_RUN", "argv_fragment_characterization": "EXECUTED", "cache_measurement": "SOURCE_RECORDED_NOT_REPRODUCED", "raw_cache_runs_inspected": false, "product_acceptance": "NOT_EVALUATED", "independent_review": "NOT_RUN"},
+  "open_findings": ["M-F01", "M-F02", "M-F03", "M-F04", "M-F05"],
+  "gates": {
+    "snapshot": "RECORDED", "source_coverage": "OPEN", "alias_history_falsification": "OPEN",
+    "sota": "PASS_1_ONLY", "alternative_stack": "PROVISIONAL", "bootstrap_decisions": "PROVISIONAL",
+    "differentiation_attack": "OPEN", "ontology": "DRAFT", "accepted_obligations": "NOT_COMPLETE",
+    "quality_overlays": "NOT_COMPLETE", "journeys": "DRAFT", "stage_projections": "UNACCEPTED",
+    "oracle_design": "PARTIAL", "architecture_risks": "OPEN", "implementation_mapping": "TARGETED_SOURCE_ONLY",
+    "traceability_validation": "NOT_RUN", "registry_agreement": "CROSS_LINK_PENDING",
+    "invalid_catalog_exclusion": "THIS_DRAFT_INELIGIBLE", "orphan_review": "NOT_RUN",
+    "contradictions": "OPEN", "blocking_findings": "OPEN", "independent_falsification": "NOT_RUN"
+  },
+  "next_experiments": ["M-X01", "M-X02", "M-X03", "M-X04", "M-X05"],
+  "changes": {"production_code": false, "release": false, "merge": false, "destructive_operations": false}
+}

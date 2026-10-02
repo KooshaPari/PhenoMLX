@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PhenoMLX Profile Store Event v0",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "kind",
+        "profile_id",
+        "schema_version",
+        "realized_profile",
+        "created_at"
+      ],
+      "properties": {
+        "kind": {
+          "const": "profile"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "string"
+        },
+        "realized_profile": {
+          "type": "object"
+        },
+        "requested_profile_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "authority": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "kind",
+        "qualification_id",
+        "profile_id",
+        "workload_digest",
+        "status",
+        "observed_at"
+      ],
+      "properties": {
+        "kind": {
+          "const": "qualification"
+        },
+        "qualification_id": {
+          "type": "string"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "workload_digest": {
+          "type": "string"
+        },
+        "oracle_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "qualified",
+            "failed",
+            "invalid",
+            "incomparable"
+          ]
+        },
+        "observed_at": {
+          "type": "string"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "kind",
+        "support_id",
+        "profile_id",
+        "lifecycle",
+        "effective_at"
+      ],
+      "properties": {
+        "kind": {
+          "const": "support"
+        },
+        "support_id": {
+          "type": "string"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "lifecycle": {
+          "enum": [
+            "experimental",
+            "supported",
+            "deprecated",
+            "withdrawn"
+          ]
+        },
+        "effective_at": {
+          "type": "string"
+        },
+        "supersedes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "kind",
+        "observation_id",
+        "profile_id",
+        "generation",
+        "observed_at",
+        "fresh_until"
+      ],
+      "properties": {
+        "kind": {
+          "const": "capacity"
+        },
+        "observation_id": {
+          "type": "string"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "observed_at": {
+          "type": "string"
+        },
+        "fresh_until": {
+          "type": "string"
+        },
+        "collector_scope": {
+          "type": "string"
+        },
+        "values": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}
