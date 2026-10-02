@@ -853,27 +853,44 @@ class BlockQuantCache(cu.Cache):
         but the size of the win is context-dependent, and that changes what
         the remedy buys, so it is measured here rather than asserted.
 
-        What a graph actually buys, ABBA-paired and warm-up aware, on the
-        allocator-checked card. Correctness is re-verified inside the timed
-        region, and the speed claim is suppressed if it fails:
+        What a graph actually buys, on the allocator-checked card. The first
+        table here was labelled ABBA-paired but the harness ran E,E,G,G per
+        round, so it measured eager before graph and graph after eager and
+        absorbed any within-round drift. At 1024 its sample spread was 1.129,
+        meaning max was 113% above min, so no ratio derived from it could be
+        quoted. That table has been replaced with a genuine A B B A schedule
+        in which each variant is sampled once at the start of a round and once
+        at the end, so drift cancels to first order. Nine rounds, eight inner
+        steps, first round discarded:
 
-            ctx     eager    graph    ratio    vs 7.72 ms floor
-            1024    70.68    27.84    2.54x    3.6x
-            4096    62.93    29.91    2.10x    3.9x
-            16384  172.78   132.47    1.30x   17.2x
+            ctx     eager    graph    ratio   spread E  spread G
+            1024    86.99    26.02    3.34x    0.349     0.041
+            4096    72.04    28.62    2.52x    0.288     0.050
+            16384  225.50    73.35    3.07x    0.020     0.042
 
-        Relative logit difference was exactly 0.0 at all three contexts, so
-        the numbers are usable. Two caveats keep this from being read as a
-        2.5x speedup for the model:
+        Spread is (max-min)/median over all 18 samples per variant. Relative
+        logit difference was exactly 0.0 at all three contexts, and the
+        harness suppresses the ratio if it is not 0.0, so these are usable.
 
-        - The win SHRINKS as context grows, from 2.54x at 1024 to 1.30x at
-          16384. That is the signature of a host-side fix. Graphs remove host
-          issue overhead, and by 16K there is enough real GPU work that the
-          overhead removed was a smaller share of the step. A lone 2.5x
-          headline would have been measured at ctx=1024 and would have been
-          wrong as a general claim. At 16K the step is 22.4x the bandwidth
-          floor even eagerly, so it is not launch-bound there at all, and
-          1.30x is all a graph offers in that regime.
+        THE CORRECTION THAT MATTERS: the old table concluded the win SHRINKS
+        as context grows, from 2.54x to 1.30x, and read the 16K collapse as
+        the signature of a host-side fix. That conclusion does not survive a
+        balanced schedule. The win does not shrink with context; it holds
+        between 2.5x and 3.3x across a 16x range. The old 1.30x was an
+        artifact of the ordering, not a property of graphs at long context.
+
+        The absolute latencies also moved between runs, and the eager baseline
+        moved most: 225.50 ms at 16K now against 172.78 ms before. The ratio
+        is the robust quantity here; the absolute eager figure on this host
+        varies by roughly 30% run to run, so it should not be quoted alone.
+
+        Two caveats still keep this from being read as a 3x speedup for the
+        model:
+
+        - The graph step is not bandwidth-bound at any of these contexts. It
+          is 3.4x the 7.72 ms weight-read floor at 1024 and 9.5x it at 16384,
+          so removing host launch overhead is real and large but does not by
+          itself make the step compute the thing that limits it.
         - Capture cost is excluded, as it should be for steady state, but a
           graph holds a private memory pool and the decode shape is fixed at
           capture. The position must be written into a static buffer and
@@ -881,10 +898,9 @@ class BlockQuantCache(cu.Cache):
           instead of passing a fresh position each step.
 
         So graphs are necessary on this card and they are not sufficient. They
-        recover the launch overhead measured in point 3, and at short context
-        that is most of the gap, but the graph step is still 3.6x the
-        weight-read floor, so nothing here makes the step bandwidth-bound.
-        Fusion on top would, and is currently unavailable here:
+        recover most of the launch overhead measured in point 3 at every
+        context tested, but fusion on top would be required to reach the
+        floor, and is currently unavailable here:
         `torch.compile(mode="reduce-overhead")` dies after several minutes in
         the Inductor static launcher on this Windows build with
         `OverflowError: Python int too large to convert to C long` at
