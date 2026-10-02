@@ -910,18 +910,24 @@ class BlockQuantCache(cu.Cache):
         Inductor Triton kernel would otherwise route its stream through a
         32-bit C long, and capture's side stream exceeds 2**31. With that
         setting the combination is technically sound and beat eager decisively
-        at context 1024: eager 71.295 ms (spread 0.088) versus fusion+graph
-        21.117 ms (spread 0.042), a 3.376x speedup with non-overlapping sample
-        ranges.
+        at context 1024. Two independent runs of the real benchmark agree:
+        eager 71.295 ms (spread 0.088) versus fusion+graph 21.117 ms (spread
+        0.042), a 3.376x speedup, and on a later repeat eager 71.454 ms
+        (spread 0.077) versus fusion+graph 20.306 ms (spread 0.066), a 3.519x
+        speedup. Both had non-overlapping sample ranges. Eager is stable to
+        within 0.2 percent across runs (71.454 / 71.295), so the speedup is
+        a property of the configuration rather than of one lucky sample.
 
         But it does not reach the floor, and it costs exactness to get there.
-        The 21.117 ms step is still 2.7x the 7.72 ms weight-read floor, so
-        fusion on top of graphs did not approach bandwidth either. Worse, this
-        path is numerically APPROXIMATE, not allocation-only: against eager the
-        worst relative cache difference is about 2.3e-02 and the worst
-        relative logit difference over lockstep decode is about 1.5e-02. Both
-        are under the 0.05 acceptance bound but neither is 0.0, because
-        max-autotune changes the arithmetic. So the honest conclusion is:
+        The fusion+graph step is still about 2.7x the 7.72 ms weight-read floor
+        (20.306 ms on the repeat), so fusion on top of graphs did not approach
+        bandwidth either. Worse, this path is numerically APPROXIMATE, not
+        allocation-only: against eager the worst relative cache difference is
+        about 2.3e-02, and the worst relative logit difference over lockstep
+        decode was about 1.5e-02 on the first run and 9.4e-03 on the repeat
+        (fusion+graph itself measured 6.4e-03 on the repeat). Both are under
+        the 0.05 acceptance bound but neither is 0.0, because max-autotune
+        changes the arithmetic. So the honest conclusion is:
 
         - For a BIT-IDENTICAL result, use manual graph over eager (the
           validated 2.5x-3.3x path above). Fusion cannot be layered on top

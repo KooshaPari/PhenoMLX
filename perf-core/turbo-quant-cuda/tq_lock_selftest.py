@@ -34,6 +34,15 @@ are observable within a single process:
     leave the benchmark permanently unrunnable,
   - the recorded PID in the lock file matches the holder that owns it.
 
+Children report their OWN `os.getpid()` rather than the test inferring it from
+`Popen().pid`, and file removal retries.  Both are needed because a Windows venv
+`Scripts\\python.exe` is a redirect stub: `Popen().pid` is then the stub's pid,
+not the lock owner's, and `kill()` on the stub leaves the real interpreter alive
+holding the file.  Measured: under a venv the old assertions reported a false
+failure (`recorded 925968, holder was 888404`, then PermissionError on remove)
+while the same file passes cleanly under base Python 3.11, which is how this was
+distinguished from a genuine lock defect.
+
 It uses its OWN lock path for the subprocess checks, never the benchmark's,
 so it cannot steal the lock of a real measurement that is in flight.  It needs
 no GPU and no model, and takes about fifteen seconds.
@@ -52,14 +61,69 @@ LOCK = os.path.join(tempfile.gettempdir(), "tq_lock_selftest.lock")
 BENCH = os.path.join(HERE, "tq_fusion_graph_abba_bench.py")
 BENCH_LOCK = os.path.join(tempfile.gettempdir(), "tq_fusion_abba.lock")
 
+
+def real_interpreter():
+    """The interpreter that actually runs code, with no launcher indirection.
+
+    A Windows venv's ``Scripts\\python.exe`` is a small redirect stub: launching
+    it makes Popen() report the STUB's pid while the interpreter doing the work
+    reports a different ``os.getpid()``.  Two of this file's checks depend on
+    the pid actually written into the lock file, so they need the child to
+    report its own pid rather than have it inferred from Popen().  Children
+    therefore print ``CHILD_PID=`` themselves, and this helper keeps the child
+    source working whether or not the stub is in the way.
+    """
+    return sys.executable
+
+
+def terminate(proc, timeout=10.0):
+    """Kill a child process AND any interpreter it redirected to.
+
+    Killing the venv stub leaves the real interpreter running, still holding the
+    lock file open, which turns the next ``os.remove`` into a spurious
+    PermissionError that reads like a lock bug.  Poll until the file is
+    actually deletable rather than assuming the kill was immediate.
+    """
+    import time
+    proc.kill()
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        pass
+    # Give the redirected interpreter time to notice its parent died and exit.
+    for _ in range(50):
+        if proc.poll() is not None:
+            time.sleep(0.1)
+            break
+
+
+def remove_lock(path, tries=40):
+    """Delete the lock file, tolerating a just-killed process still closing it.
+
+    Windows denies DELETE on a file whose handle is still open, so a removed
+    child needs a moment to let go.  Without this retry the self-test reported
+    a hard PermissionError under a venv even though the lock was correct.
+    """
+    import time
+    for _ in range(tries):
+        if not os.path.exists(path):
+            return True
+        try:
+            os.remove(path)
+            return True
+        except PermissionError:
+            time.sleep(0.25)
+    return not os.path.exists(path)
+
 # Import by path rather than importing the benchmark normally: the benchmark
 # module pulls in torch at import time, which is slow but harmless here, and
 # this keeps the test runnable even if the benchmark's own imports are broken.
 CHILD = """
-import sys
+import os, sys
 sys.path.insert(0, {here!r})
 import tq_fusion_graph_abba_bench as b
 acquired = b.claim_single_instance({lock!r})
+print("CHILD_PID=%d" % os.getpid(), flush=True)
 print("ACQUIRED" if acquired else "REFUSED", flush=True)
 if acquired:
     import time
@@ -75,17 +139,26 @@ def run_child(hold, tag):
     by exact equality.
     """
     src = CHILD.format(here=HERE, lock=LOCK, hold=hold)
-    p = subprocess.Popen([sys.executable, "-c", src],
+    p = subprocess.Popen([real_interpreter(), "-c", src],
                          stdout=subprocess.PIPE, text=True)
     verdict = ""
-    for _ in range(6):
+    child_pid = None
+    for _ in range(8):
         ln = p.stdout.readline().strip()
         if not ln:
             break
+        # The child reports its OWN pid. A Windows venv launcher is a stub, so
+        # p.pid is the stub's pid and not the process that owns the lock.
+        if ln.startswith("CHILD_PID="):
+            try:
+                child_pid = int(ln.split("=", 1)[1])
+            except ValueError:
+                child_pid = None
+            continue
         if "ACQUIRED" in ln or "REFUSED" in ln:
             verdict = "ACQUIRED" if "ACQUIRED" in ln else "REFUSED"
             break
-    return p, verdict, tag
+    return p, verdict, tag, child_pid
 
 
 # An INDEPENDENT contender, deliberately not calling claim_single_instance().
@@ -117,7 +190,7 @@ def run_independent_challenger(path):
     Returns True if the contender was correctly refused.
     """
     src = CHALLENGER.replace("sys.argv[1]", repr(path))
-    p = subprocess.Popen([sys.executable, "-c", src],
+    p = subprocess.Popen([real_interpreter(), "-c", src],
                          stdout=subprocess.PIPE, text=True)
     verdict = ""
     for _ in range(4):
@@ -156,24 +229,22 @@ def check_contention_on_a_populated_lock_file():
     size = os.path.getsize(LOCK)
     print(f"  lock file pre-populated to {size} bytes so EOF != 0")
 
-    holder, holder_line, _ = run_child(30, "holder-populated")
+    holder, holder_line, _, _ = run_child(30, "holder-populated")
     acquired = "ACQUIRED" in holder_line
     # Run the same-code contender FIRST and wait for it, then the independent
     # one. The independent contender sleeps only a few seconds, so if it ran
     # first it could let the holder exit before the second contender ever
     # started, and that contender would acquire against a free lock and look
     # like a failure of the lock rather than of the ordering.
-    second, second_line, _ = run_child(0, "second-populated")
+    second, second_line, _, _ = run_child(0, "second-populated")
     second.wait()
     refused = "REFUSED" in second_line
     # Independent contender: locks byte 0 explicitly instead of going
     # through claim_single_instance(). If the holder locked some other byte,
     # such as EOF, this acquires alongside it and the lock is proven broken.
     ind_refused, ind_line = run_independent_challenger(LOCK)
-    holder.kill()
-    holder.wait()
-    if os.path.exists(LOCK):
-        os.remove(LOCK)
+    terminate(holder)
+    remove_lock(LOCK)
     print(f"  contention on a populated lock file: "
           f"holder={holder_line!r} same-code second={second_line!r} "
           f"independent={ind_line!r} -> "
@@ -195,8 +266,7 @@ def check_real_benchmark_refuses():
     directory because main() checks the model path first and returns 2 if it
     is absent, which would mask the guard.
     """
-    if os.path.exists(BENCH_LOCK):
-        os.remove(BENCH_LOCK)
+    remove_lock(BENCH_LOCK)
     holder_src = (
         "import sys;sys.path.insert(0,%r);"
         "import tq_fusion_graph_abba_bench as b;"
@@ -204,7 +274,7 @@ def check_real_benchmark_refuses():
         "print('HELD',flush=True);"
         "import time;time.sleep(40)" % (HERE, BENCH_LOCK)
     )
-    h = subprocess.Popen([sys.executable, "-c", holder_src],
+    h = subprocess.Popen([real_interpreter(), "-c", holder_src],
                          stdout=subprocess.PIPE, text=True, cwd=HERE)
     for _ in range(8):
         ln = h.stdout.readline().strip()
@@ -213,14 +283,12 @@ def check_real_benchmark_refuses():
     try:
         env = dict(os.environ, TQ_LOCK_PATH=BENCH_LOCK,
                    TQWEN35_DIR=tempfile.gettempdir())
-        r = subprocess.run([sys.executable, "-u", BENCH],
+        r = subprocess.run([real_interpreter(), "-u", BENCH],
                            capture_output=True, text=True, env=env,
                            cwd=HERE, timeout=600)
     finally:
-        h.kill()
-        h.wait()
-        if os.path.exists(BENCH_LOCK):
-            os.remove(BENCH_LOCK)
+        terminate(h)
+        remove_lock(BENCH_LOCK)
     refused = (r.returncode == 3) and ("ABORT: another copy" in r.stdout)
     print(f"  real benchmark refused while locked: {refused} "
           f"(exit {r.returncode}, 3 == refused)")
@@ -233,7 +301,7 @@ def main():
     print(f"selftest lock path: {LOCK}")
 
     # Hold the lock in a live child.
-    holder, first, _ = run_child(6, "holder")
+    holder, first, _, holder_pid = run_child(6, "holder")
     if "ACQUIRED" not in first:
         print(f"FAIL: could not acquire a free lock, got {first!r}")
         return 1
@@ -241,7 +309,7 @@ def main():
 
     # A second child must be refused while the first is alive. This is the
     # property that does not survive a naive implementation.
-    second, second_line, _ = run_child(0, "second")
+    second, second_line, _, _ = run_child(0, "second")
     second.wait()
     refused = "REFUSED" in second_line
     print(f"  second live instance refused: {refused} ({second_line!r})")
@@ -254,19 +322,18 @@ def main():
     # once the lock is free.
     with open(LOCK, "r", encoding="utf-8", errors="replace") as fh:
         recorded = fh.read().strip()
-    recorded_ok = recorded == str(holder.pid)
-    print(f"  lock file records pid {recorded!r}, holder was {holder.pid}: "
-          f"{recorded_ok}")
+    recorded_ok = recorded == str(holder_pid)
+    print(f"  lock file records pid {recorded!r}, holder process was "
+          f"{holder_pid}: {recorded_ok}")
 
     # After the holder exits the lock must be free again, or a crashed run
     # would make the benchmark permanently unrunnable.
-    third, third_line, _ = run_child(0, "third")
+    third, third_line, _, _ = run_child(0, "third")
     third.wait()
     released = "ACQUIRED" in third_line
     print(f"  lock released after holder exit: {released} ({third_line!r})")
 
-    if os.path.exists(LOCK):
-        os.remove(LOCK)
+    remove_lock(LOCK)
 
     # The offset defect is only visible once the lock file has content, so
     # this must run against a populated file rather than a fresh one.

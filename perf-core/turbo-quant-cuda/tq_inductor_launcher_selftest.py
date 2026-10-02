@@ -197,8 +197,14 @@ def main():
               "Inductor fusion with the static\n   launcher out of the path, "
               "and manual torch.cuda.graph capture supplies the\n   launch "
               "overhead elimination that reduce-overhead would have.")
-        print("\n   Not verified on Qwen3.5-9B. That combination is a route "
-              "to try, not a result.")
+        print("\n   That combination has since been measured on "
+              "Qwen3.5-9B by\n   tq_fusion_graph_abba_bench.py: at "
+              "context 1024 it beat eager 3.376x, but it\n   is NOT "
+              "bit-identical (worst relative logit difference\n   about "
+              "1.5e-02 against eager, under the 0.05 gate) and it\n   still "
+              "lands 2.7x above the 7.72 ms weight-read floor. See\n   "
+              "tq_block_cache.py under FUSION PLUS GRAPH for the numbers\n   "
+              "and the caveats.")
     n_fail = sum(1 for v in results.values() if v[0] == "fail") - 1
     print(f"\n   expected failures: 1 (reduce-overhead), observed: {n_fail}")
     return 0 if (n_fail == 1 and ok_no_cg) else 1
