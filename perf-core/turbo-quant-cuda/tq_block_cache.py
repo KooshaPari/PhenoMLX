@@ -902,6 +902,53 @@ class BlockQuantCache(cu.Cache):
         context tested, but fusion on top would be required to reach the
         floor.
 
+        FUSION PLUS GRAPH, and why it is not the answer to the 7.72 ms floor.
+        `tq_fusion_graph_abba_bench.py` measures
+        `torch.compile(mode="max-autotune-no-cudagraphs")` with
+        `use_static_cuda_launcher = False` and manual capture. The static
+        launcher MUST be disabled before the first compiled call: every
+        Inductor Triton kernel would otherwise route its stream through a
+        32-bit C long, and capture's side stream exceeds 2**31. With that
+        setting the combination is technically sound and beat eager decisively
+        at context 1024: eager 71.295 ms (spread 0.088) versus fusion+graph
+        21.117 ms (spread 0.042), a 3.376x speedup with non-overlapping sample
+        ranges.
+
+        But it does not reach the floor, and it costs exactness to get there.
+        The 21.117 ms step is still 2.7x the 7.72 ms weight-read floor, so
+        fusion on top of graphs did not approach bandwidth either. Worse, this
+        path is numerically APPROXIMATE, not allocation-only: against eager the
+        worst relative cache difference is about 2.3e-02 and the worst
+        relative logit difference over lockstep decode is about 1.5e-02. Both
+        are under the 0.05 acceptance bound but neither is 0.0, because
+        max-autotune changes the arithmetic. So the honest conclusion is:
+
+        - For a BIT-IDENTICAL result, use manual graph over eager (the
+          validated 2.5x-3.3x path above). Fusion cannot be layered on top
+          without giving up bit-exactness.
+        - Fusion plus graph is a real further speedup at short context but is
+          approximate, and it still lands well above the weight-read floor.
+
+        Two caveats on quoting the 1024 fusion number. It is the only context
+        where fusion+graph was timed end to end. At 4096 the run does not
+        fail fast, it simply never becomes affordable: the fused prefill of a
+        4096-token sequence drives Inductor into recompiling across many
+        dynamic shapes, and after 40 minutes it had not yet printed the first
+        measurement line, having burned one full core continuously. A separate
+        attempt to run 4096 with a second copy of the harness alive exhausted
+        the Windows page file instead (`OSError: [WinError 1455]`) and failed
+        inside Triton heuristics. Both are host resource limits on
+        max-autotune, not properties of the model or of CUDA graphs, and
+        neither is a result. So 4096 and 16384 fusion numbers do not exist
+        and must not be inferred from the 1024 one. The harness now refuses
+        to start a second concurrent copy, because that is what produced the
+        page-file failure.
+
+        And correctness is always measured against EAGER here. An earlier
+        revision compared the fused cache against the GRAPH cache and
+        reported 0.0, which was true and useless because both sides run the
+        same fused kernels and their drift cancels.
+
         `torch.compile(mode="reduce-overhead")` does fail here, with
         `OverflowError: Python int too large to convert to C long` at
         `torch/_inductor/runtime/static_cuda_launcher.py:244`. That diagnosis
@@ -940,10 +987,12 @@ class BlockQuantCache(cu.Cache):
         So `mode="max-autotune-no-cudagraphs"` gives full Inductor fusion with
         the static launcher out of the path, and manual `torch.cuda.graph`
         capture supplies the launch-overhead elimination that reduce-overhead
-        would have supplied. That combination is untested on the 9B here, so it
-        is a route to try, not a result. It is also not a Triton problem: a
-        hand-written Triton decode kernel in this same environment compiles and
-        runs.
+        would have supplied. That combination has now been measured on the 9B,
+        and the answer is "it works, it is much faster than eager, and it is NOT
+        bit-identical". See `tq_fusion_graph_abba_bench.py`; the results are
+        recorded under FUSION PLUS GRAPH, above. It is also not a Triton
+        problem: a hand-written Triton decode kernel in this same environment
+        compiles and runs.
         Two measurement traps, because both produced confident wrong numbers
         before the numbers above were confirmed:
 
