@@ -56,6 +56,29 @@ number exists and none should be inferred.  Running two copies
 of this harness at once additionally exhausts the Windows page file inside
 Triton heuristics, which is why claim_single_instance() exists.
 
+The specific cost was then located rather than inferred.  A later run that
+survived 115 minutes of ctx-4096 without printing a measurement line logged
+its own blocker:
+
+    AUTOTUNE mm(4096x4096, 4096x248320)
+    SingleProcess AUTOTUNE benchmarking takes 771.0088 seconds
+
+771 seconds for one shape, because 248,320 is the KV entry count that a
+4096-token context produces on this model and the projection consuming it
+is benchmarked across 16 Triton configs plus an eager `mm` baseline, each
+timed on a real 4096x4096x248,320 GEMM.  Across that whole log, 267
+autotune blocks over 7 distinct shapes totalled 842 seconds, so this single
+block was 92% of all autotune time, and it appears exactly once.
+
+Worth knowing before trying to suppress it: the settings below turn off
+GEMM BACKEND SELECTION, not GEMM AUTOTUNING.  `max_autotune_gemm = False`
+and a pinned `max_autotune_gemm_backends` skip choosing between ATEN and
+Triton, but mode="max-autotune-no-cudagraphs" still coordinate-descent
+tunes every ordinary matmul, so each mm shape is still benchmarked 16 ways
+on the real GPU.  Expect roughly 13 minutes on the KV projection above.
+Lowering or removing that cost means changing what is being measured, so
+it is left alone here and no 4096 or 16384 number is inferred from it.
+
 Compiling Qwen3.5-9B takes 10 to 70 seconds depending on Inductor cache
 state, so a cold run is not quick.  It happens once, not per context.
 """
