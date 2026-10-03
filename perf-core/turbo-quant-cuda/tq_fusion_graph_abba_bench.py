@@ -42,23 +42,29 @@ Usage:
 
     TQWEN35_DIR=/path/to/qwen35-9b python tq_fusion_graph_abba_bench.py
 
-Only context 1024 has completed end to end.  At 4096 the fused prefill of a
-4096-token sequence does not become affordable on this host: a bounded
-600-second run printed no measurement line while the working set climbed
-4.32 GB to 5.85 GB and a compile worker kept growing, which is active
-compilation rather than a deadlock.  Recompilation across many dynamic
-shapes was the original guess and it is REFUTED: disabling automatic
-dynamic shapes, defaulting to static, and raising the cache limits still
-produced no measurement inside a bounded 600-second run, so the cost is
-host max-autotune itself and there is no inductor cache to reuse.  That is
-a host cost, not a model or graph result, so no 4096 or 16384 fusion
-number exists and none should be inferred.  Running two copies
-of this harness at once additionally exhausts the Windows page file inside
-Triton heuristics, which is why claim_single_instance() exists.
+Both contexts have now completed end to end.  A run that finished on
+2026-10-02 reported:
 
-The specific cost was then located rather than inferred.  A later run that
-survived 115 minutes of ctx-4096 without printing a measurement line logged
-its own blocker:
+    ctx   eager ms   fuse+CG    e/CG   worst d  credible
+   1024     78.184    21.394   3.65x 8.709e-03  yes
+   4096     68.799    23.794   2.89x 8.547e-03  yes
+  acceptance gate: worst d must be < 0.05, measured 8.709e-03, 8.547e-03
+  gate: PASS
+
+So ctx-4096 correctness IS established: 8.547e-03 against eager, inside
+the bound.  Its latency of 2.891x was taken on a loaded host (45% CPU, 9
+python processes, 23,989 of 24,564 MiB VRAM in use) and is not a
+quiet-host number; the clean-host figures remain 3.376x and 3.519x at
+ctx-1024.  At ctx-4096 the graph did not add drift: fusion alone was
+8.547e-03 and fusion+graph was lower at 7.874e-03.
+
+Reaching 4096 cost about 2 hours 4 minutes of wall clock, nearly all of it
+host max-autotune, so budget for it.  Running two copies of this harness
+at once additionally exhausts the Windows page file inside Triton
+heuristics, which is why claim_single_instance() exists.
+
+The specific cost was located rather than inferred, from the run's own
+log:
 
     AUTOTUNE mm(4096x4096, 4096x248320)
     SingleProcess AUTOTUNE benchmarking takes 771.0088 seconds
@@ -75,9 +81,8 @@ GEMM BACKEND SELECTION, not GEMM AUTOTUNING.  `max_autotune_gemm = False`
 and a pinned `max_autotune_gemm_backends` skip choosing between ATEN and
 Triton, but mode="max-autotune-no-cudagraphs" still coordinate-descent
 tunes every ordinary matmul, so each mm shape is still benchmarked 16 ways
-on the real GPU.  Expect roughly 13 minutes on the KV projection above.
-Lowering or removing that cost means changing what is being measured, so
-it is left alone here and no 4096 or 16384 number is inferred from it.
+on the real GPU.  Lowering or removing that cost means changing what is
+being measured, so it is left alone here.
 
 Compiling Qwen3.5-9B takes 10 to 70 seconds depending on Inductor cache
 state, so a cold run is not quick.  It happens once, not per context.
