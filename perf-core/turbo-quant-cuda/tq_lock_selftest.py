@@ -68,23 +68,27 @@ failure (`recorded 925968, holder was 888404`, then PermissionError on remove)
 while the same file passes cleanly under base Python 3.11, which is how this was
 distinguished from a genuine lock defect.
 
-The subprocess checks use their OWN lock path (`tq_lock_selftest.lock`), never
-the benchmark's, so they cannot steal the lock of a real measurement that is
-in flight.  The one exception is `check_real_benchmark_refuses()`, which must
-exercise the real entry point and therefore does touch `tq_fusion_abba.lock`:
-it calls `remove_lock(BENCH_LOCK)` before starting its holder.  That is a real
-limitation, not a safe no-op.  On Windows the incumbent benchmark keeps its open
-handle, so the running measurement is not disturbed, but the FILE is unlinked, so
-any tool that probes lock state by filename would misread it, and a sibling that
-crashed and restarted could claim the same path.  It also costs about ten seconds
-in `remove_lock` retries while the real benchmark holds the file.  Do not run
-this self-test alongside a live benchmark expecting zero interference.
+Every lock this self-test uses is a PRIVATE path, including the one in
+`check_real_benchmark_refuses()`.  That case must exercise the benchmark's
+real entry point, and main() resolves its lock from `TQ_LOCK_PATH`, so the
+self-test points both its holder and the benchmark under test at a scratch
+file and never touches the shared default.  An earlier revision called
+`remove_lock(BENCH_LOCK)` against the shared lock instead, which was a real
+hazard and not a safe no-op: on Windows the incumbent benchmark keeps its
+open handle so the running measurement was not disturbed, but the FILE was
+unlinked, so any tool probing lock state by filename would misread it and a
+crashed-and-restarted sibling could claim the same path.  It also cost about
+ten seconds in `remove_lock` retries.  That is fixed; this self-test is now
+safe to run alongside a live benchmark.  The invariant it must keep is that
+`BENCH_LOCK` is never passed to `remove_lock`, and never exported as
+`TQ_LOCK_PATH` to a child that would write it.
 
-If that matters, the fix is to give the benchmark's own entry point an
-overridable lock path (`TQ_LOCK_PATH`, which it already reads) and point the
-self-test at a scratch path instead of the shared default, rather than deleting
-the shared one.  It needs no GPU and no model, and takes about thirty seconds on
-a loaded host.
+The properties that do not survive a naive implementation, and that the
+checks below exist to catch, are: a second live instance is refused; the
+lock records the OWNING pid rather than a wrapper's; the lock is released
+when the holder exits; and main() refuses BEFORE importing transformers, so
+a duplicate cannot reach the page-file exhaustion that two concurrent
+compiles cause.
 
     python tq_lock_selftest.py
 """
@@ -328,7 +332,7 @@ def check_contention_on_a_populated_lock_file():
 
 
 def check_real_benchmark_refuses():
-    """Run the real benchmark with the real lock held and require refusal.
+    """Run the real benchmark with a real lock held and require refusal.
 
     The subprocess checks above prove claim_single_instance() behaves. This
     proves main() actually calls it before doing any work, which is the part
@@ -340,14 +344,27 @@ def check_real_benchmark_refuses():
     this needs no GPU and no weights. TQWEN35_DIR is pointed at an existing
     directory because main() checks the model path first and returns 2 if it
     is absent, which would mask the guard.
+
+    The lock used here is a SCRATCH path, never the shared benchmark lock.
+    main() resolves its lock from TQ_LOCK_PATH, so pointing both this
+    holder and the benchmark under test at a private file exercises the real
+    entry point's real guard without unlinking the filename a live sibling
+    measurement is using. The previous revision called
+    remove_lock(BENCH_LOCK) twice against the shared default, which was a
+    genuine hazard: Windows keeps the incumbent process's open handle, so
+    the running measurement kept going, but the FILE was unlinked, so any
+    filename-based probe misread the lock as free and a restarted sibling
+    could claim the same path. It also burned about ten seconds in retries.
     """
-    remove_lock(BENCH_LOCK)
+    scratch_lock = os.path.join(tempfile.gettempdir(),
+                                "tq_lock_selftest.realbench.lock")
+    remove_lock(scratch_lock)
     holder_src = (
         "import sys;sys.path.insert(0,%r);"
         "import tq_fusion_graph_abba_bench as b;"
         "assert b.claim_single_instance(%r) is True;"
         "print('HELD',flush=True);"
-        "import time;time.sleep(40)" % (HERE, BENCH_LOCK)
+        "import time;time.sleep(40)" % (HERE, scratch_lock)
     )
     h = subprocess.Popen([real_interpreter(), "-c", holder_src],
                          stdout=subprocess.PIPE, text=True, cwd=HERE)
@@ -356,14 +373,14 @@ def check_real_benchmark_refuses():
         if "HELD" in ln or "lock acquired" in ln:
             break
     try:
-        env = dict(os.environ, TQ_LOCK_PATH=BENCH_LOCK,
+        env = dict(os.environ, TQ_LOCK_PATH=scratch_lock,
                    TQWEN35_DIR=tempfile.gettempdir())
         r = subprocess.run([real_interpreter(), "-u", BENCH],
                            capture_output=True, text=True, env=env,
                            cwd=HERE, timeout=600)
     finally:
         terminate(h)
-        remove_lock(BENCH_LOCK)
+        remove_lock(scratch_lock)
     refused = (r.returncode == 3) and ("ABORT: another copy" in r.stdout)
     print(f"  real benchmark refused while locked: {refused} "
           f"(exit {r.returncode}, 3 == refused)")
