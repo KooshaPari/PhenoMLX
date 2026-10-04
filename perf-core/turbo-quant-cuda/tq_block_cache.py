@@ -935,22 +935,24 @@ class BlockQuantCache(cu.Cache):
         - Fusion plus graph is a real further speedup at short context but is
           approximate, and it still lands well above the weight-read floor.
 
-        Two caveats on quoting the 1024 fusion number. It is the only context
-        where fusion+graph was timed end to end. At 4096 the run does not
-        fail fast, it simply never becomes affordable: a bounded 600-second
-        run had not printed the first measurement line, with the working set
-        climbing 4.32 GB to 5.85 GB and a compile worker still growing. An
-        earlier revision of this note said "after 40 minutes" and burned one
-        full core continuously; that was an overstatement of what was
-        actually bounded and measured, and the corrected figure is the
-        600-second bound above. A separate attempt to run 4096 with a second
-        copy of the harness alive exhausted the Windows page file instead
-        (`OSError: [WinError 1455]`) and failed inside Triton heuristics.
-        Both are host resource limits on max-autotune, not properties of the
-        model or of CUDA graphs, and neither is a result. So 4096 and 16384
-        fusion numbers do not exist and must not be inferred from the 1024
-        one. The harness now refuses to start a second concurrent copy,
-        because that is what produced the page-file failure.
+        Two caveats on quoting the 1024 fusion number. 4096 has since been
+        timed end to end, so it is no longer the only context; what is
+        still true is that 4096 is expensive to reach rather than
+        impossible. The earlier bounded 600-second attempts did not fail
+        fast, they simply had not printed the first measurement line yet,
+        with the working set climbing 4.32 GB to 5.85 GB and a compile
+        worker still growing. An earlier revision of this note said "after
+        40 minutes" and burned one full core continuously; that was an
+        overstatement of what was actually bounded and measured, and the
+        corrected figure is the 600-second bound above. A separate attempt
+        to run 4096 with a second copy of the harness alive exhausted the
+        Windows page file instead (`OSError: [WinError 1455]`) and failed
+        inside Triton heuristics. Both are host resource limits on
+        max-autotune, not properties of the model or of CUDA graphs.
+        Neither is a result. A 16384 fusion number still does not exist and
+        must not be inferred from the 1024 or 4096 ones. The harness now
+        refuses to start a second concurrent copy, because that is what
+        produced the page-file failure.
 
         The obvious explanation was tested and is wrong, so do not repeat it.
         The natural guess is that 4096 recompiles across many dynamic shapes,
@@ -960,20 +962,42 @@ class BlockQuantCache(cu.Cache):
         emitted no measurement line, with the working set climbing 4.32 GB to
         5.85 GB and a compile worker growing, which is active compilation rather
         than a deadlock. The cost is host max-autotune itself at this sequence
-        length, not Dynamo recompilation, so pinning shapes does not make 4096
-        affordable. There is also no inductor cache to reuse between runs
+        length, not Dynamo recompilation. Pinning shapes does not avoid that
+        cost, but it does not make 4096 unaffordable either: a later run on a
+        DEFAULT, unpinned configuration did complete 4096, in about 2 hours
+        4 minutes. There is also no inductor cache to reuse between runs
         (`torchinductor_root` does not exist under the temp dir), so every
         attempt pays the full compile again.
+
+        The specific cost was located rather than inferred, from that run's
+        own log: `AUTOTUNE mm(4096x4096, 4096x248320)` took 771.0088 seconds
+        on its own, 92% of all autotune time across 267 blocks and 7 shapes,
+        because 248,320 is the KV entry count a 4096-token context produces
+        on this model and that projection is benchmarked 16 ways on the real
+        GPU. Worth knowing before trying to suppress it: `max_autotune_gemm
+        = False` and a pinned `max_autotune_gemm_backends` turn off GEMM
+        BACKEND SELECTION, not GEMM AUTOTUNING, so
+        `max-autotune-no-cudagraphs` still coordinate-descent tunes every
+        ordinary matmul.
 
         The 0.05 bound above is now ENFORCED rather than only described:
         `tq_fusion_graph_abba_bench.py` carries `LOGIT_TOL` and returns a
         non-zero exit code if any context lands outside it, printing
         `acceptance gate` and a per-context `within` / `OUT OF BOUNDS` line.
-        Before that, a run exceeding the bound still exited 0 and read as a
-        pass. Verified end to end at ctx 1024, where it printed
+        It refuses for a second reason as well: a context that ABORTS and so
+        produces no result at all is also a failure, printed as
+        `contexts requested N, measured M: an aborted or unmeasured context
+        is NOT a pass`. That second mode was a real defect until 511d3b1f.
+        With the default `TQ_CONTEXTS=1024,4096`, an aborted 4096 used to
+        leave 1024 as the only result and exit 0 reading as a pass.
+        Before any enforcement, a run exceeding the bound still exited 0 and
+        read as a pass. Verified end to end at ctx 1024, where it printed
         `measured 6.977e-03`, `gate: PASS`, exit 0, and separately failed as
         designed for a value of exactly 0.05, for 0.061, for a set where one
         context was good and another was not, and for an empty result set.
+        The harness now also checks the completeness cases that motivated the
+        fix: 4096 aborted while 1024 passed, 1024 aborted while 4096 passed,
+        and nothing measured at all. Eleven cases in total.
 
         A contention caveat for anyone re-running the 1024 number. Three later
         runs measured eager 77.062 ms (spread 0.216), 77.491 ms (spread 0.233)
@@ -1029,29 +1053,34 @@ class BlockQuantCache(cu.Cache):
         is the variable worth sampling, and the spread is the real
         acceptance test.
 
-        A post-gate confirmation run at ctx 1024 could NOT be obtained, and
-        the reason is worth stating plainly rather than leaving as a to-do.
-        A 30-second trace over ten minutes while the foreign suite ran and
-        no model was resident showed load oscillating between 29 and 100
-        percent, never four consecutive samples under 25, and load pinned at
-        exactly 100 for stretches of 119 seconds and more. This host simply
-        does not offer a sustained quiet window any more, so a gate of four
-        consecutive samples at or below 25 percent never opened and no
-        post-gate latency number was taken. The two quiet numbers recorded
-        above remain the only trusted latency evidence, and they predate
-        the gate change. That is acceptable because the gate is exit-code
-        only: it does not touch the timed path, and its correctness half was
-        itself confirmed post-change at worst d 6.977e-03 with `gate: PASS`
-        and exit 0, plus 9.709e-03 on a contended run. Be clear about what
-        those do and do not establish: they show the gate passes and does
-        not spuriously fail, not that post-gate correctness is better than
-        pre-gate, since the worst figure on record for this configuration
-        is still 1.5e-02 from a quiet pre-gate run.
+        A post-gate confirmation run at ctx 1024 WAS later obtained, so the
+        earlier "could NOT be obtained" note is superseded, but its caution
+        survives. That earlier attempt failed because a 30-second trace over
+        ten minutes while the foreign suite ran and no model was resident
+        showed load oscillating between 29 and 100 percent, never four
+        consecutive samples under 25, and load pinned at exactly 100 for
+        stretches of 119 seconds and more. A later run did complete at ctx
+        1024, reporting eager 78.184 ms, fuse+CG 21.394 ms, 3.65x, worst d
+        8.709e-03, `gate: PASS`, credible yes. Its host load was NOT
+        established to the same quiet standard, so whether it clears the
+        quiet gate is genuinely unclear; the two quiet numbers recorded above
+        remain the only trusted latency evidence and they predate the gate
+        change. Treat the newer figure as reproducible-under-load, not as a
+        replacement for the quiet pair. That is acceptable because the gate is
+        exit-code only: it does not touch the timed path, and its correctness
+        half was itself confirmed post-change at worst d 6.977e-03 with
+        `gate: PASS` and exit 0, plus 9.709e-03 on a contended run, and then
+        again on the two-context run at 8.709e-03 for ctx 1024 and 8.547e-03
+        for ctx 4096. Be clear about what those do and do not establish:
+        they show the gate passes and does not spuriously fail, and that it
+        refuses an unmeasured context, not that post-gate correctness is
+        better than pre-gate, since the worst figure on record for this
+        configuration is still 1.5e-02 from a quiet pre-gate run.
         Do not relax the quiet gate until a run passes to make the number
-        look obtained; the honest position is that the latency figure is
-        unchanged, the gate is confirmed to pass in-band and to reject
-        out-of-band values, and the worst correctness on record is
-        unchanged at 1.5e-02.
+        look obtained; the honest position is that the trusted latency
+        figures are unchanged, the gate is confirmed to pass in-band, to
+        reject out-of-band values, and to reject an unmeasured context, and
+        the worst correctness on record is unchanged at 1.5e-02.
 
         On what to gate on, note that the benchmark already carries the
         better test and it does not depend on host load at all: it takes the

@@ -68,9 +68,23 @@ failure (`recorded 925968, holder was 888404`, then PermissionError on remove)
 while the same file passes cleanly under base Python 3.11, which is how this was
 distinguished from a genuine lock defect.
 
-It uses its OWN lock path for the subprocess checks, never the benchmark's,
-so it cannot steal the lock of a real measurement that is in flight.  It needs
-no GPU and no model, and takes about thirty seconds on a loaded host.
+The subprocess checks use their OWN lock path (`tq_lock_selftest.lock`), never
+the benchmark's, so they cannot steal the lock of a real measurement that is
+in flight.  The one exception is `check_real_benchmark_refuses()`, which must
+exercise the real entry point and therefore does touch `tq_fusion_abba.lock`:
+it calls `remove_lock(BENCH_LOCK)` before starting its holder.  That is a real
+limitation, not a safe no-op.  On Windows the incumbent benchmark keeps its open
+handle, so the running measurement is not disturbed, but the FILE is unlinked, so
+any tool that probes lock state by filename would misread it, and a sibling that
+crashed and restarted could claim the same path.  It also costs about ten seconds
+in `remove_lock` retries while the real benchmark holds the file.  Do not run
+this self-test alongside a live benchmark expecting zero interference.
+
+If that matters, the fix is to give the benchmark's own entry point an
+overridable lock path (`TQ_LOCK_PATH`, which it already reads) and point the
+self-test at a scratch path instead of the shared default, rather than deleting
+the shared one.  It needs no GPU and no model, and takes about thirty seconds on
+a loaded host.
 
     python tq_lock_selftest.py
 """
