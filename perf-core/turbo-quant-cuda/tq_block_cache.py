@@ -964,17 +964,26 @@ class BlockQuantCache(cu.Cache):
         than a deadlock. The cost is host max-autotune itself at this sequence
         length, not Dynamo recompilation. Pinning shapes does not avoid that
         cost, but it does not make 4096 unaffordable either: a later run on a
-        DEFAULT, unpinned configuration did complete 4096, in about 2 hours
-        4 minutes. There is also no inductor cache to reuse between runs
+        DEFAULT, unpinned configuration did complete 4096, in 3 h 3 m 42 s of
+        wall clock measured from `=== context 4096 ===` at 15:30:52 to
+        `gate: PASS` at 18:34:34. There is also no inductor cache to reuse
+        between runs
         (`torchinductor_root` does not exist under the temp dir), so every
         attempt pays the full compile again.
 
         The specific cost was located rather than inferred, from that run's
         own log: `AUTOTUNE mm(4096x4096, 4096x248320)` took 771.0088 seconds
-        on its own, 92% of all autotune time across 267 blocks and 7 shapes,
-        because 248,320 is the KV entry count a 4096-token context produces
-        on this model and that projection is benchmarked 16 ways on the real
-        GPU. Worth knowing before trying to suppress it: `max_autotune_gemm
+        on its own, and that is 92% of all LOGGED autotune seconds, because
+        248,320 is the KV entry count a 4096-token context produces on this
+        model and that projection is benchmarked 16 ways on the real GPU.
+        Be careful with that ratio: summed over all 267 `SingleProcess
+        AUTOTUNE benchmarking takes N seconds` lines the log reports only
+        842.0 s, which is 7.6% of the 3 h 3 m 42 s phase. The rest is
+        prefill and codegen, not benchmarking. So the 771 s block is the
+        largest logged item, NOT the dominant cost of reaching 4096, and
+        those two claims must not be conflated. Only 7 of the 267 blocks
+        are `mm`; the other 260 are `bmm`.
+        Worth knowing before trying to suppress it: `max_autotune_gemm
         = False` and a pinned `max_autotune_gemm_backends` turn off GEMM
         BACKEND SELECTION, not GEMM AUTOTUNING, so
         `max-autotune-no-cudagraphs` still coordinate-descent tunes every

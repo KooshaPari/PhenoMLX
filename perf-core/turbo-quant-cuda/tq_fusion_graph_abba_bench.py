@@ -54,14 +54,23 @@ Both contexts have now completed end to end.  A run that finished on
 So ctx-4096 correctness IS established: 8.547e-03 against eager, inside
 the bound.  Its latency of 2.891x was taken on a loaded host (45% CPU, 9
 python processes, 23,989 of 24,564 MiB VRAM in use) and is not a
-quiet-host number; the clean-host figures remain 3.376x and 3.519x at
-ctx-1024.  At ctx-4096 the graph did not add drift: fusion alone was
-8.547e-03 and fusion+graph was lower at 7.874e-03.
+quiet-host number; those host figures come from a side probe during the
+run, NOT from this log, which records only the benchmark's own output.
+The clean-host figures remain 3.376x and 3.519x at ctx-1024, recorded
+independently in tq_block_cache.py and not by this run.  At ctx-4096 the
+graph did not add drift: fusion alone was 8.547e-03 and fusion+graph was
+lower at 7.874e-03.
 
-Reaching 4096 cost about 2 hours 4 minutes of wall clock, nearly all of it
-host max-autotune, so budget for it.  Running two copies of this harness
-at once additionally exhausts the Windows page file inside Triton
-heuristics, which is why claim_single_instance() exists.
+Reaching 4096 cost 3 hours 3 minutes 42 seconds of wall clock, measured from
+`=== context 4096 ===` at 15:30:52 to `gate: PASS` at 18:34:34.  Do NOT read
+that as "nearly all autotune": summing every `SingleProcess AUTOTUNE
+benchmarking takes N seconds` line gives 842.0 s across 267 blocks, which is
+only 7.6% of the 11022 s phase.  The other 92.4% is prefill and codegen.  The
+771 s block below is the single largest LOGGED item, which is a different
+statement from being the dominant cost.  Budget about three hours for 4096.
+Running two copies of this harness at once additionally exhausts the Windows
+page file inside Triton heuristics, which is why claim_single_instance()
+exists.
 
 The specific cost was located rather than inferred, from the run's own
 log:
@@ -71,10 +80,12 @@ log:
 
 771 seconds for one shape, because 248,320 is the KV entry count that a
 4096-token context produces on this model and the projection consuming it
-is benchmarked across 16 Triton configs plus an eager `mm` baseline, each
-timed on a real 4096x4096x248,320 GEMM.  Across that whole log, 267
-autotune blocks over 7 distinct shapes totalled 842 seconds, so this single
-block was 92% of all autotune time, and it appears exactly once.
+is benchmarked across 16 choices, which the log's own stats give as 15
+Triton configs plus one eager `mm` baseline (`num_choices: 16,
+num_triton_choices: 15`), each timed on a real 4096x4096x248,320 GEMM.
+That one block is 92% of all LOGGED autotune seconds.  Across the log there
+are 267 autotune blocks spanning 13 distinct shapes, but only 7 of those are
+`mm`; the other 260 are `bmm`.
 
 Worth knowing before trying to suppress it: the settings below turn off
 GEMM BACKEND SELECTION, not GEMM AUTOTUNING.  `max_autotune_gemm = False`
