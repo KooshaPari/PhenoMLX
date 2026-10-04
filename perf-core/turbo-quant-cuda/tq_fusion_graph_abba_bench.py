@@ -13,12 +13,16 @@ blocking. Its two open questions are now answered on Qwen3.5-9B:
      default stream, where the handle is 0 and nothing fails.
 
   2. Is the result correct?  Yes, and NOT bit-identically. Against eager,
-     worst relative cache difference is 2.3e-02 and worst relative logit
-     difference over lockstep decode steps is 1.5e-02, both under the 0.05
-     acceptance bound but not zero. `max-autotune-no-cudagraphs` changes the
-     arithmetic, so this is a numerically-approximate optimization and not
-     an allocation-only one. It cannot be combined with the bit-identical
-     manual-graph-over-eager path without giving up bit-exactness.
+     the worst relative logit difference over lockstep decode steps is
+     1.5e-02, under the 0.05 acceptance bound but not zero.
+     `max-autotune-no-cudagraphs` changes the arithmetic, so this is a
+     numerically-approximate optimization and not an allocation-only one. It
+     cannot be combined with the bit-identical manual-graph-over-eager path
+     without giving up bit-exactness.
+     Scope: this harness compares LOGITS only. rel_diff() is called at the
+     two lockstep call sites and both times on logits, so this file cannot
+     produce a cache difference. Do not attribute a cache-drift figure to
+     it.
 
 What this file deliberately does NOT reuse is the timing loop from the first
 fusion probe, which advanced three caches at three different rates and then
@@ -65,9 +69,15 @@ Reaching 4096 cost 3 hours 3 minutes 42 seconds of wall clock, measured from
 `=== context 4096 ===` at 15:30:52 to `gate: PASS` at 18:34:34.  Do NOT read
 that as "nearly all autotune": summing every `SingleProcess AUTOTUNE
 benchmarking takes N seconds` line gives 842.0 s across 267 blocks, which is
-only 7.6% of the 11022 s phase.  The other 92.4% is prefill and codegen.  The
-771 s block below is the single largest LOGGED item, which is a different
-statement from being the dominant cost.  Budget about three hours for 4096.
+only 7.6% of that 11,022 s span.  The 11,022 s is DERIVED by subtracting those
+two log timestamps; the log never prints a phase duration, so treat it as an
+elapsed span rather than a log-reported total.  What the remaining ~92% is
+made of is NOT accounted for by the log: "prefill" and "codegen" never appear
+in it, so do not attribute the remainder to them by name.  It is 121 s before
+the first output, 75 s after the last autotune block, and the rest is
+interleaved compile and autotune work that emits no duration line.  The 771 s
+block below is the single largest LOGGED item, which is a different statement
+from being the dominant cost.  Budget about three hours for 4096.
 Running two copies of this harness at once additionally exhausts the Windows
 page file inside Triton heuristics, which is why claim_single_instance()
 exists.
@@ -83,9 +93,11 @@ log:
 is benchmarked across 16 choices, which the log's own stats give as 15
 Triton configs plus one eager `mm` baseline (`num_choices: 16,
 num_triton_choices: 15`), each timed on a real 4096x4096x248,320 GEMM.
-That one block is 92% of all LOGGED autotune seconds.  Across the log there
-are 267 autotune blocks spanning 13 distinct shapes, but only 7 of those are
-`mm`; the other 260 are `bmm`.
+That one block is 92% of all LOGGED autotune seconds (771.0 / 842.0).
+Those 267 blocks span 13 distinct shapes, which split 7 `mm` and 6 `bmm`;
+the BLOCKS split differently, with only 7 of the 267 being `mm` and the
+other 260 being `bmm`.  Keep those two splits apart: 7 + 6 = 13 shapes, while
+7 + 260 = 267 blocks.
 
 Worth knowing before trying to suppress it: the settings below turn off
 GEMM BACKEND SELECTION, not GEMM AUTOTUNING.  `max_autotune_gemm = False`

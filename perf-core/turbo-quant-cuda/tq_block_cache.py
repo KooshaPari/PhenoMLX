@@ -922,12 +922,19 @@ class BlockQuantCache(cu.Cache):
         The fusion+graph step is still about 2.7x the 7.72 ms weight-read floor
         (20.306 ms on the repeat), so fusion on top of graphs did not approach
         bandwidth either. Worse, this path is numerically APPROXIMATE, not
-        allocation-only: against eager the worst relative cache difference is
-        about 2.3e-02, and the worst relative logit difference over lockstep
-        decode was about 1.5e-02 on the first run and 9.4e-03 on the repeat
-        (fusion+graph itself measured 6.4e-03 on the repeat). Both are under
-        the 0.05 acceptance bound but neither is 0.0, because max-autotune
-        changes the arithmetic. So the honest conclusion is:
+        allocation-only: the worst relative LOGIT difference against eager over
+        lockstep decode was about 1.5e-02 on the first run and 9.4e-03 on the
+        repeat (fusion+graph itself measured 6.4e-03 on the repeat). Those are
+        under the 0.05 acceptance bound but none is 0.0, because max-autotune
+        changes the arithmetic.
+        Note the scope precisely: this harness compares LOGITS. It calls
+        rel_diff() only on logits, at the two lockstep call sites, so it
+        cannot produce a cache difference and no cache figure should be
+        attributed to it. Earlier revisions of this note quoted a "worst
+        relative cache difference" of about 2.3e-02; that number is not
+        reproducible from this harness and its source log no longer exists,
+        so it is not restated here as fact.
+        So the honest conclusion is:
 
         - For a BIT-IDENTICAL result, use manual graph over eager (the
           validated 2.5x-3.3x path above). Fusion cannot be layered on top
