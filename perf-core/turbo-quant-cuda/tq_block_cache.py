@@ -985,11 +985,13 @@ class BlockQuantCache(cu.Cache):
         model and that projection is benchmarked 16 ways on the real GPU.
         Be careful with that ratio: summed over all 267 `SingleProcess
         AUTOTUNE benchmarking takes N seconds` lines the log reports only
-        842.0 s, which is 7.6% of the 3 h 3 m 42 s phase. The rest is
-        prefill and codegen, not benchmarking. So the 771 s block is the
-        largest logged item, NOT the dominant cost of reaching 4096, and
-        those two claims must not be conflated. Only 7 of the 267 blocks
-        are `mm`; the other 260 are `bmm`.
+        842.0 s, which is 7.6% of the 3 h 3 m 42 s span. The rest is NOT
+        accounted for by the log, which timestamps only 42 of its 4331 lines
+        and none of the autotune lines, so it cannot be attributed to any
+        named stage. So the 771 s block is the largest logged item, NOT the
+        dominant cost of reaching 4096, and those two claims must not be
+        conflated. Those 267 blocks span 13 shapes, splitting 7 `mm` and 6
+        `bmm`; the blocks split 7 `mm` and 260 `bmm`.
         Worth knowing before trying to suppress it: `max_autotune_gemm
         = False` and a pinned `max_autotune_gemm_backends` turn off GEMM
         BACKEND SELECTION, not GEMM AUTOTUNING, so

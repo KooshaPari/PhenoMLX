@@ -72,12 +72,12 @@ benchmarking takes N seconds` line gives 842.0 s across 267 blocks, which is
 only 7.6% of that 11,022 s span.  The 11,022 s is DERIVED by subtracting those
 two log timestamps; the log never prints a phase duration, so treat it as an
 elapsed span rather than a log-reported total.  What the remaining ~92% is
-made of is NOT accounted for by the log: "prefill" and "codegen" never appear
-in it, so do not attribute the remainder to them by name.  It is 121 s before
-the first output, 75 s after the last autotune block, and the rest is
-interleaved compile and autotune work that emits no duration line.  The 771 s
-block below is the single largest LOGGED item, which is a different statement
-from being the dominant cost.  Budget about three hours for 4096.
+made of the log does NOT say: only 42 of its 4331 lines carry a timestamp,
+and NONE of the autotune benchmarking lines do, so the unaccounted time
+cannot be bracketed or attributed to any named stage.  Do not fill it in by
+inference.  The 771 s block below is the single largest LOGGED item, which is
+a different statement from being the dominant cost.  Budget about three hours
+for 4096.
 Running two copies of this harness at once additionally exhausts the Windows
 page file inside Triton heuristics, which is why claim_single_instance()
 exists.
