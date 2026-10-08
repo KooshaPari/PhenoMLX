@@ -927,6 +927,13 @@ class BlockQuantCache(cu.Cache):
         re-derivable log result, and they are labelled that way here for the
         same reason the 2.3e-02 cache figure below is refused: a number whose
         source cannot be re-read cannot be audited, only believed.
+        The same check applied to the DRIFT figures: 6.696e-03, 8.709e-03,
+        8.547e-03, 7.874e-03, 0.0881, 8.862e-03 and 7.937e-03 all reproduce
+        from gate_real2.log or gate_real3.log, while 1.5e-02, 9.4e-03,
+        6.4e-03, 9.709e-03, 8.511e-03 and 6.977e-03 appear in no surviving
+        log at all. So the 1.5e-02 quoted below as the worst on record is
+        itself a RECORDED SUMMARY, and the worst TRACEABLE drift on record
+        is 8.862e-03 from gate_real2.log.
 
         But it does not reach the floor, and it costs exactness to get there.
         The fusion+graph step is still about 2.6x the 7.72 ms weight-read floor
@@ -1038,12 +1045,21 @@ class BlockQuantCache(cu.Cache):
         in. The tell is the spread: a lazy host inflates the spread as well as
         the mean, so a run whose spread exceeds roughly 0.10 on the eager side
         is not comparable with the quiet runs and should be re-taken on an idle
-        machine. Note that correctness is NOT sensitive to this: those three
+        machine.
+        A SIXTH ctx-1024 run exists, and it is the only discarded one whose
+        numbers can still be re-read: gate_real2.log records eager 81.079 ms
+        (spread 0.125) against fusion+graph 24.471 ms (spread 0.110), a
+        3.313x, with fusion drift 8.862e-03 and fusion+graph 7.937e-03. It
+        fails the same eager-spread test (0.125 > 0.10) and is therefore
+        discarded as well, and it is quoted rather than summarized precisely
+        because its log survives.
+        Note that correctness is NOT sensitive to this: those three
         runs still passed the enforced gate at worst d 8.511e-03, 6.977e-03
         and 9.709e-03. An earlier revision of this note claimed 9.709e-03
         was the worst correctness seen across all five ctx-1024 runs, which
         is wrong: the two quiet runs above measured 1.5e-02 and 9.4e-03,
-        which are both worse. The true worst across the five runs is the
+        which are both worse. The true worst across the six ctx-1024 runs
+        on record is the
         1.5e-02 from the first quiet run, which is about 30 percent of the
         0.05 bound. So contention does not move correctness far, but it is
         not true that the quiet regime is the more accurate one either,
@@ -1091,9 +1107,13 @@ class BlockQuantCache(cu.Cache):
         consecutive samples under 25, and load pinned at exactly 100 for
         stretches of 119 seconds and more. A later run did complete at ctx
         1024, reporting eager 78.184 ms, fuse+CG 21.394 ms, 3.65x, worst d
-        8.709e-03, `gate: PASS`, credible yes. Its host load was NOT
-        established to the same quiet standard, so whether it clears the
-        quiet gate is genuinely unclear; the two quiet numbers recorded above
+        8.709e-03, `gate: PASS`, credible yes (gate_real3.log prints that
+        ratio as 3.655x). Its host load was NOT
+        established to the same quiet standard, and its own spread settles
+        the question: eager 0.190 and fusion+graph 0.159 both exceed the
+        roughly 0.10 eager-spread rule stated above, so this run is DISCARDED
+        as not comparable with the quiet pair rather than left genuinely
+        unclear. The two quiet numbers recorded above
         remain the only trusted latency evidence and they predate the gate
         change. Treat the newer figure as reproducible-under-load, not as a
         replacement for the quiet pair. That is acceptable because the gate is
