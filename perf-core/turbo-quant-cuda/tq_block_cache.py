@@ -915,12 +915,24 @@ class BlockQuantCache(cu.Cache):
         0.042), a 3.376x speedup, and on a later repeat eager 71.454 ms
         (spread 0.077) versus fusion+graph 20.306 ms (spread 0.066), a 3.519x
         speedup. Both had non-overlapping sample ranges. Eager is stable to
-        within 0.2 percent across runs (71.454 / 71.295), so the speedup is
-        a property of the configuration rather than of one lucky sample.
+        within 0.25 percent across runs (71.454 / 71.295 = 1.00223), so the
+        speedup is a property of the configuration rather than of one lucky
+        sample.
+        PROVENANCE, checked 2026-10-08: those four timings are internally
+        consistent (71.295 / 21.117 = 3.3762 and 71.454 / 20.306 = 3.5189),
+        but NO log in this workspace reproduces any of them. Searched without
+        a hit: 54 benchmark logs in the agent sandbox, 5 in this repository,
+        the 6 files under docs/sessions/20260917-turboquant-ab/artifacts, and
+        33 quarantined logs. So these are a RECORDED SUMMARY, not a
+        re-derivable log result, and they are labelled that way here for the
+        same reason the 2.3e-02 cache figure below is refused: a number whose
+        source cannot be re-read cannot be audited, only believed.
 
         But it does not reach the floor, and it costs exactness to get there.
-        The fusion+graph step is still about 2.7x the 7.72 ms weight-read floor
-        (20.306 ms on the repeat), so fusion on top of graphs did not approach
+        The fusion+graph step is still about 2.6x the 7.72 ms weight-read floor
+        (20.306 / 7.72 = 2.63, on the repeat; the FIRST run's 21.117 ms is
+        2.74x, so a 2.7x belongs to that run and not to the repeat quoted
+        here), so fusion on top of graphs did not approach
         bandwidth either. Worse, this path is numerically APPROXIMATE, not
         allocation-only: the worst relative LOGIT difference against eager over
         lockstep decode was about 1.5e-02 on the first run and 9.4e-03 on the
