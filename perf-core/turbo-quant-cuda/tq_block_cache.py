@@ -1046,7 +1046,8 @@ class BlockQuantCache(cu.Cache):
         the mean, so a run whose spread exceeds roughly 0.10 on the eager side
         is not comparable with the quiet runs and should be re-taken on an idle
         machine.
-        A SIXTH ctx-1024 run exists, and it is the only discarded one whose
+        A SIXTH ctx-1024 run exists (a SEVENTH, the post-gate confirmation
+        run, is discussed further below), and it is the only discarded one whose
         numbers can still be re-read: gate_real2.log records eager 81.079 ms
         (spread 0.125) against fusion+graph 24.471 ms (spread 0.110), a
         3.313x, with fusion drift 8.862e-03 and fusion+graph 7.937e-03. It
@@ -1058,7 +1059,7 @@ class BlockQuantCache(cu.Cache):
         and 9.709e-03. An earlier revision of this note claimed 9.709e-03
         was the worst correctness seen across all five ctx-1024 runs, which
         is wrong: the two quiet runs above measured 1.5e-02 and 9.4e-03,
-        which are both worse. The true worst across the six ctx-1024 runs
+        which are both worse. The true worst across the seven ctx-1024 runs
         on record is the
         1.5e-02 from the first quiet run, which is about 30 percent of the
         0.05 bound. So contention does not move correctness far, but it is
