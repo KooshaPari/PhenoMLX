@@ -224,9 +224,25 @@ def main():
         return 2
     if not claim_single_instance():
         return 3
-    from transformers import AutoConfig
-    from transformers.models.qwen3_5 import Qwen3_5ForConditionalGeneration
-    from transformers.utils import logging as hf_logging
+    # Observed 2026-10-08 by running this file with the machine's default
+    # Python: the qwen3_5 import dies as an opaque ModuleNotFoundError, which
+    # reads like a broken checkout rather than a dependency that is simply
+    # older than the model. The class only exists in a transformers newer
+    # than the system one, so say which environment the runs recorded in this
+    # file actually used, and fail with a distinct code instead of a traceback.
+    try:
+        from transformers import AutoConfig
+        from transformers.models.qwen3_5 import Qwen3_5ForConditionalGeneration
+        from transformers.utils import logging as hf_logging
+    except ModuleNotFoundError as e:
+        log(f"ABORT: this interpreter cannot import transformers: {e}")
+        log("Qwen3_5ForConditionalGeneration needs a transformers new enough "
+            "to ship transformers.models.qwen3_5. Every run recorded in this "
+            "file used the qwen3.5 eval environment, whose interpreter is "
+            r"C:\Users\koosh\agents\sandbox\tq-eval\.venv-qwen35"
+            "\Scripts\python.exe. Running with the system Python fails here "
+            "every time.")
+        return 4
 
     # Before any compiled call. Inductor reads this at codegen time.
     torch._inductor.config.use_static_cuda_launcher = False
