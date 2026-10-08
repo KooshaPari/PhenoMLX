@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PhenoMLX Runtime Extension v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "extension_id",
+    "version",
+    "source_digest",
+    "hook",
+    "compatibility",
+    "experiment_factors",
+    "activation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "phenomlx.runtime-extension.v1"
+    },
+    "extension_id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "source_digest": {
+      "type": "string"
+    },
+    "hook": {
+      "type": "object"
+    },
+    "compatibility": {
+      "type": "object"
+    },
+    "experiment_factors": {
+      "type": "object",
+      "required": [
+        "intentional",
+        "incidental"
+      ],
+      "properties": {
+        "intentional": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "incidental": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "activation": {
+      "type": "object"
+    },
+    "lifecycle": {
+      "enum": [
+        "experimental",
+        "qualified",
+        "deprecated",
+        "retired"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

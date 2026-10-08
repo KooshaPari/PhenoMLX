@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PhenoMLX VS01 Profile Receipt",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "requested_profile",
+    "realized_profile",
+    "support"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "phenomlx.vs01.1"
+    },
+    "requested_profile": {
+      "type": "object",
+      "required": [
+        "profile_id",
+        "model_ref",
+        "engine_requested"
+      ],
+      "properties": {
+        "profile_id": {
+          "type": "string"
+        },
+        "model_ref": {
+          "type": "string"
+        },
+        "engine_requested": {
+          "type": "string"
+        },
+        "cache_policy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "speculation_policy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "realized_profile": {
+      "type": "object",
+      "required": [
+        "profile_id",
+        "requested_profile_id",
+        "engine",
+        "generation",
+        "observability"
+      ],
+      "properties": {
+        "profile_id": {
+          "type": "string"
+        },
+        "requested_profile_id": {
+          "type": "string"
+        },
+        "engine": {
+          "type": "string"
+        },
+        "engine_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "effective_config_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cache_domain": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observability": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": [
+              "measured",
+              "declared",
+              "imported",
+              "unknown",
+              "not_applicable"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "support": {
+      "type": "object",
+      "required": [
+        "support_id",
+        "profile_id",
+        "lifecycle",
+        "authority"
+      ],
+      "properties": {
+        "support_id": {
+          "type": "string"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "lifecycle": {
+          "enum": [
+            "experimental",
+            "supported",
+            "deprecated",
+            "withdrawn"
+          ]
+        },
+        "authority": {
+          "enum": [
+            "source_declaration",
+            "verified_qualification",
+            "imported_assertion"
+          ]
+        },
+        "effective_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "qualification": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "workload_digest": {
+          "type": "string"
+        },
+        "quality_oracle_digest": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "qualified",
+            "failed",
+            "invalid",
+            "incomparable"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "workload_digest",
+        "quality_oracle_digest",
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
