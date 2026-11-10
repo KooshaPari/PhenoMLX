@@ -1,0 +1,128 @@
+{
+  "schema_version": "vnext-trace.v1",
+  "product": "PhenoMLX",
+  "experiment": "EXP-M1",
+  "infra_product_separation": true,
+  "rows": [
+    {
+      "obligation": "M-RD-001",
+      "subject": "research hypothesis",
+      "gate_dimension": "product",
+      "acceptable_evidence": [
+        "experiment_schema"
+      ]
+    },
+    {
+      "obligation": "M-RD-002",
+      "subject": "factor matrix",
+      "gate_dimension": "product",
+      "acceptable_evidence": [
+        "matched_experiment"
+      ]
+    },
+    {
+      "obligation": "M-RD-003",
+      "subject": "extension seam",
+      "gate_dimension": "product",
+      "acceptable_evidence": [
+        "custom_extension_run"
+      ]
+    },
+    {
+      "obligation": "M-RD-004",
+      "subject": "best native baseline",
+      "gate_dimension": "existence",
+      "acceptable_evidence": [
+        "sota_baseline_receipt"
+      ]
+    },
+    {
+      "obligation": "M-RD-005",
+      "subject": "custom lineage",
+      "gate_dimension": "product",
+      "acceptable_evidence": [
+        "build_source_digest"
+      ]
+    },
+    {
+      "obligation": "M-RD-006",
+      "subject": "prove path executed",
+      "gate_dimension": "product",
+      "acceptable_evidence": [
+        "activation_receipt"
+      ]
+    },
+    {
+      "obligation": "M-RD-007",
+      "subject": "research UI/state",
+      "gate_dimension": "product",
+      "acceptable_evidence": [
+        "actor_oracle"
+      ]
+    },
+    {
+      "obligation": "M-RD-008",
+      "subject": "quality hard gate",
+      "gate_dimension": "product",
+      "acceptable_evidence": [
+        "quality_oracle"
+      ]
+    },
+    {
+      "obligation": "M-RD-009",
+      "subject": "portable vs backend-specific",
+      "gate_dimension": "product",
+      "acceptable_evidence": [
+        "second_backend_or_explicit_scope"
+      ]
+    },
+    {
+      "obligation": "M-RD-010",
+      "subject": "platform matrix",
+      "gate_dimension": "later",
+      "acceptable_evidence": [
+        "install_receipts"
+      ]
+    },
+    {
+      "obligation": "M-RD-011",
+      "subject": "unsupported explicit",
+      "gate_dimension": "product",
+      "acceptable_evidence": [
+        "negative_fixture"
+      ]
+    },
+    {
+      "obligation": "M-RD-012",
+      "subject": "negative results retained",
+      "gate_dimension": "product",
+      "acceptable_evidence": [
+        "research_history"
+      ]
+    },
+    {
+      "obligation": "M-RD-013",
+      "subject": "bootstrap before custom",
+      "gate_dimension": "existence",
+      "acceptable_evidence": [
+        "bootstrap_ledger"
+      ]
+    },
+    {
+      "obligation": "M-RD-014",
+      "subject": "stock vs integrated vs custom",
+      "gate_dimension": "product",
+      "acceptable_evidence": [
+        "comparison_receipt"
+      ]
+    },
+    {
+      "obligation": "M-RD-015",
+      "subject": "requested/applied/measured/inferred",
+      "gate_dimension": "infra",
+      "acceptable_evidence": [
+        "profile_receipt"
+      ]
+    }
+  ]
+}

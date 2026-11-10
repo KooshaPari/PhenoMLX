@@ -1,0 +1,158 @@
+{
+  "schema_version": "trace.v2",
+  "product": "PhenoMLX",
+  "relation_authority_rule": "integration does not imply ownership",
+  "rows": [
+    {
+      "obligation": "M-OB-021",
+      "slice": "VS-02",
+      "blocking": true,
+      "subject": "profile schema migration",
+      "oracles": [
+        "history links preserved",
+        "old identity not rewritten"
+      ],
+      "acceptable_evidence": [
+        "schema_test"
+      ]
+    },
+    {
+      "obligation": "M-OB-022",
+      "slice": "VS-02",
+      "blocking": true,
+      "subject": "capability authority scope",
+      "oracles": [
+        "authority/version/model explicit",
+        "source declaration not qualification"
+      ],
+      "acceptable_evidence": [
+        "schema_integration"
+      ]
+    },
+    {
+      "obligation": "M-OB-023",
+      "slice": "VS-02",
+      "blocking": true,
+      "subject": "model tokenizer template compatibility",
+      "oracles": [
+        "exact match",
+        "mismatch invalidates reuse"
+      ],
+      "acceptable_evidence": [
+        "integration_test"
+      ]
+    },
+    {
+      "obligation": "M-OB-024",
+      "slice": "VS-03",
+      "blocking": true,
+      "subject": "scheduler identity",
+      "oracles": [
+        "policy change new profile/evidence"
+      ],
+      "acceptable_evidence": [
+        "native_test"
+      ]
+    },
+    {
+      "obligation": "M-OB-025",
+      "slice": "VS-03",
+      "blocking": true,
+      "subject": "cache warmth declaration",
+      "oracles": [
+        "warm/cold explicit",
+        "no relabel"
+      ],
+      "acceptable_evidence": [
+        "native_benchmark"
+      ]
+    },
+    {
+      "obligation": "M-OB-026",
+      "slice": "VS-03",
+      "blocking": true,
+      "subject": "resource collector scope",
+      "oracles": [
+        "method/scope explicit",
+        "process != device total"
+      ],
+      "acceptable_evidence": [
+        "measurement_test"
+      ]
+    },
+    {
+      "obligation": "M-OB-027",
+      "slice": "VS-02",
+      "blocking": true,
+      "subject": "structured unsupported",
+      "oracles": [
+        "unsupported state",
+        "no generic failure laundering"
+      ],
+      "acceptable_evidence": [
+        "adapter_test"
+      ]
+    },
+    {
+      "obligation": "M-OB-028",
+      "slice": "VS-02",
+      "blocking": true,
+      "subject": "explicit fallback degradation",
+      "oracles": [
+        "new realized profile",
+        "no silent precision/engine change"
+      ],
+      "acceptable_evidence": [
+        "adapter_native"
+      ]
+    },
+    {
+      "obligation": "M-OB-029",
+      "slice": "VS-03",
+      "blocking": true,
+      "subject": "workload population identity",
+      "oracles": [
+        "distribution digest changes"
+      ],
+      "acceptable_evidence": [
+        "workload_test"
+      ]
+    },
+    {
+      "obligation": "M-OB-030",
+      "slice": "VS-04",
+      "blocking": true,
+      "subject": "support limitations",
+      "oracles": [
+        "excluded configs queryable"
+      ],
+      "acceptable_evidence": [
+        "schema_query"
+      ]
+    },
+    {
+      "obligation": "M-OB-031",
+      "slice": "VS-04",
+      "blocking": true,
+      "subject": "extension bounds",
+      "oracles": [
+        "safe disable/fail outside envelope"
+      ],
+      "acceptable_evidence": [
+        "native_test"
+      ]
+    },
+    {
+      "obligation": "M-OB-032",
+      "slice": "VS-04",
+      "blocking": true,
+      "subject": "selection incomparability",
+      "oracles": [
+        "no forced winner"
+      ],
+      "acceptable_evidence": [
+        "selection_test"
+      ]
+    }
+  ]
+}

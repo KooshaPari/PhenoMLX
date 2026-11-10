@@ -1,0 +1,75 @@
+{
+  "schema_version": "slice-dag.v1",
+  "product": "PhenoMLX",
+  "slices": [
+    {
+      "id": "VS-01",
+      "title": "typed two-engine profile",
+      "status": "implementation_ready_blocked_runtime",
+      "depends_on": [],
+      "unlock": [
+        "two_real_engines_common_model"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "VS-02",
+      "title": "profile and capability compatibility",
+      "status": "schema_work_allowed",
+      "depends_on": [
+        "VS-01:schema"
+      ],
+      "obligations": [
+        "M-OB-021",
+        "M-OB-022",
+        "M-OB-023",
+        "M-OB-027",
+        "M-OB-028"
+      ],
+      "allowed_before_vs01_native": [
+        "schema_migration",
+        "capability_authority_types",
+        "unsupported_state_fixtures"
+      ],
+      "forbidden_before_vs01_native": [
+        "claim_cross_engine_support_validated"
+      ]
+    },
+    {
+      "id": "VS-03",
+      "title": "qualification measurement rigor",
+      "status": "blocked",
+      "depends_on": [
+        "VS-01:native"
+      ],
+      "obligations": [
+        "M-OB-024",
+        "M-OB-025",
+        "M-OB-026",
+        "M-OB-029"
+      ],
+      "unlock": [
+        "matched_real_workload",
+        "resource_collectors"
+      ]
+    },
+    {
+      "id": "VS-04",
+      "title": "support extension selection lifecycle",
+      "status": "blocked",
+      "depends_on": [
+        "VS-01:native",
+        "VS-02:schema"
+      ],
+      "obligations": [
+        "M-OB-030",
+        "M-OB-031",
+        "M-OB-032"
+      ],
+      "unlock": [
+        "qualified_profiles",
+        "extension_baseline_if_applicable"
+      ]
+    }
+  ]
+}

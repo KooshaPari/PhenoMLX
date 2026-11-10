@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PhenoMLX Speculative Qualification Experiment v0",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "experiment_id",
+    "target_model",
+    "draft",
+    "workload",
+    "baseline",
+    "hypothesis",
+    "measurements",
+    "acceptance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "phenomlx.speculative-qualification.v0"
+    },
+    "experiment_id": {
+      "type": "string"
+    },
+    "target_model": {
+      "type": "object",
+      "required": [
+        "ref",
+        "revision"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "tokenizer_digest": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "draft": {
+      "type": "object",
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "model",
+            "mtp",
+            "ngram",
+            "other"
+          ]
+        },
+        "ref": {
+          "type": "string"
+        },
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "configuration": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "workload": {
+      "type": "object",
+      "required": [
+        "population_digest",
+        "prompts"
+      ],
+      "properties": {
+        "population_digest": {
+          "type": "string"
+        },
+        "prompts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "context_distribution": {
+          "type": "object"
+        },
+        "generation_distribution": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "baseline": {
+      "type": "object",
+      "required": [
+        "engine",
+        "mode"
+      ],
+      "properties": {
+        "engine": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "no_speculation",
+            "engine_native_speculation",
+            "unsloth_native"
+          ]
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "hypothesis": {
+      "type": "object",
+      "required": [
+        "expected_acceptance",
+        "expected_speedup",
+        "falsification"
+      ],
+      "properties": {
+        "expected_acceptance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "expected_speedup": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "falsification": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "measurements": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "acceptance_rate",
+          "accepted_tokens_per_step",
+          "draft_cost",
+          "target_verification_cost",
+          "ttft",
+          "itl",
+          "tokens_per_second",
+          "end_to_end_latency",
+          "quality",
+          "memory"
+        ]
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "required": [
+        "quality_gate",
+        "minimum_practical_speedup"
+      ],
+      "properties": {
+        "quality_gate": {
+          "type": "object"
+        },
+        "minimum_practical_speedup": {
+          "type": "number",
+          "minimum": 0
+        },
+        "prediction_error_tolerance": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

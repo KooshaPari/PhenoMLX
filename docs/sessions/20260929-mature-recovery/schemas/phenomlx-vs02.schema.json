@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PhenoMLX VS02 Capability Compatibility",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "profile_schema_version",
+    "capabilities",
+    "compatibility"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "phenomlx.vs02.1"
+    },
+    "profile_schema_version": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "state",
+          "authority"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "supported",
+              "unsupported",
+              "degraded",
+              "unknown",
+              "not_applicable"
+            ]
+          },
+          "authority": {
+            "enum": [
+              "source_declaration",
+              "verified_observation",
+              "verified_qualification",
+              "imported_assertion"
+            ]
+          },
+          "engine_version_scope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model_scope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "required": [
+        "model_ref",
+        "tokenizer_ref",
+        "chat_template_ref"
+      ],
+      "properties": {
+        "model_ref": {
+          "type": "string"
+        },
+        "tokenizer_ref": {
+          "type": "string"
+        },
+        "chat_template_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fallback_policy": {
+          "enum": [
+            "forbid",
+            "explicit_only",
+            "allowed_with_new_realized_profile"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

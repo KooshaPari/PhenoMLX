@@ -1,0 +1,33 @@
+{
+  "schema_version": "execution-gate.v1",
+  "product": "PhenoMLX",
+  "work_unit": "SPEC-TELEMETRY",
+  "prerequisites": [
+    {
+      "id": "schema",
+      "state": "ready"
+    },
+    {
+      "id": "collector_seam",
+      "state": "implementation_required"
+    },
+    {
+      "id": "live_active_spec_path",
+      "state": "runtime_required"
+    },
+    {
+      "id": "quality_oracle",
+      "state": "integration_required"
+    }
+  ],
+  "subunit_pass_requires": [
+    "method activation proof",
+    "measured proposed/accepted counters",
+    "exact runtime identity",
+    "raw evidence"
+  ],
+  "product_pass_requires": [
+    "EXP-M1 hypothesis experiment vs best baseline"
+  ],
+  "work_unit_completion_is_product_completion": false
+}

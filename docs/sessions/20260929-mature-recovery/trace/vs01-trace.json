@@ -1,0 +1,134 @@
+{
+  "schema_version": "trace.v1",
+  "product": "PhenoMLX",
+  "slice": "VS-01",
+  "baseline_ref": "PROVISIONAL-SEMANTIC-BASELINE-V1.md",
+  "rows": [
+    {
+      "obligation": "M-OB-001",
+      "blocking": true,
+      "subject": "exact RuntimeProfile identity",
+      "implementation": [
+        "RequestedProfile",
+        "RealizedProfile",
+        "BackendBase adapters"
+      ],
+      "oracle": [
+        "fallback changes realized identity",
+        "version/build/profile captured"
+      ],
+      "acceptable_evidence": [
+        "native_two_engine_receipt"
+      ],
+      "insufficient": [
+        "BackendCapabilities only"
+      ]
+    },
+    {
+      "obligation": "M-OB-005",
+      "blocking": true,
+      "subject": "matched qualification",
+      "implementation": [
+        "QualificationWorkload",
+        "QualificationReceipt"
+      ],
+      "oracle": [
+        "same model/tokenizer/prompts/hardware/cache state"
+      ],
+      "acceptable_evidence": [
+        "native_two_engine_benchmark"
+      ],
+      "insufficient": [
+        "historical unrelated benchmark"
+      ]
+    },
+    {
+      "obligation": "M-OB-007",
+      "blocking": true,
+      "subject": "quality hard gate",
+      "implementation": [
+        "QualificationReceipt"
+      ],
+      "oracle": [
+        "perf win with quality regression rejected"
+      ],
+      "acceptable_evidence": [
+        "native_quality_oracle"
+      ],
+      "insufficient": [
+        "latency alone"
+      ]
+    },
+    {
+      "obligation": "M-OB-012",
+      "blocking": true,
+      "subject": "requested vs realized fallback",
+      "implementation": [
+        "adapter wrapper"
+      ],
+      "oracle": [
+        "requested vllm realized llama explicit"
+      ],
+      "acceptable_evidence": [
+        "native_or_adapter_integration"
+      ],
+      "insufficient": [
+        "silent fallback"
+      ]
+    },
+    {
+      "obligation": "M-OB-016",
+      "blocking": true,
+      "subject": "stream terminal state",
+      "implementation": [
+        "request/stream adapter"
+      ],
+      "oracle": [
+        "partial failure not complete"
+      ],
+      "acceptable_evidence": [
+        "native_lifecycle_test"
+      ],
+      "insufficient": [
+        "text presence"
+      ]
+    },
+    {
+      "obligation": "M-OB-017",
+      "blocking": true,
+      "subject": "support vs admission",
+      "implementation": [
+        "SupportEnvelope",
+        "CapacitySnapshot",
+        "AdmissionDecision"
+      ],
+      "oracle": [
+        "supported profile may reject current admission"
+      ],
+      "acceptable_evidence": [
+        "native_capacity_test"
+      ],
+      "insufficient": [
+        "static VRAM heuristic"
+      ]
+    },
+    {
+      "obligation": "M-OB-020",
+      "blocking": true,
+      "subject": "observability truthfulness",
+      "implementation": [
+        "observability map"
+      ],
+      "oracle": [
+        "opaque facts remain unknown"
+      ],
+      "acceptable_evidence": [
+        "schema_validation",
+        "native_receipt"
+      ],
+      "insufficient": [
+        "fabricated hardware/cache fields"
+      ]
+    }
+  ]
+}

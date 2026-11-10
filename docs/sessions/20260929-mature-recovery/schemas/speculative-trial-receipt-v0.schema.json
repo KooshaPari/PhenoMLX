@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PhenoMLX Speculative TrialReceipt v0",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "trial_id",
+    "subject",
+    "runtime",
+    "method",
+    "workload",
+    "telemetry",
+    "quality",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "phenomlx.spec-trial.v0"
+    },
+    "trial_id": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "object",
+      "required": [
+        "target_model",
+        "target_revision",
+        "tokenizer_digest"
+      ],
+      "properties": {
+        "target_model": {
+          "type": "string"
+        },
+        "target_revision": {
+          "type": "string"
+        },
+        "tokenizer_digest": {
+          "type": "string"
+        },
+        "draft_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "draft_revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "engine",
+        "version",
+        "effective_config_digest",
+        "method_requested",
+        "method_applied"
+      ],
+      "properties": {
+        "engine": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "build_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effective_config_digest": {
+          "type": "string"
+        },
+        "method_requested": {
+          "type": "string"
+        },
+        "method_applied": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "activation_proof": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fallback_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "method": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "none",
+            "ngram",
+            "draft_model",
+            "eagle",
+            "mtp",
+            "dflash",
+            "dspark",
+            "other"
+          ]
+        },
+        "configuration": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "workload": {
+      "type": "object",
+      "required": [
+        "population_digest",
+        "n"
+      ],
+      "properties": {
+        "population_digest": {
+          "type": "string"
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "telemetry": {
+      "type": "object",
+      "required": [
+        "support_state"
+      ],
+      "properties": {
+        "support_state": {
+          "enum": [
+            "active_measured",
+            "unsupported",
+            "fallback",
+            "unknown"
+          ]
+        },
+        "proposed_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "accepted_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "acceptance_rate": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "accepted_tokens_per_step": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "draft_time_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "verify_time_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "ttft_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "itl_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "decode_tok_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "memory_mb": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "quality": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pass",
+            "fail",
+            "unknown",
+            "invalid"
+          ]
+        },
+        "oracle_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metrics": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "label",
+        "raw_refs"
+      ],
+      "properties": {
+        "label": {
+          "enum": [
+            "live verified",
+            "reported",
+            "inferred",
+            "synthetic",
+            "historical"
+          ]
+        },
+        "raw_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

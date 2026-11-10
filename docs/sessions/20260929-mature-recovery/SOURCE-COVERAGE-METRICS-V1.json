@@ -1,0 +1,12 @@
+{
+  "schema_version": "source-coverage-metrics.v1",
+  "product": "PhenoMLX",
+  "total_source_families": 15,
+  "resolved_closed": 2,
+  "high_but_not_closed": 6,
+  "partial_or_open": 6,
+  "bounded_unavailable": 1,
+  "closed_fraction": 0.13333333333333333,
+  "warning": "closed_fraction measures source-family resolution only. It is NOT specification, implementation, readiness, journey, or product completion.",
+  "rule": "Only CLOSED counts in numerator. HIGH/PARTIAL-HIGH remains outside numerator until contradictions, obligations, implementation/journey and verification consequences are resolved."
+}
