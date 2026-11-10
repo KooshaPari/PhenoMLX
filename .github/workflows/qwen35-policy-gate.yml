@@ -74,6 +74,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Verify qwen35 policy contract present
+        run: |
+          yaml=evals/harbor/jobs/qwen35-policy-local.yaml
+          if [ ! -f "$yaml" ]; then
+            echo "::error::policy contract missing: $yaml"
+            exit 1
+          fi
+
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
         with:
