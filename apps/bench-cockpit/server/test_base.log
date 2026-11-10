@@ -1,0 +1,5 @@
+--- FAIL: TestPortageCommandEnvironmentPrependsLocalBin (0.00s)
+    portage_bridge_test.go:45: PATH entry="PATH=/usr/local/bin;/usr/bin:/bin"
+FAIL
+FAIL	github.com/KooshaPari/phenotype-omlx-tmp/apps/bench-cockpit/server	2.020s
+FAIL

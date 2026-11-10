@@ -1,0 +1,7 @@
+2026/08/15 03:49:11 dist dir  : ../dist
+2026/08/15 03:49:11 data path : C:\Users\koosh\pheno-harness\bench\results\minimax-m3-full\matrix.json
+2026/08/15 03:49:11 port      : 8091
+2026/08/15 03:49:11 listening on :8091
+2026/08/15 03:49:11 watching C:\Users\koosh\pheno-harness\bench\results\minimax-m3-full for changes
+2026/08/15 03:49:16 GET /api/health 200 0s
+2026/08/15 03:49:16 GET /api/state 200 47.051ms

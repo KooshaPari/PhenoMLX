@@ -1,0 +1,45 @@
+2026/08/09 01:36:12 dist dir  : ../dist
+2026/08/09 01:36:12 data path : C:\Users\koosh\pheno-harness\bench\results\minimax-m3-full\matrix.json
+2026/08/09 01:36:12 extra data: C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl
+2026/08/09 01:36:12 port      : 8090
+2026/08/09 01:36:12 listening on :8090
+Dashboard -> http://localhost:8090
+2026/08/09 01:36:12 watching C:\Users\koosh\pheno-harness\bench\results\minimax-m3-full for changes
+2026/08/09 01:36:35 GET / 200 8.566271s
+2026/08/09 01:36:47 GET /api/health 200 1.009ms
+2026/08/09 01:36:48 GET /api/summary 200 525┬╡s
+2026/08/09 01:36:48 GET / 200 1.012ms
+2026/08/09 01:37:04 GET / 200 523┬╡s
+2026/08/09 01:37:04 GET /assets/index-CwHfv-vg.css 200 224.908ms
+2026/08/09 01:37:04 GET /assets/index-BZ8SQ-R_.js 200 465.502ms
+2026/08/09 01:37:04 GET /assets/react-vendor-CQeFXaZh.js 200 497.984ms
+2026/08/09 01:37:20 ws client connected (1 total)
+2026/08/09 01:37:20 warn: skip extra data C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: unmarshal C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: invalid character '{' after top-level value
+2026/08/09 01:37:20 warn: skip extra data C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: unmarshal C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: invalid character '{' after top-level value
+2026/08/09 01:37:20 GET /api/state 200 40.359ms
+2026/08/09 01:38:08 warn: skip extra data C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: unmarshal C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: invalid character '{' after top-level value
+2026/08/09 01:38:08 GET /api/state 200 57.164ms
+2026/08/09 01:38:08 warn: skip extra data C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: unmarshal C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: invalid character '{' after top-level value
+2026/08/09 01:38:08 GET /api/state 200 6.897ms
+2026/08/09 01:38:08 warn: skip extra data C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: unmarshal C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: invalid character '{' after top-level value
+2026/08/09 01:38:08 GET /api/state 200 30.554ms
+2026/08/09 02:05:48 ws client disconnected (0 total)
+2026/08/09 02:05:49 GET /api/ws (ws-upgrade) 28m28.841207s
+2026/08/09 02:05:51 GET / 200 586.504ms
+2026/08/09 02:05:51 ws client connected (1 total)
+2026/08/09 02:05:52 ws client connected (2 total)
+2026/08/09 02:05:52 warn: skip extra data C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: unmarshal C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: invalid character '{' after top-level value
+2026/08/09 02:05:52 warn: skip extra data C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: unmarshal C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: invalid character '{' after top-level value
+2026/08/09 02:05:52 warn: skip extra data C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: unmarshal C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: invalid character '{' after top-level value
+2026/08/09 02:05:52 ws initial notify: write tcp 127.0.0.1:8090->127.0.0.1:60988: wsasend: An established connection was aborted by the software in your host machine.
+2026/08/09 02:05:52 ws client disconnected (1 total)
+2026/08/09 02:05:52 GET /api/ws (ws-upgrade) 2.010656s
+2026/08/09 02:05:52 GET /api/state 200 736.875ms
+2026/08/09 02:05:52 warn: skip extra data C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: unmarshal C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: invalid character '{' after top-level value
+2026/08/09 02:05:52 GET /api/state 200 1.513ms
+2026/08/09 02:05:52 warn: skip extra data C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: unmarshal C:\Users\koosh\pheno-harness\bench\results\stock-vs-ours\per_cell.jsonl: invalid character '{' after top-level value
+2026/08/09 02:05:52 GET /api/state 200 4.512ms
+2026/08/09 03:33:34 ws unexpected close: websocket: close 1006 (abnormal closure): unexpected EOF
+2026/08/09 03:33:36 ws client disconnected (0 total)
+2026/08/09 03:33:36 GET /api/ws (ws-upgrade) 1h27m44.398807s
+exit status 0xffffffff
